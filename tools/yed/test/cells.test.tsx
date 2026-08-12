@@ -75,15 +75,43 @@ describe("yed2 cells — the projection is visible", () => {
     expect(container.querySelector("[data-testid=y2-source]")?.textContent).toContain("- name: Eurasia");
   });
 
+  it("a scalar's anchor draws LEFT of the value (the YAML order) — at rest AND on the descend face", () => {
+    // at rest: `a : [&b] 12` — the anchors cell precedes the token on the row
+    const rest = stateFor("a: 12\n  &b\n");
+    const { container, unmount } = render(<EditorView state={rest} setState={() => {}} />);
+    const row = container.querySelector(".y2-cell[data-kind=anchors]")!.closest(".y2-row")!;
+    const order = Array.from(row.querySelectorAll("[data-kind]")).map((el) => el.getAttribute("data-kind"));
+    expect(order.indexOf("anchors")).toBeGreaterThanOrEqual(0);
+    expect(order.indexOf("anchors")).toBeLessThan(order.indexOf("token"));
+    unmount();
+    // mid-DESCEND (the reported disappearance): the anchors stay drawn on the value row
+    const mid = { ...rest, cursor: { at: "hole", path: [0], index: 0, text: "", key: null } as EditorState["cursor"] };
+    const r2 = render(<EditorView state={mid} setState={() => {}} />);
+    expect(r2.container.querySelector(".y2-cell[data-kind=anchors]"), "the anchor vanished mid-descend").toBeTruthy();
+  });
+
+  it("the DESCEND face adds NO frames the committed state lacks (the reported block>omni>block)", () => {
+    // Enter stepped into a committed plain scalar: the projection is the FINAL state plus one
+    // candidate hole row — never an omni/block pyramid that vanishes on commit
+    let state = initialState();
+    for (const k of parseScript("k: v{Enter}")) state = applyKey(state, "ch" in k ? { key: k.ch } : k);
+    expect(state.cursor).toMatchObject({ at: "hole", path: [0], index: 0 });
+    const { container } = render(<EditorView state={state} setState={() => {}} />);
+    expect(container.querySelectorAll(".y2-cell.y2-omni").length).toBe(0);
+    expect(container.querySelector(".y2-row.y2-indent .y2-cell.y2-hole")).toBeTruthy(); // the candidate row
+  });
+
   it("the `- ` decision is VISIBLE on the hole, and block rows draw their markers", () => {
     let state = initialState();
     for (const k of parseScript("- a{Enter}{ShiftTab}- ")) state = applyKey(state, "ch" in k ? { key: k.ch } : k);
     const { container } = render(<EditorView state={state} setState={() => {}} />);
-    const hole = container.querySelector(".y2-cell.y2-hole");
-    expect(hole?.querySelector(".y2-punct")?.textContent).toBe("- "); // the ordinal decision, drawn
+    // the `- ` decision MATERIALIZES the keyless provisional row (template-cells): its marker
+    // is a real row marker, and the value cell wears the temp frame
+    const temp = container.querySelector(".y2-cell.y2-temp");
+    expect(temp).not.toBeNull();
     const doc = container.querySelector("[data-testid=y2-doc]")!;
     const dashes = Array.from(doc.querySelectorAll(".y2-punct")).filter((p) => p.textContent === "- ");
-    expect(dashes.length).toBe(2); // the committed keyless row's marker + the hole's own
+    expect(dashes.length).toBe(2); // the committed keyless row's marker + the provisional row's own
   });
 
   it("the REGISTRY plugs a cell by FORMAT — the prose/math seam, format before kind", () => {
@@ -164,11 +192,12 @@ describe("yed2 cells — a BLOCK container's & anchors are HEAD rows, and the co
     expect(rows.indexOf(anchorsRow)).toBeLessThan(rows.indexOf(bRow));
   });
 
-  it("the WALK agrees: key → anchors → children for an anchored block container", () => {
+  it("the WALK agrees: key → anchors → head slot → children for an anchored block container", () => {
     const state = stateFor(DOC);
     expect(positionsOf(state.doc)).toEqual([
       { at: "key", path: [0] },
-      { at: "anchors", path: [0] },
+      { at: "anchors", path: [0] }, // the anchor stands where the value BEGINS (the YAML order)
+      { at: "into", path: [0] },    // the colon's right IS a walk stop (arrows, not only the mouse)
       { at: "key", path: [0, 0] },
       { at: "token", path: [0, 0] },
       { at: "key", path: [0, 1] },
@@ -183,7 +212,8 @@ describe("yed2 cells — a BLOCK container's & anchors are HEAD rows, and the co
     // the key row of the wrapped block — mousedown on the row itself (the blank), not the key cell
     const keyRow = container.querySelector(".y2-k")!.closest(".y2-row")!;
     fireEvent.mouseDown(keyRow);
-    expect(latest.cursor).toEqual({ at: "hole", path: [0], index: 0, text: "", key: null });
+    // the click lands the VACANT-HEAD face (the `head` bit): the hole opens ON the key row
+    expect(latest.cursor).toEqual({ at: "hole", path: [0], index: 0, text: "", key: null, head: true });
   });
 });
 

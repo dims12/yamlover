@@ -274,4 +274,44 @@ describe("serverPathOf — the cell's wire address matches the ops' addressing l
     const doc = parseSource("a: 1\n");
     expect(() => serverPathOf(":doc", doc, [5])).toThrow();
   });
+
+  it("a positional address counts only FLUSHED rows — temporary siblings are invisible to the wire", () => {
+    const doc = parseSource("- x\n- y\n");
+    const entries = (doc.root as { entries: { meta?: object }[] }).entries;
+    entries.splice(1, 0, { ...(entries[0] as object), meta: { temporary: "ordinal" } } as never);
+    // local rows: [x, TEMP, y] — y's wire ordinal is still 1
+    expect(serverPathOf(":doc", doc, [2])).toBe(":doc:1");
+  });
+});
+
+describe("the TEMPORARY gate (template-cells) — a provisional row never reaches the wire", () => {
+  const markTemp = (doc: ReturnType<typeof parseSource>, idx: number, flag: true | "ordinal" = true) => {
+    const entries = (doc.root as { entries: { meta?: object; value?: unknown }[] }).entries;
+    entries[idx].meta = { ...(entries[idx].meta ?? {}), temporary: flag };
+    entries[idx].value = { kind: "scalar", value: null };
+    return doc;
+  };
+
+  it("a temporary entry in NEXT produces zero ops (the mid-typing flush is silent)", () => {
+    const prev = parseSource("a: 1\n");
+    const next = markTemp(parseSource("a: 1\nb: 2\n"), 1);
+    const d = diffToOps(":doc", prev, next);
+    expect(d.ops).toEqual([]);
+    expect(d.fallback).toBe(false);
+  });
+
+  it("a temporary entry in PREV diffs as the plain insert its commit always was", () => {
+    // the row was withheld while provisional; its value commit cleared the flag — the diff
+    // sees exactly the insert the old flow produced (never a null-valued splice)
+    const prev = markTemp(parseSource("a: 1\nb: 2\n"), 1);
+    const next = parseSource("a: 1\nb: 2\n");
+    const d = diffToOps(":doc", prev, next);
+    expect(d.ops).toEqual([{ path: ":doc:1", op: "insert", yamlover: "2", key: "b" }]);
+  });
+
+  it("an ordinal temporary (`- `) is withheld the same way", () => {
+    const prev = parseSource("- x\n");
+    const next = markTemp(parseSource("- x\n- y\n"), 1, "ordinal");
+    expect(diffToOps(":doc", prev, next).ops).toEqual([]);
+  });
 });

@@ -3,4 +3,9 @@ description: the empty_cell_of_origin state (a pseudo-state)
 - >
   A pseudo-state - the projected structure (sigil, braces, marker) is dismantled and the cell
   returns to the hole it was born from; the document root returns to the `empty` state, an entry
-  returns to `entry_hole`
+  returns to `entry_hole`. A LEAF value emptied character by character takes its MARKER with it
+  on the next press - `a: 11` deleted down reads `a: |` and one more Backspace gives `a` as
+  undecided text (the text editor's expectation; the characters were the value's level, so a
+  stop at a named null row would charge a press for a level the eye cannot see). A CONTAINER
+  value or an omni's fields are real levels: their removal keeps the name for one press
+  (committed labour is never dropped)

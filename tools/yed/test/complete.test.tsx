@@ -116,7 +116,9 @@ describe("the dropdown over the portion cells - the debug editor's pointer entra
   it("`*` pops the hints; typing filters them; the grammar is never gated", async () => {
     render(<Harness />);
     await act(async () => { domType("*"); });
-    expect(lastState.cursor).toMatchObject({ at: "hole", ref: { ladder: 0, portions: [""], active: 0 } });
+    // the `*` decision materializes the keyless PROVISIONAL row (template-cells) - the
+    // portions ride the PICK cursor over it
+    expect(lastState.cursor).toMatchObject({ at: "pick", path: [2], ref: { ladder: 0, portions: [""], active: 0 } });
     expect(dropdown(), "the `*` decision must pop the document's keys").toBeTruthy();
     expect(rows()).toEqual(["pets", "owner"]);
     await act(async () => { domType("ow"); });
@@ -182,7 +184,8 @@ describe("the dropdown over the portion cells - the debug editor's pointer entra
     await act(async () => { fireEvent.keyDown(focused(), { key: ":" }); });
     expect(lastState.cursor).toMatchObject({ ref: { portions: ["pets", ""], active: 1 } });
     expect(rows()).toEqual(["[0]", "[1]"]);
-    expect(sourceOf(lastState.doc)).toBe(DOC); // still mid-entry - nothing committed
+    // still mid-entry - only the temporary row stands (wire-withheld), the reference is cursor-held
+    expect(sourceOf(lastState.doc)).toBe(DOC + "-\n");
   });
 
   it("TAB never cycles - it accepts the suggestion and FINISHES the reference", async () => {

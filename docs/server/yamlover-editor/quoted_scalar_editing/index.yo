@@ -1,0 +1,32 @@
+Quoted scalar editing
+description: the quoted_scalar_editing state - the paired-closer cell
+- >
+  The QUOTED CELL - the paired-closer template. A `"` or `'` typed in VALUE position (the marker
+  is drawn, or a flow seq element) materializes the EMPTY QUOTED SCALAR: the opening quote is
+  drawn as chrome, the caret stands in the INNER text, and the CLOSING quote is PROJECTED from
+  the node's own style - an unterminated quote cannot exist, exactly as `{`/`[` project their
+  closers. `""` is wire-legal, so the row flushes eagerly (no temporary). The quotes SHIELD the
+  content: `,`, `]`, `}`, `:` and the OTHER quote style are ordinary characters here - the flow
+  grammar never sees them. Exactly one key closes: the MATCHING quote with the caret at the end -
+  the `]`/`}` step-past law applied to strings. The typed content survives verbatim; the quote
+  STYLE rides the raw in block form (flow re-spells strings canonically - the serializer's flow
+  law). A committed simply-quoted scalar REOPENS as this same cell: editing and entering share
+  the face. At an UNNAMED entry hole a quote stays a token character (the quoted-KEY spelling
+  types through) - the amorphous hole survives there
+- !!<*yamlover: $defs: table>
+  header:
+    - Event
+      width: 2
+    - 'Condition / note'
+      width: 4
+    - 'Next state'
+      width: 2
+  - ['`alphanumeric`', 'including the flow separators and the other quote style - the shielding', '`quoted_scalar_editing` (stays)']
+  - ['`quote`', 'the MATCHING style, caret at the end - commit, step past the projected closer', '[scalar_committed](*::server:yamlover-editor:scalar_committed)']
+  - ['`quote`', 'mid-text, or the other style - content', '`quoted_scalar_editing` (stays)']
+  - ['`enter`', 'commit in place', '[entry_hole](*::server:yamlover-editor:entry_hole)']
+  - ['`backspace`', 'the cell emptied - the QUOTE decision undoes (one press, one level): back to the provisional value cell', '[value_hole](*::server:yamlover-editor:value_hole)']
+  - ['`backspace`', 'caret at the head, text stands', '[focus_prev](*::server:yamlover-editor:focus_prev)']
+  - ['`tab`', '', '[focus_next](*::server:yamlover-editor:focus_next)']
+  - ['`up_arrow`', '', '[focus_prev](*::server:yamlover-editor:focus_prev)']
+  - ['`down_arrow`', '', '[focus_next](*::server:yamlover-editor:focus_next)']

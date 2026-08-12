@@ -11,19 +11,35 @@ description: the source projection's typing grammar, one state per subchapter
   editor](*::server:editor)).
 - >
   **Conventions.** `alphanumeric` covers letters, digits and any ordinary character that starts or
-  extends a plain token - QUOTES INCLUDED: yed projects no quote glyphs and has no quote mode; a
-  `"` is a character of the token, and an authored-quoted token commits with its spelling kept
-  (raw-first). The keyed trigger mirrors how one types yamlover SOURCE - `key_colon_space` (a
+  extends a plain token. QUOTES split by position: in VALUE position (`quote` - the marker is
+  drawn, or a flow seq element) a `"`/`'` opens the [quoted
+  cell](*::server:yamlover-editor:quoted_scalar_editing) - the paired-closer template; at an
+  UNNAMED entry hole a quote is still a character of the token (the quoted-KEY spelling `"a b":
+  1` types through), and an authored-quoted token commits with its spelling kept (raw-first).
+  The keyed trigger mirrors how one types yamlover SOURCE - `key_colon_space` (a
   word, the colon, a space) puts the value INLINE on the same row, while `key_colon_enter` (the
   colon confirmed by Enter) puts the value on the NEXT rows. In VALUE position the same triggers
   open a nested structure COMPACTLY (`- name: `, `- - ` and their kin keep editing on the SAME
   row); only Enter breaks to the next row. A `key_colon` whose key ALREADY exists in the node is
   rejected with the error ring - keys are unique per node. Backspace in an empty value cell UNDOES
   the last structural token (the colon or the dash), never the whole entry. Clicking any cell
-  enters that cell's focused state. A committed KEY is itself an editable cell - editing its text
+  enters that cell's focused state - and EVERY cell the eye sees is also an arrow-key stop: the
+  slot right of a `key:` whose value wraps below (the way back into the container's head, where
+  a bare scalar makes the omni self value) is a position of the walk, not a mouse-only affordance. A committed KEY is itself an editable cell - editing its text
   RENAMES the key on commit (the server routes the rename by STORAGE), and a duplicate key is
   rejected with the ring. Commits never lose focus - every transition that persists a value ALSO
   names the cell the caret lands in.
+- >
+  **THE TEMPLATE-CELLS RULE.** A DECIDED row is DRAWN **and WRITTEN**: `key_colon_space` and
+  `dash_space` materialize the entry in the local document the moment the marker is typed - a
+  null value, `meta.temporary` on the entry - so the cells on screen are the real node's own
+  faces (the `{`/`[` eager law made universal, `tools/yed/src/template.ts`). The value_hole
+  states below are that entry's PROVISIONAL VALUE CELL; the key economics (Enter, Tab,
+  Shift-Tab, the Backspace ladder) are unchanged. A temporary row is WITHHELD from the wire
+  until its first value commit (`yed-sync` prunes it from every diff - a wire-illegal `a:`
+  line never flushes); walking away leaves it standing, drawn with the temp frame in debug
+  yed. Only UNDECIDED text - a prefix that has not chosen a shape - still lives in the cursor
+  alone, and may wait there.
 - >
   **THE PROJECTION RULE.** One machine, several PROJECTIONS. The pure yed state
   (`tools/yed/src/state.ts`: the parser IR document + the cursor) is what edits; a projection only

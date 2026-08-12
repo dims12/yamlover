@@ -13,8 +13,42 @@ import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode 
 import type { Cursor, Document, Entry, Node, Path, Value } from "./state";
 import { anchorDecorations, blockRawOf, bracketOf, isFlow, isSpread, schemaTextOf } from "./state";
 import { isPointer, type Comment, type Pointer } from "../../parser/ts/src/ir.ts";
+import { keyText } from "../../parser/ts/src/serialize-common.ts";
 import { blockBodyOf, blockTextFrom, type Position } from "./apply";
+import { entryAt } from "./state";
+import { isProvisionalValue } from "./template";
 import { rankHints, type Hint, type HintProvider } from "./complete";
+
+/** Is the entry at `path` a PROVISIONAL row (the template-cells doctrine's `meta.temporary`)?
+ *  Its cells wear the temp frame; the sync withholds it until the first value commit. */
+function entryTempAt(doc: Document, path: Path): boolean {
+  const e = path.length > 0 ? entryAt(doc, path) : null;
+  return Boolean((e?.meta as { temporary?: boolean | "ordinal" } | undefined)?.temporary);
+}
+
+/** A KEYED block-mapping child — the shape whose KEY ROW owns the in-place faces: the vacant
+ *  head cell (right of the colon) and the container's `&` anchors (the normalized anchor home
+ *  is the entry's own row — the same row a scalar value would sit on; `&: …` own-line is the
+ *  WIRE spelling, not the projection's). */
+function keyRowOwns(ctx: CellCtx, containerPath: Path): boolean {
+  if (containerPath.length === 0) return false;
+  const e = entryAt(ctx.doc, containerPath);
+  if (!e || e.key == null || isPointer(e.value)) return false;
+  const v = e.value as Node;
+  return v.kind === "mapping" && !isFlow(v);
+}
+
+/** THE VACANT-HEAD RULE (the template never rearranges): a KEYED block-mapping child's hole
+ *  at position 0 renders ON its key row — the cell right of the colon, where a bare scalar
+ *  will commit as the omni self value and STAY. The parent's key row draws it; the container
+ *  itself must not draw a second one as a row of its own. */
+function headHoleHere(ctx: CellCtx, containerPath: Path): boolean {
+  const c = ctx.cursor;
+  // the HEAD bit is the walk-in/click gesture; Enter drops it (row allocation) and the same
+  // hole renders as its own row below — the state says which face holds the caret
+  if (c.at !== "hole" || c.index !== 0 || c.head !== true || !pathEq(c.path, containerPath)) return false;
+  return keyRowOwns(ctx, containerPath);
+}
 
 export interface CellCtx {
   cursor: Cursor;
@@ -115,17 +149,20 @@ const toneOf = (v: unknown): "s" | "n" | "b" | "null" =>
  *  `pos` stamps data-at/data-path (the positions-law-in-DOM tests); `badge` rides inside the
  *  caption ("chapter · wrapped"); `block` marks display:block cells (titles, chunks, sections);
  *  `tone` is the scalar color class (`y2-s` …) the renderer's palette keys on. */
-export function Cell({ kind, active, refused, pos, badge, block, tone, children }: {
+export function Cell({ kind, active, refused, pos, badge, block, tone, temp, children }: {
   kind: string; active: boolean; refused: boolean;
   pos?: { at: string; path: Path };
   badge?: ReactNode;
   block?: boolean;
   tone?: string;
+  /** the PROVISIONAL region (the template-cells doctrine): a temporary entry's cells and the
+   *  undecided hole — the debug mode frames them (`.y2-debug .y2-temp`), plain does not */
+  temp?: boolean;
   children: ReactNode;
 }) {
   return (
     <span
-      className={"y2-cell y2-" + kind + (tone ? " y2-" + tone : "") + (block ? " y2-block" : "") + (active ? " y2-active" : "") + (active && refused ? " y2-refused" : "")}
+      className={"y2-cell y2-" + kind + (tone ? " y2-" + tone : "") + (block ? " y2-block" : "") + (active ? " y2-active" : "") + (active && refused ? " y2-refused" : "") + (temp ? " y2-temp" : "")}
       data-kind={kind}
       data-at={pos?.at}
       data-path={pos ? pos.path.join(".") : undefined}
@@ -355,17 +392,41 @@ function PortionCells({ ctx }: { ctx: CellCtx }) {
   );
 }
 
+/** The QUOTED CELL's one face — the `{`/`[` container model applied to strings: the outer
+ *  framed cell, the projected quote delimiters, and a REAL framed text cell between them.
+ *  Serves the VALUE cell (a token cursor with `quote`) and the ENTRY-stage cell (a hole
+ *  cursor with `quote` — the KEY interpreter inside) identically. */
+function QuotedFrame({ q, lead, temp, ctx, text, caret }: {
+  q: '"' | "'"; lead?: ReactNode; temp?: boolean; ctx: CellCtx; text: string; caret?: "start" | "end";
+}) {
+  return (
+    <Cell kind="quoted" active refused={ctx.refused} tone={toneOf("")} temp={temp}>
+      {lead}
+      <span className="y2-punct y2-quote">{q}</span>
+      <Cell kind="text" active refused={false}>
+        <CellInput value={text} ctx={ctx} autoFocus caret={caret} />
+      </Cell>
+      <span className="y2-punct y2-quote y2-quoteclose">{q}</span>
+    </Cell>
+  );
+}
+
 /** The HOLE — the entry being typed (it exists only in the cursor). Shows the named key when
  *  `k: ` already fixed it. */
 function HoleCell({ ctx }: { ctx: CellCtx }) {
   const c = ctx.cursor;
   if (c.at !== "hole") return null;
+  // the ENTRY-STAGE quoted cell — the same paired face a value position gets; only the
+  // interpreter inside differs (closing returns the spelled token to the hole)
+  if (c.quote !== undefined) {
+    return <QuotedFrame q={c.quote} ctx={ctx} text={c.text} caret={c.caret as "start" | "end" | undefined} />;
+  }
   // the `*` decision made (the ref cursor): a REFERENCE entered as PORTION cells - a server
   // registry may project the PICK kit (completion hints) over the same cursor state instead
   if (c.ref) {
     if (ctx.cells.holePick) return <>{ctx.cells.holePick({ ctx })}</>;
     return (
-      <Cell kind="pointer" active refused={ctx.refused}>
+      <Cell kind="pointer" active refused={ctx.refused} temp>
         {c.ordinal === true && <DashMark />}
         {c.key !== null && <span className="y2-k">{c.key}: </span>}
         <PortionCells ctx={ctx} />
@@ -373,7 +434,7 @@ function HoleCell({ ctx }: { ctx: CellCtx }) {
     );
   }
   return (
-    <Cell kind="hole" active refused={ctx.refused}>
+    <Cell kind="hole" active refused={ctx.refused} temp>
       {c.ordinal === true && <DashMark />}
       {c.key !== null && <span className="y2-k">{c.key}: </span>}
       <CellInput value={c.text} ctx={ctx} autoFocus caret={c.caret} />
@@ -434,6 +495,33 @@ function BlockInput({ header, body, ctx, autoFocus, caret }: { header: string; b
 
 function TokenCell({ node, path, ctx, lead }: { node: Node; path: Path; ctx: CellCtx; lead?: ReactNode }) {
   const active = ctx.cursor.at === "token" && pathEq(ctx.cursor.path, path);
+  const temp = entryTempAt(ctx.doc, path);
+  // the `*` decision at a PROVISIONAL row (the template-cells law — `*` and `&` enter the
+  // same manner): the entry exists, and the PORTION cells render as the value cell's
+  // template over the pick cursor. A server registry projects its pick kit here instead.
+  const pickHere = ctx.cursor.at === "pick" && pathEq(ctx.cursor.path, path) && (ctx.cursor as { ref?: unknown }).ref !== undefined;
+  if (pickHere && temp) {
+    return (
+      <Cell kind="pointer" active refused={ctx.refused} temp>
+        {lead}
+        {ctx.cells.holePick ? ctx.cells.holePick({ ctx }) : <PortionCells ctx={ctx} />}
+      </Cell>
+    );
+  }
+  // the QUOTED cell (the paired-closer template): built EXACTLY like the `{`/`[` container
+  // face — the outer frame, the projected delimiters, and a real framed CELL between them
+  if (active && (ctx.cursor as { quote?: '"' | "'" }).quote !== undefined) {
+    return (
+      <QuotedFrame
+        q={(ctx.cursor as { quote: '"' | "'" }).quote}
+        lead={lead}
+        temp={temp}
+        ctx={ctx}
+        text={(ctx.cursor as { text: string }).text}
+        caret={(ctx.cursor as { caret?: "start" | "end" }).caret}
+      />
+    );
+  }
   const block = blockRawOf(node);
   // the ACTIVE block face keys on the CURSOR's spelling (an emptied body is a bare `|-` with no
   // newline; a plain scalar being retyped never flips — the node itself must be a block)
@@ -472,12 +560,15 @@ function TokenCell({ node, path, ctx, lead }: { node: Node; path: Path; ctx: Cel
     );
   }
   // a NULL value with no authored raw still shows its face — the renderer spells it `null`
-  // (an invisible value would be a wall to the eye, if not to the caret)
+  // (an invisible value would be a wall to the eye, if not to the caret). The PROVISIONAL
+  // null (a temporary row's not-yet-value) shows the EMPTY value cell instead: the template's
+  // "what should be entered here", not a value nobody typed.
   const raw = (node as { raw?: string }).raw;
   const value = (node as { value?: unknown }).value;
-  const display = String(raw ?? (value === null ? "null" : value ?? ""));
+  const provisional = temp && isProvisionalValue(node);
+  const display = provisional ? " " : String(raw ?? (value === null ? "null" : value ?? ""));
   return (
-    <Cell kind="token" active={active} refused={ctx.refused} tone={toneOf(value)}>
+    <Cell kind="token" active={active} refused={ctx.refused} tone={toneOf(value)} temp={temp}>
       {lead}
       {active
         ? <CellInput value={(ctx.cursor as { text: string }).text} ctx={ctx} autoFocus caret={(ctx.cursor as { caret?: "start" | "end" }).caret} />
@@ -489,10 +580,14 @@ function TokenCell({ node, path, ctx, lead }: { node: Node; path: Path; ctx: Cel
 function KeyCell({ entry, path, ctx }: { entry: Entry; path: Path; ctx: CellCtx }) {
   const active = ctx.cursor.at === "key" && pathEq(ctx.cursor.path, path);
   return (
-    <Cell kind="key" active={active} refused={ctx.refused}>
+    <Cell kind="key" active={active} refused={ctx.refused} temp={entryTempAt(ctx.doc, path)}>
       {active
         ? <CellInput value={(ctx.cursor as { text: string }).text} ctx={ctx} autoFocus caret={(ctx.cursor as { caret?: "start" | "end" }).caret} />
-        : <span className="y2-k" tabIndex={0} onFocus={() => ctx.onFocus({ at: "key", path })}>{String(entry.key)}</span>}
+        : <span className="y2-k" tabIndex={0} onFocus={() => ctx.onFocus({ at: "key", path })}>
+            {/* the FILE's spelling, never the bare value: the authored raw when kept, else the
+                canonical key token — `"12": 12` must read quoted (a bare 12 is a POSITION) */}
+            {(entry.meta as { keyRaw?: string } | undefined)?.keyRaw ?? keyText(String(entry.key))}
+          </span>}
     </Cell>
   );
 }
@@ -536,7 +631,9 @@ function ContainerCell({ node, path, ctx, trailingComma = false, lead, valueRow,
   // enforces that a one-liner never contains a multi-liner).
   const spread = isSpread(node);
   const entries = node.entries ?? [];
-  const holeHere = ctx.cursor.at === "hole" && pathEq(ctx.cursor.path, path);
+  // the VACANT-HEAD rule: this container's hole at position 0 is drawn by the PARENT's key
+  // row (right of the colon) — drawing it again here as a row would rearrange the template
+  const holeHere = ctx.cursor.at === "hole" && pathEq(ctx.cursor.path, path) && !headHoleHere(ctx, path);
   const holeIndex = holeHere ? (ctx.cursor as { index: number }).index : -1;
 
   // Each item knows whether its separating comma must live INSIDE it: a MULTI-ROW child draws
@@ -584,25 +681,31 @@ function ContainerCell({ node, path, ctx, trailingComma = false, lead, valueRow,
               ? <NodeCell node={e.value as Node} path={p} ctx={ctx} trailingComma={wantComma} lead={keyFrag} />
               : childBlock && e.key != null && !flow
                 ? <div className="y2-rows">
-                    {/* RIGHT OF THE COLON is the way back into the container's head: a visible
-                        slot (the gapslot vocabulary) plus the row's own blank both open the
-                        hole at position 0 (toCursor's `into` rule) — the same landing Enter on
-                        the key gives; without them the row was a wall ("can't add anything to
-                        the right of colon"). The slot hides while that hole is open. */}
+                    {/* RIGHT OF THE COLON is the container's VACANT HEAD — a real CELL of the
+                        key row (the template-cells law: drawn where entering happens, edited
+                        in place, and the committed omni self value STAYS on this row — the
+                        template never rearranges). The walk reaches it (positionsOf `into`),
+                        a click and the row's blank land the same hole at position 0. */}
                     <div
                       className="y2-row y2-keyrow"
-                      onMouseDown={(ev) => { if (ev.target === ev.currentTarget) { ev.preventDefault(); ctx.onFocus({ at: "into", path: p }); } }}
+                      onMouseDown={(ev) => { if (ev.target === ev.currentTarget) { ev.preventDefault(); ctx.onFocus({ at: "into", path: p, head: true }); } }}
                     >
                       {keyFrag}
-                      {!(ctx.cursor.at === "hole" && pathEq(ctx.cursor.path, p) && (ctx.cursor as { index: number }).index === 0) && (
-                        <button
-                          className="y2-gapslot y2-headslot"
-                          onFocus={() => ctx.onFocus({ at: "into", path: p })}
-                          onKeyDown={(e) => ctx.onKey(e)}
-                        >
-                          ▏
-                        </button>
-                      )}
+                      {/* the container's `&` anchors live HERE - where the value BEGINS (the
+                          YAML order `b: &x`), left of the head slot */}
+                      {(anchorDecorations(e.value).length > 0 || (ctx.cursor.at === "anchors" && pathEq(ctx.cursor.path, p)))
+                        && <AnchorsCell node={e.value} path={p} ctx={ctx} />}
+                      {headHoleHere(ctx, p)
+                        ? <HoleCell ctx={ctx} />
+                        : <Cell kind="hole" active={false} refused={false}>
+                            <button
+                              className="y2-gapslot y2-headslot"
+                              onFocus={() => ctx.onFocus({ at: "into", path: p, head: true })}
+                              onKeyDown={(e) => ctx.onKey(e)}
+                            >
+                              {" "}
+                            </button>
+                          </Cell>}
                     </div>
                     <div className="y2-row y2-indent"><NodeCell node={e.value as Node} path={p} ctx={ctx} /></div>
                   </div>
@@ -631,9 +734,12 @@ function ContainerCell({ node, path, ctx, trailingComma = false, lead, valueRow,
     // the node's `&` BOOKMARK rows: in block form they are ROWS OF THEIR OWN at the block's
     // HEAD — after the leading self row (`a: 12` + `&: …`), else first — exactly where the
     // serializer writes them. The old inline-chrome placement floated them into a CHILD's
-    // row, reading as that child's bookmark (the reported "assigned to wrong node")
+    // row, reading as that child's bookmark (the reported "assigned to wrong node").
+    // EXCEPTION: a KEYED block child's anchors ride ITS OWN key row (keyRowOwns — the parent
+    // draws them there, unmistakably this node's; own-line `&: …` stays the wire spelling).
     const aActive = ctx.cursor.at === "anchors" && pathEq(ctx.cursor.path, path);
     const anchorsRow = ((((node.meta ?? {}) as { anchors?: unknown[] }).anchors ?? []).length > 0 || aActive)
+      && !keyRowOwns(ctx, path)
       ? <div key="anchors" className="y2-row"><AnchorsCell node={node} path={path} ctx={ctx} /></div>
       : null;
     let anchorsPlaced = anchorsRow === null;
@@ -673,8 +779,9 @@ function ContainerCell({ node, path, ctx, trailingComma = false, lead, valueRow,
     }
     if (valueRow && !placedValue) { rows.push(<div key="self" className="y2-row">{takeLead()}{valueRow.el}{selfTrail}</div>); placeAnchors(); }
     // an EMPTY container keeps its PLACEHOLDER slot even when comment chrome exists — the way
-    // back into the value must never be a wall
-    const hasContent = itemRows.length > 0 || valueRow !== undefined;
+    // back into the value must never be a wall. (When the VACANT HEAD is open on the key row,
+    // that cell already IS the way in — no second slot below.)
+    const hasContent = itemRows.length > 0 || valueRow !== undefined || headHoleHere(ctx, path);
     if (!hasContent) {
       rows.push(
         <div key="into" className="y2-row">
@@ -744,6 +851,19 @@ function ScalarCell({ node: v, path, ctx, lead }: ValueCellProps) {
   const node = v as Node;
   const holeHere = ctx.cursor.at === "hole" && pathEq(ctx.cursor.path, path);
   if ((node.entries ?? []).length === 0 && !holeHere) return <TokenCell node={node} path={path} ctx={ctx} lead={lead} />;
+  if ((node.entries ?? []).length === 0 && holeHere) {
+    // the DESCEND face of a plain scalar (Enter stepped into the committed value, no fields
+    // yet): the token row exactly as committed, the candidate hole indented below. NO omni
+    // or block frames — the template shows the final state plus one candidate row; frames
+    // that no committed state will have must not appear mid-process (the reported
+    // block>omni>block pyramid around `name: Whiskers`).
+    return (
+      <div className="y2-rows">
+        <div className="y2-row">{lead}<TokenCell node={node} path={path} ctx={ctx} /></div>
+        <div className="y2-row y2-indent"><HoleCell ctx={ctx} /></div>
+      </div>
+    );
+  }
   return (
     <Cell kind="omni" active={false} refused={false}>
       <ContainerCell
@@ -839,7 +959,10 @@ function AnchorsCell({ node, path, ctx }: { node: Value; path: Path; ctx: CellCt
   return (
     <Cell kind="anchors" active={activeHere} refused={ctx.refused} pos={{ at: "anchors", path }}>
       {bodies.map((b, i) => row(i, b))}
-      {row(bodies.length, null) /* the ADD slot — commit a body here to append an anchor */}
+      {/* no `&+` affordance: a NEW bookmark is ENTERED — `&` typed in the empty value cell
+          opens the portion face. The ADD row draws only while its cursor is (transiently)
+          active — the commit machinery's append slot, never an idle chip. */}
+      {activeIndex === bodies.length && row(bodies.length, null)}
     </Cell>
   );
 }
@@ -862,23 +985,21 @@ export function NodeCell({ node, path, ctx, trailingComma = false, lead }: Value
     </>
   );
   // a node whose cell renders BLOCK ROWS (ContainerCell's !flow branch — a block mapping, or a
-  // scalar with fields/hole) draws its `&` anchors as rows of its own AT THE HEAD, in there;
-  // only leaf/flow faces take the inline anchors chrome here (`a: 1  &: p: q`)
+  // scalar with FIELDS) draws its `&` anchors as rows of its own AT THE HEAD, in there. Every
+  // LEAF/flow face takes the inline anchors chrome — placed BEFORE the value, the YAML order
+  // (`a: &b 12`); a bare descend hole does not change a leaf's face.
   const n0 = node as Node;
   const ownRows = !isPointer(node) && !isFlow(n0) && (
     n0.kind === "mapping"
-    || (n0.kind === "scalar" && (((n0.entries ?? []).length > 0) || (ctx.cursor.at === "hole" && pathEq(ctx.cursor.path, path))))
+    || (n0.kind === "scalar" && ((n0.entries ?? []).length > 0))
   );
-  const anchorsTail = ownRows ? null : <AnchorsCell node={node} path={path} ctx={ctx} />;
-  // a ROUTED marker (`k: ` / `- ` in `lead`) keeps the source order — the identity chrome rides
-  // AFTER it, inside the child's first row (`key: !!<tag> value`), exactly where the read
-  // renderer's decoSpan puts it
+  const anchorsInline = ownRows ? null : <AnchorsCell node={node} path={path} ctx={ctx} />;
+  // a ROUTED marker (`k: ` / `- ` in `lead`) keeps the source order — the identity chrome and
+  // the anchors ride AFTER it, inside the child's first row (`key: !!<tag> &b value`), the
+  // YAML reading order: marker, decorations, anchor, value
   if (lead !== undefined) {
     return (
-      <>
-        <C node={node} path={path} ctx={ctx} trailingComma={trailingComma} lead={<>{lead}{chrome}</>} />
-        {anchorsTail}
-      </>
+      <C node={node} path={path} ctx={ctx} trailingComma={trailingComma} lead={<>{lead}{chrome}{anchorsInline}</>} />
     );
   }
   // THE ROOT DECO LAW (the renderer's RootDeco): at the VIEWED ROOT — and before any multi-row
@@ -893,16 +1014,16 @@ export function NodeCell({ node, path, ctx, trailingComma = false, lead }: Value
     return (
       <>
         <div className="y2-row">{chrome}</div>
+        {anchorsInline}
         <C node={node} path={path} ctx={ctx} trailingComma={trailingComma} />
-        {anchorsTail}
       </>
     );
   }
   return (
     <>
       {chrome}
+      {anchorsInline}
       <C node={node} path={path} ctx={ctx} trailingComma={trailingComma} />
-      {anchorsTail}
     </>
   );
 }

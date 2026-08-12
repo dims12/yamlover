@@ -10,7 +10,8 @@
 // nothing else — never a silent swallow, never a half-applied edit.
 
 import { interpret, type Intent, type Site } from "./grammar/dispatch";
-import { classifyHoleInput, keyedEditParts } from "./grammar/keys";
+import { classifyHoleInput, keyedEditParts, quoteSource, unquoteSource } from "./grammar/keys";
+import { isProvisionalValue, markerTemplate, nullScalar, pointerTemplate, quotedTemplate, type Template } from "./template";
 import { joinPortions, portionsOfRaw } from "./grammar/portions";
 import {
   blockRawOf, bracketOf, dialectOf, entryAt, isContainer, isFlow, isSpread, nodeAt, sourceOf, trySourceOf,
@@ -180,6 +181,11 @@ export function siteOf(state: EditorState): Site {
   if (cursor.at === "hole") {
     const container = nodeAt(doc, cursor.path);
     const kind = containerKind(container);
+    // the QUOTED cell at entry stage — the same `quoted` rows as a value's paired cell (the
+    // shielding included: flow separators inside the quotes are content)
+    if (cursor.quote !== undefined) {
+      return { ...base, cell: "quoted", container: kind, textEmpty: cursor.text === "", entryDecided: false, entryCommitted: false, quote: cursor.quote };
+    }
     // the `*` (or `&`) decision made: the hole's face is the PORTION cells — a reference being
     // entered, or (anchorEntry) the container's bookmark BODY
     if (cursor.ref) {
@@ -205,6 +211,26 @@ export function siteOf(state: EditorState): Site {
   }
   if (cursor.at === "token") {
     const parent = cursor.path.length ? nodeAt(doc, cursor.path.slice(0, -1)) : null;
+    // the QUOTED cell (the paired-closer template): its own rows — the matching quote at the
+    // end steps past the projected closer, everything else is shielded text
+    if (cursor.quote !== undefined) {
+      return { ...base, cell: "quoted", container: containerKind(parent), textEmpty: cursor.text === "", entryCommitted: true, quote: cursor.quote };
+    }
+    // the template-cells adapter: a token cursor standing in a PROVISIONAL value cell (a
+    // temporary null entry) is the classic marked VALUE HOLE for the grammar — the value_hole
+    // rows apply verbatim (applyKey dematerializes before dispatch; this mapping keeps the
+    // LEGEND and the watchdog honest on the resting view)
+    const provEntry = entryAt(doc, cursor.path);
+    if ((provEntry?.meta as { temporary?: boolean | "ordinal" } | undefined)?.temporary && isProvisionalValue(provEntry?.value)) {
+      return {
+        ...base,
+        cell: containerKind(parent) === "block" ? "holeEntry" : "holeValue",
+        container: containerKind(parent),
+        textEmpty: cursor.text.trim() === "",
+        entryDecided: true,
+        entryCommitted: false,
+      };
+    }
     // a cursor text WITH a newline is a `|`/`>` BLOCK spelling being edited in the textarea —
     // an <input> can never hold one, so the bit is unambiguous
     const blockToken = cursor.text.includes("\n") ? { blockToken: true } : {};
@@ -267,7 +293,10 @@ export type Position =
   | { at: "token"; path: Path }
   | { at: "anchors"; path: Path; index?: number } // the node's `&` anchor rows — ONE stop, after its value (a click names the row)
   | { at: "after"; path: Path }
-  | { at: "into"; path: Path }  // the inside of an EMPTY block container — its placeholder slot
+  | { at: "into"; path: Path;
+      /** the VACANT-HEAD face requested (the keyrow slot's click): the hole opens ON the key
+       *  row, not as the row below — mirrors the hole cursor's `head` bit */
+      head?: true }  // the inside of an EMPTY block container — its placeholder slot
   | { at: "ptr"; path: Path };  // a pointer ATOM — walkable, focusable, not text-editable
 
 /** Every caret-occupiable position of the DOCUMENT, in reading order — which is the VISUAL
@@ -292,7 +321,16 @@ export function positionsOf(doc: Document): Position[] {
       else if (isContainer(v)) {
         // BLOCK `&` anchors are HEAD rows (the serializer's own order — the walk agrees with
         // the eyes); a flow token keeps them inline after its closer gap
+        // the way IN, part one: a KEYED block child's HEAD slot (right of the colon — the ▏
+        // affordance, ON the key's own row, so it walks before the anchor head-rows). The walk
+        // must reach every cell the eye sees (the arrow keys are not the mouse's poor cousin):
+        // standing here opens the hole at position 0 — where a bare scalar makes the OMNI
+        // self value (`a: 11` over existing fields), the same landing the click gives.
+        // the YAML order: the anchor stands where the value BEGINS (`b: &x` + rows below) -
+        // before the head slot, right of the colon
         if (!isFlow(v) && anchored(v)) out.push({ at: "anchors", path: p });
+        if ((v.entries ?? []).length > 0 && !isFlow(v) && e.key != null) out.push({ at: "into", path: p });
+        // the way IN, part two: an EMPTY container's placeholder slot — its own row below
         if ((v.entries ?? []).length === 0) out.push({ at: "into", path: p });
         rec(v, p);
         if (isFlow(v)) {
@@ -303,8 +341,8 @@ export function positionsOf(doc: Document): Position[] {
       // anything else (a blob, an unknown kind) is an opaque ATOM — walkable and deletable
       // like a pointer, never editable; a value with no position would be an invisible wall
       else {
+        if (anchored(v)) out.push({ at: "anchors", path: p }); // left of the value - the YAML order
         out.push({ at: "ptr", path: p });
-        if (anchored(v)) out.push({ at: "anchors", path: p });
       }
     }
   };
@@ -314,8 +352,9 @@ export function positionsOf(doc: Document): Position[] {
     const len = (v.entries ?? []).length;
     const at = Math.min(Math.max((v.meta as { selfAt?: number } | undefined)?.selfAt ?? 0, 0), len);
     rec(v, p, 0, at);
-    out.push({ at: "token", path: p });
+    // the YAML order: the anchor stands LEFT of the value (`a: &b 12`) - the walk agrees
     if (anchored(v)) out.push({ at: "anchors", path: p });
+    out.push({ at: "token", path: p });
     rec(v, p, at, len);
   };
   const root = doc.root as Node;
@@ -418,6 +457,19 @@ function isRowAnchor(doc: Document, p: Position): boolean {
     return n != null && isContainer(n) && !isFlow(n);
   }
   if (p.at === "tag") return false; // a tag shares its node's visual row (the inline spelling)
+  // a KEYED block child's HEAD slot (right of the colon) shares the KEY's row — the key is
+  // that row's anchor; only an EMPTY container's `into` is a row of its own (the placeholder)
+  if (p.at === "into") {
+    const n = nodeAt(doc, p.path);
+    if (n && (n.entries ?? []).length > 0) return false;
+  }
+  // a KEYED block child's `&` anchors ride the KEY's row too (the normalized anchor home is
+  // the entry's own row) — the key stays that row's one anchor
+  if (p.at === "anchors" && p.path.length > 0) {
+    const e = entryAt(doc, p.path);
+    const v = e?.value;
+    if (e?.key != null && v !== undefined && !isPointer(v) && (v as Node).kind === "mapping" && !isFlow(v as Node)) return false;
+  }
   // a ONE-LINE empty container's row is represented by its `into` slot — the gap past its closer
   // would double the row up. A SPREAD empty container's closer takes its OWN row, so its gap
   // stays an anchor (↓ from inside lands on the `}` row, where `,` opens the next sibling).
@@ -497,6 +549,15 @@ function toCursor(doc: Document, p: Position): Cursor {
   if (p.at === "token") {
     const e = entryAt(doc, p.path);
     const v = (p.path.length === 0 ? (doc.root as Node) : (e?.value as Node)) as { raw?: string; value?: unknown };
+    // a PROVISIONAL row's value cell opens EMPTY — the template's "type the value here",
+    // never the spelled `null` nobody typed (the template-cells doctrine)
+    if ((e?.meta as { temporary?: boolean | "ordinal" } | undefined)?.temporary && isProvisionalValue(e?.value)) {
+      return { at: "token", path: p.path, text: "" };
+    }
+    // a simply-QUOTED scalar reopens as the paired-closer cell — its INNER text, the closer
+    // projected from the style (editing `"hi"` and entering it are the same face)
+    const q = typeof v?.raw === "string" ? unquoteSource(v.raw) : null;
+    if (q !== null) return { at: "token", path: p.path, text: q.inner, quote: q.quote };
     const block = v ? blockEditText(v as Value) : null;
     return { at: "token", path: p.path, text: block ?? String(v?.raw ?? v?.value ?? "") };
   }
@@ -510,7 +571,13 @@ function toCursor(doc: Document, p: Position): Cursor {
     const first = v !== null && !isPointer(v) ? (((v as Node).meta ?? {}) as { anchors?: Anchor[] }).anchors?.[0] : undefined;
     return { at: "anchors", path: p.path, index: 0, text: first !== undefined ? anchorBody(first) : "" };
   }
-  if (p.at === "into") return { at: "hole", path: p.path, index: 0, text: "", key: null };
+  if (p.at === "into") {
+    // walking/clicking IN lands the VACANT-HEAD face when the container hangs off a key (the
+    // cell right of the colon); a keyless/root container keeps the plain row hole
+    const e = entryAt(doc, p.path);
+    const head = e?.key != null && !isFlow(nodeAt(doc, p.path) ?? ({} as Node)) ? { head: true as const } : {};
+    return { at: "hole", path: p.path, index: 0, text: "", key: null, ...head };
+  }
   if (p.at === "ptr") return { at: "ptr", path: p.path };
   return { at: "after", path: p.path };
 }
@@ -534,11 +601,153 @@ function keyFields(cursor: { key: string | null; keyRaw?: string }): Pick<Entry,
   };
 }
 
+// ---------------------------------------------------------------------------------------- //
+// THE TEMPLATE-CELLS ADAPTER (template.ts): the provisional value cell is a materialized
+// VIEW of the classic marked hole. Between keys the DECIDED entry stands in the document
+// (null value, `meta.temporary`, drawn as real cells); for every key it DEMATERIALIZES back
+// to the marked-hole cursor, the untouched hole machine runs, and the result REMATERIALIZES.
+// The old grammar therefore stays byte-identical by construction; the deliberate divergences
+// (walk-away withholds instead of minting `""`, the quoted cell, the materialized pick) are
+// implemented as such and only as such.
+// ---------------------------------------------------------------------------------------- //
+
+interface Provisional { parentPath: Path; idx: number; entry: Entry }
+
+/** The materialized-view detector: a token/pick cursor standing at a `temporary` entry whose
+ *  value is still the untouched provisional null. */
+function provisionalOf(state: EditorState): Provisional | null {
+  const c = state.cursor;
+  if (c.at !== "token" && c.at !== "pick") return null;
+  if (c.at === "token" && c.quote !== undefined) return null; // the quoted cell runs its own rows
+  if (c.at === "pick" && c.ref === undefined) return null;
+  if (c.path.length === 0) return null;
+  const e = entryAt(state.doc, c.path);
+  if (!e || !(e.meta as { temporary?: boolean | "ordinal" } | undefined)?.temporary || !isProvisionalValue(e.value)) return null;
+  return { parentPath: c.path.slice(0, -1), idx: c.path[c.path.length - 1], entry: e };
+}
+
+/** View → state: the provisional entry leaves the document and the classic marked hole
+ *  returns, pending text (and a pick's portions) riding the cursor as they always did. */
+function dematerialize(state: EditorState, prov: Provisional): EditorState {
+  const c = state.cursor;
+  const meta = (prov.entry.meta ?? {}) as { keyRaw?: string; temporary?: boolean | "ordinal" };
+  const hole: Cursor = {
+    at: "hole", path: prov.parentPath, index: prov.idx,
+    text: c.at === "token" || c.at === "pick" ? c.text : "",
+    key: prov.entry.key,
+    ...(meta.keyRaw !== undefined ? { keyRaw: meta.keyRaw } : {}),
+    // the `- ` DECISION is recorded in the temporary flag's spelling — a keyless entry a
+    // plain hole's `*` materialized must NOT dematerialize into an ordinal (the omni and
+    // whole-value rules branch on it)
+    ...(meta.temporary === "ordinal" ? { ordinal: true as const } : {}),
+    ...(c.at === "pick" && c.ref !== undefined ? { ref: c.ref } : {}),
+  };
+  return { ...state, doc: removeEntryAt(state.doc, prov.parentPath, prov.idx), cursor: hole };
+}
+
+/** Materialize a template at the hole: the entry lands (temporary when wire-illegal), the
+ *  caret takes the template's cell. `text` carries the hole's pending text into the cell. */
+function materializeTemplate(state: EditorState, hole: Cursor & { at: "hole" }, t: Template, text = ""): EditorState {
+  const keyMeta = keyFields(hole).meta as Record<string, unknown> | undefined;
+  const meta = { ...(keyMeta ?? {}), ...(t.temporary ? { temporary: hole.ordinal === true ? "ordinal" : true } : {}) };
+  const entry = {
+    key: hole.key, edge: "contain", value: t.value,
+    ...(Object.keys(meta).length > 0 ? { meta } : {}),
+  } as unknown as Entry;
+  const entryPath = [...hole.path, hole.index];
+  const cursor = t.cursor(entryPath);
+  return {
+    ...state,
+    doc: insertEntry(state.doc, hole.path, hole.index, entry),
+    cursor: cursor.at === "token" ? { ...cursor, text } : cursor,
+  };
+}
+
+/** State → view: a resting MARKED hole (key or `- ` decided; a `*` ref; a bare opening
+ *  quote in value position) materializes its template. Everything undecided — a keyless
+ *  unquoted hole, an anchor body, a flow-map pair with no name yet — stays the hole. */
+function rematerialize(state: EditorState): EditorState {
+  const c = state.cursor;
+  if (c.at !== "hole" || c.anchor === true) return state;
+  const container = nodeAt(state.doc, c.path);
+  if (!container) return state;
+  const flowMapUnnamed = isFlow(container) && bracketOf(container) === "{" && c.key === null && c.ordinal !== true;
+  const marked = c.key !== null || c.ordinal === true;
+  const seqValue = isFlow(container) && bracketOf(container) === "[";
+  if (c.ref !== undefined) {
+    // the `*` decision — the SAME materialized-entry law: the entry exists (null, temporary),
+    // the portions render as the value template over the PICK cursor
+    if (flowMapUnnamed || !dialectOf(state).pointers) return state;
+    const t = pointerTemplate();
+    const withRef = materializeTemplate(state, c, t);
+    return { ...withRef, cursor: { ...(withRef.cursor as Cursor & { at: "pick" }), text: c.text, ref: c.ref,
+      ...(c.caret !== undefined ? { caret: c.caret } : {}) } };
+  }
+  const bare = c.text.trimStart(); // the `, "` habit — leading space is formatting, not content
+  if (c.head === true && (bare === '"' || bare === "'")) {
+    // the VACANT HEAD takes the quote as the OMNI SELF value's opening: the container becomes
+    // the empty quoted scalar (its entries survive — the omni form), the paired cell opens in
+    // place on the key row
+    const q = bare as '"' | "'";
+    return {
+      ...state,
+      doc: withNode(state.doc, c.path, (n) => ({ ...n, kind: "scalar", value: "", raw: quoteSource("", q) } as unknown as Node)),
+      cursor: { at: "token", path: c.path, text: "", quote: q },
+    };
+  }
+  if ((marked || seqValue) && (bare === '"' || bare === "'")) {
+    // the quote decision in VALUE position — the paired-closer cell (`""` is wire-legal)
+    return materializeTemplate(state, { ...c, text: "" }, quotedTemplate(bare as '"' | "'"));
+  }
+  if (marked) {
+    const m = materializeTemplate(state, c, markerTemplate(), c.text);
+    return c.caret !== undefined
+      ? { ...m, cursor: { ...(m.cursor as Cursor & { at: "token" }), caret: c.caret as "start" | "end" } }
+      : m;
+  }
+  return state;
+}
+
+/** After an adapter round-trip: a marked hole the move walked AWAY from used to mint `""` —
+ *  the new law keeps the DECIDED row as its temporary entry instead (withheld by the sync).
+ *  Detect the abandoned slot (nothing landed there, the caret is elsewhere) and restore it. */
+function restoreAbandoned(base: EditorState, next: EditorState, prov: Provisional): EditorState {
+  const c = next.cursor;
+  const atSlot = (c.at === "hole" && samePath(c.path, prov.parentPath) && c.index === prov.idx)
+    || ((c.at === "token" || c.at === "pick" || c.at === "key" || c.at === "ptr") && samePath(c.path, [...prov.parentPath, prov.idx]));
+  if (atSlot) return next; // the machine answered AT the slot (undo, commit, conversion) — its answer stands
+  if (provisionalOf(next) !== null) return next; // the row TRAVELED with the caret (indent/dedent moved the hole)
+  const parent = nodeAt(next.doc, prov.parentPath);
+  if (!parent) return next; // the slot's container itself is gone — nothing to restore into
+  const had = (nodeAt(base.doc, prov.parentPath)?.entries ?? []).length;
+  if ((parent.entries ?? []).length !== had) return next; // something landed (a commit) — it stands
+  return { ...next, doc: insertEntry(next.doc, prov.parentPath, prov.idx, prov.entry) };
+}
+
+const samePath = (a: Path, b: Path): boolean => a.length === b.length && a.every((x, i) => x === b[i]);
+
 export function commitPending(state: EditorState): EditorState | null {
-  const { doc, cursor } = state;
+  // the template-cells adapter: a PROVISIONAL entry commits through the classic hole machine.
+  // The one deliberate divergence — WALK-AWAY with nothing typed used to mint `k: ""`; the
+  // decided row now STAYS its temporary entry, drawn locally and withheld from the wire.
+  const provC = provisionalOf(state);
+  if (provC !== null) {
+    if (state.cursor.at === "token" && state.cursor.text.trim() === "") return state; // withheld
+    return commitPending(dematerialize(state, provC));
+  }
+  const { doc } = state;
+  let { cursor } = state;
   const d = dialectOf(state);
   if (cursor.at === "hole") {
-    if (!cursor.ref && cursor.text.trim() === "" && cursor.key === null) return state; // nothing pending
+    // an OPEN quoted cell commits as its spelled token — the walk-away closes the quote
+    if (cursor.quote !== undefined) {
+      const { quote: qq, ...rest } = cursor;
+      cursor = { ...rest, text: quoteSource(cursor.text, qq) };
+      state = { ...state, cursor };
+    }
+    // nothing pending — and a DECIDED empty hole (`k: `, `- `) is no longer minted into `""`:
+    // its materialized temporary row is the resting state (the walk-away law)
+    if (!cursor.ref && cursor.text.trim() === "") return state;
     const container = nodeAt(doc, cursor.path);
     if (!container) return null;
     if (cursor.key === null && bracketOf(container) === "{" && isFlow(container)) return null; // an unnamed pair cannot land in `{`
@@ -631,7 +840,12 @@ export function commitPending(state: EditorState): EditorState | null {
     return { ...state, doc: withValue(doc, cursor.path, ptr), cursor: { at: "ptr", path: cursor.path } };
   }
   if (cursor.at === "token") {
-    const value = scalarFromText(cursor.text);
+    // a QUOTED cell commits its INNER text in its quote style — any content is a string
+    // (never a row conversion, never a refusal: the quotes shield everything); the STYLE is
+    // authored labour and rides the raw, never re-canonicalized away
+    const value = cursor.quote !== undefined
+      ? ({ kind: "scalar", value: cursor.text, raw: quoteSource(cursor.text, cursor.quote) } as unknown as Node)
+      : scalarFromText(cursor.text);
     // THE UPWARD CONVERSION: a value line retyped WITH ITS MARKER (`key2: scalar2`, `- scalar2`)
     // is not a scalar any more — it commits as an ENTRY on the same row (the inverse of the
     // Backspace ladder's keyed → ordered → scalar)
@@ -935,6 +1149,13 @@ export function copySubtree(state: EditorState): string | null {
  *  root takes it as the document, a bare scalar in a block container is the OMNI value, an
  *  unnamed element cannot land in `{`. A parse failure REFUSES — nothing lost, nothing dropped. */
 export function pasteSubtree(state: EditorState, text: string): EditorState {
+  // the template-cells adapter: a paste into the PROVISIONAL value cell is the classic paste
+  // into the marked hole (the pick face keeps its old refusal — only the token view adapts)
+  const prov = provisionalOf(state);
+  if (prov !== null && state.cursor.at === "token") {
+    const base = dematerialize(state, prov);
+    return restoreAbandoned(base, rematerialize(pasteSubtree(base, text)), prov);
+  }
   if (state.cursor.at !== "hole" || state.cursor.text.trim() !== "" || text.trim() === "") return refuse(state);
   let node: Node;
   try {
@@ -950,6 +1171,11 @@ export function pasteSubtree(state: EditorState, text: string): EditorState {
 /** The one-value paste laws over an ALREADY-PARSED root (paste.ts hands sniffed JSON5 docs in
  *  here too — they never had a yamlover text form to re-parse). */
 export function pasteParsed(state: EditorState, node: Node): EditorState {
+  const provP = provisionalOf(state);
+  if (provP !== null && state.cursor.at === "token") {
+    const base = dematerialize(state, provP);
+    return restoreAbandoned(base, rematerialize(pasteParsed(base, node)), provP);
+  }
   const { doc, cursor } = state;
   if (cursor.at !== "hole" || cursor.text.trim() !== "") return refuse(state);
   const container = nodeAt(doc, cursor.path);
@@ -1004,6 +1230,17 @@ export interface Edges { atStart: boolean; atEnd: boolean; firstLine?: boolean; 
 /** The cursor's text replaced wholesale (a controlled input's onChange — native caret, selection,
  *  mid-text edits and text-level paste all included), then the hole classifier runs. */
 export function applyText(state: EditorState, text: string): EditorState {
+  // the template-cells adapter (see applyKey): the provisional cell's text runs through the
+  // classic marked-hole classifier — `{`, `*`, quotes and nested `k: ` decide there
+  const prov = provisionalOf(state);
+  if (prov !== null) {
+    const base = dematerialize(state, prov);
+    return restoreAbandoned(base, rematerialize(applyTextCore(base, text)), prov);
+  }
+  return rematerialize(applyTextCore(state, text));
+}
+
+function applyTextCore(state: EditorState, text: string): EditorState {
   const { cursor } = state;
   // a PORTION cell's leading whitespace is formatting, never content (the hole's own rule:
   // the space after a committed `:` belongs to the previous portion's styling)
@@ -1019,6 +1256,23 @@ const ok = (s: EditorState): EditorState => ({ ...s, refused: false });
 const refuse = (s: EditorState): EditorState => ({ ...s, refused: true });
 
 export function applyKey(state: EditorState, k: KeyInput, edges?: Edges): EditorState {
+  // THE TEMPLATE-CELLS ADAPTER (template.ts): a PROVISIONAL value cell is a materialized VIEW
+  // of the classic marked hole — every key round-trips through the untouched hole machine
+  // (dematerialize → the old grammar → rematerialize), so the key economics, the corpus and
+  // the Backspace ladder are byte-identical BY CONSTRUCTION. Only the QUOTED cell and the
+  // materialized PICK run their own (new) rows.
+  const prov = provisionalOf(state);
+  const base = prov !== null ? dematerialize(state, prov) : state;
+  const next = applyKeyCore(base, k, edges);
+  // truly unhandled stays IDENTITY — the host reads `next === state` as "the browser's key"
+  // (the native caret must move inside the cell) and the watchdog/legend as "not claimed";
+  // a reconstructed deep-equal state would replant the caret and blind them both
+  if (next === base) return state;
+  const out = rematerialize(next);
+  return prov !== null ? restoreAbandoned(base, out, prov) : out;
+}
+
+function applyKeyCore(state: EditorState, k: KeyInput, edges?: Edges): EditorState {
   const before = sourceOf(state.doc);
   const site = {
     ...siteOf(state),
@@ -1033,7 +1287,7 @@ export function applyKey(state: EditorState, k: KeyInput, edges?: Edges): Editor
   const next = intent
     ? (intent.kind === "move" && (k.key === "ArrowUp" || k.key === "ArrowDown")
         ? applyVertical(state, intent.dir)
-        : intent.kind === "move" && intent.dir === -1 && k.key === "Backspace" && state.cursor.at === "token"
+        : intent.kind === "move" && intent.dir === -1 && k.key === "Backspace" && state.cursor.at === "token" && state.cursor.quote === undefined
           ? applyUnmark(state)
           : applyIntent(state, intent, site))
     : applyPrintable(state, k.key);
@@ -1069,10 +1323,23 @@ function applyPrintable(state: EditorState, ch: string): EditorState {
 function classifyHole(state: EditorState): EditorState {
   const { doc, cursor } = state;
   if (cursor.at !== "hole") return state;
+  if (cursor.quote !== undefined) return state; // inside the quoted cell EVERYTHING is content
   const d = dialectOf(state);
   const container = nodeAt(doc, cursor.path);
   const entryStage = d.blockContext && container !== null && !isFlow(container);
   const action = classifyHoleInput(cursor.text, entryStage && cursor.key === null);
+  // a QUOTE at the ENTRY stage opens the SAME paired-closer cell a value position gets — only
+  // the interpreter inside differs (the closed token returns to the hole's text, where `: `
+  // may name the pair — a quoted KEY — or Enter commits it as the scalar). Value positions
+  // (a `- `/`k: ` marked hole, a seq element, the vacant head) take theirs in rematerialize.
+  {
+    const bareQ = cursor.text.trimStart();
+    const seqCtx = container !== null && isFlow(container) && bracketOf(container) === "[";
+    if (cursor.key === null && cursor.ordinal !== true && cursor.head !== true && !seqCtx
+        && (bareQ === '"' || bareQ === "'")) {
+      return { ...state, cursor: { ...cursor, quote: bareQ as '"' | "'", text: "" } };
+    }
+  }
   // A CLOSED QUOTED KEY — `"name": rest` — is a key decision the plain classifier does not make
   // (quote-led text is a quote to it). keyedEditParts parses exactly this shape; quoted VALUES
   // need nothing (the scalar parser takes `"Eurasia"` with its quotes at any commit boundary).
@@ -1081,6 +1348,23 @@ function classifyHole(state: EditorState): EditorState {
     if (kv?.quoted && (container === null || !isFlow(container) || bracketOf(container) === "{")) {
       return { ...state, cursor: { ...cursor, key: kv.key, keyRaw: kv.keyRaw, text: kv.rest } };
     }
+  }
+  // `b: &…` — the BOOKMARK in the VALUE place: the bookmark belongs to the ENTRY's OWN node
+  // (`b:` + its `&: path` line — the own-line law), so the value materializes as the
+  // descend's empty container and the `&` decision continues INSIDE it, where the portion
+  // face (and its completion) lives. The old inline back door (`&'p: q' 1` typed as literal
+  // text) yields to the face — bookmarks are entered, not spelled.
+  if (cursor.key !== null && d.anchors && d.blockContext && cursor.text.trimStart().startsWith("&")
+      && container !== null && !isFlow(container)) {
+    const child: Node = { kind: "mapping", entries: [] } as unknown as Node;
+    const entry = { ...keyFields(cursor), edge: "contain", value: child } as unknown as Entry;
+    return classifyHole(ok({
+      ...state,
+      doc: insertEntry(doc, cursor.path, cursor.index, entry),
+      // `head: true` — the face STAYS on the key row (the anchor's normalized home), it never
+      // jumps to a row below; the committed bookmark displays right there too (keyRowOwns)
+      cursor: { at: "hole", path: [...cursor.path, cursor.index], index: 0, text: cursor.text.trimStart(), key: null, head: true },
+    }));
   }
   if (!action || action.kind === "text") return state;
   if (action.kind === "flowMap" || action.kind === "flowSeq") {
@@ -1154,6 +1438,14 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
   const { doc, cursor } = state;
   switch (intent.kind) {
     case "nop": {
+      // THE ROW-ALLOCATION gesture: Enter on the VACANT-HEAD face (the cell right of the
+      // colon) drops the head bit — the SAME hole re-renders as its own templatized row
+      // below, the text editor's new-row expectation. Modifications are never blocked; the
+      // template changes with the input.
+      if (cursor.at === "hole" && cursor.head === true) {
+        const { head: _h, ...rest } = cursor;
+        return ok({ ...state, cursor: rest });
+      }
       // THE LEVEL RULE, descend half: Enter on an empty hole that already NAMED its key commits
       // `key:` with a nested BLOCK container as the value and steps inside (`world:` + Enter).
       // The shared dispatch table calls this site a nop because production resolves it inside its
@@ -1273,7 +1565,66 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
       return ok({ ...state, cursor: { at: "hole", path: cursor.path, index: (token.entries ?? []).length, text: "", key: null } });
     }
 
+    case "quoteClose": {
+      // the ENTRY-stage quoted cell closes back INTO the hole: the spelled token becomes the
+      // hole's text, where `: ` may then name the pair (the quoted-key recovery) or Enter
+      // commits the scalar — the same continuation the typed spelling always had
+      if (cursor.at === "hole" && cursor.quote !== undefined) {
+        const { quote: qq, ...rest } = cursor;
+        return ok({ ...state, cursor: { ...rest, text: quoteSource(cursor.text, qq) } });
+      }
+      // the matching quote at the cell's end: the string COMMITS and the caret steps past the
+      // projected closer — the `]`/`}` law applied to the paired-quote template
+      if (cursor.at !== "token" || cursor.quote === undefined) return refuse(state);
+      const committed = commitPending(state);
+      if (committed === null) return refuse(state); // unreachable — quoted content always lands
+      return ok({ ...committed, cursor: { at: "token", path: cursor.path, text: quoteSource(cursor.text, cursor.quote), caret: "end" } });
+    }
+
     case "undoMarker": {
+      if (cursor.at === "hole" && cursor.quote !== undefined) {
+        // the entry-stage quote decision undone — back to the plain hole (the inner text stands)
+        const { quote: _q, ...rest } = cursor;
+        return ok({ ...state, cursor: rest });
+      }
+      if (cursor.at === "token" && cursor.quote !== undefined) {
+        // the QUOTE decision undone (one press, one level): a named/ordinal row returns to its
+        // provisional value cell; a flow-seq element's entry goes back to the hole
+        const entry = entryAt(doc, cursor.path);
+        const parentPath = cursor.path.slice(0, -1);
+        const idx = cursor.path[cursor.path.length - 1];
+        const parent = parentPath.length === 0 ? (doc.root as Node) : nodeAt(doc, parentPath);
+        // no ENTRY owns this cell (the ROOT scalar) — the quote decision has no marker to fall
+        // back to, so the press is the ordinary level removal (the empty-token ladder)
+        if (!entry || !parent || cursor.path.length === 0) return applyIntent(state, { kind: "removeLevel" }, site);
+        if (entry.key === null && isFlow(parent) && bracketOf(parent) === "[") {
+          return ok({ ...state, doc: removeEntryAt(doc, parentPath, idx),
+            cursor: { at: "hole", path: parentPath, index: idx, text: "", key: null } });
+        }
+        // the OMNI HEAD's quote undone: the self value goes, the container returns with its
+        // fields intact (committed labour) — the caret back in the vacant head
+        if (!isPointer(entry.value) && ((entry.value as Node).entries ?? []).length > 0) {
+          return ok({
+            ...state,
+            doc: withNode(doc, cursor.path, (n) => {
+              const { value: _v, raw: _r, ...rest } = n as Record<string, unknown>;
+              return { ...rest, kind: "mapping" } as unknown as Node;
+            }),
+            cursor: { at: "hole", path: cursor.path, index: 0, text: "", key: null, head: true },
+          });
+        }
+        return ok({
+          ...state,
+          doc: withNode(doc, parentPath, (n) => {
+            const entries = [...(n.entries ?? [])];
+            entries[idx] = { ...entries[idx], value: nullScalar() as unknown as Value,
+              meta: { ...((entries[idx] as Entry).meta ?? {}),
+                temporary: (entries[idx] as Entry).key === null ? "ordinal" as const : true } } as Entry;
+            return { ...n, entries } as Node;
+          }),
+          cursor: { at: "token", path: cursor.path, text: "" },
+        });
+      }
       if (cursor.at === "hole" && cursor.ref !== undefined) {
         // the `*` (or `&`) decision undone - back to the plain empty hole (the portions lived
         // only in the cursor, so nothing else changes; one press, one level)
@@ -1362,6 +1713,20 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
               return { ...n, entries } as Node;
             }),
             cursor: landing,
+          });
+        }
+        // an EMPTIED LEAF value cell: the press eats the MARKER too — `a: 11` deleted char by
+        // char reads `a: |` and the next press gives `a|`, the text editor's expectation. The
+        // characters were the value's level (already deleted one by one); stopping at a named
+        // null row would charge an extra press for a level the eye cannot see. A CONTAINER or
+        // an omni's fields are real levels and keep the name for one press (committed labour).
+        if (cursor.at === "token" && e !== undefined && e !== null && !isPointer(e.value)
+            && (e.value as Node).kind === "scalar" && ((e.value as Node).entries ?? []).length === 0) {
+          const spelling = (e.meta as { keyRaw?: string } | undefined)?.keyRaw ?? e.key ?? "";
+          return ok({
+            ...state,
+            doc: removeEntryAt(doc, parentPath, idx),
+            cursor: { at: "hole", path: parentPath, index: idx, text: spelling, key: null },
           });
         }
         return ok({
@@ -1550,7 +1915,17 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
       // born, so the level rule's descend has nothing to enter — the restored hole IS the landing
       if (cursor.at === "anchors" || (cursor.at === "hole" && cursor.anchor === true)) {
         const committed = commitPending(state);
-        return committed === null ? refuse(state) : ok(committed);
+        if (committed === null) return refuse(state);
+        // an UNCHANGED body's Enter is "done here" — the caret steps to the neighbouring
+        // position (the value, per the YAML order). A same-state return would be a DEAD
+        // advertised key (the watchdog's catch): every commit must answer visibly. Sameness
+        // is the SERIALIZED text (a re-spelled anchor only sheds its parse spans).
+        if (cursor.at === "anchors"
+            && JSON.stringify(committed.cursor) === JSON.stringify(cursor)
+            && sourceOf(committed.doc) === sourceOf(doc)) {
+          return applyIntent(ok(committed), { kind: "move", dir: 1 }, site);
+        }
+        return ok(committed);
       }
       // `k:` + Enter — the LEVEL RULE's descend spelled without the trailing space: the bare-colon
       // text is a key decision the plain classifier only makes when Enter confirms it

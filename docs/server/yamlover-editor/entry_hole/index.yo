@@ -5,7 +5,10 @@ description: the entry_hole state
   of yamlover source would. A BARE scalar token committed here becomes the NODE's own scalar line
   (the omni self-value, entered as-is, no marker; at most one per block). An array element is
   spelled with its `- ` marker, a field with its key and colon. Reached after every entry-level
-  commit, so typing flows row to row without reaching for the mouse
+  commit, so typing flows row to row without reaching for the mouse. The marker events
+  (`dash_space`, `key_colon_space`) MATERIALIZE the decided row at once (THE TEMPLATE-CELLS
+  RULE, the chapter head): the entry stands in the local document with a null value, marked
+  temporary and wire-withheld, and the value_hole that follows is its provisional value cell
 - !!<*yamlover: $defs: table>
   header:
     - Event

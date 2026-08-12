@@ -6,8 +6,10 @@ description: the flow_map_editing state
   BRACKET IS AUTHORED - `{}` and `[]` are different values, so a `{` stays a `{` while its first
   key is still coming (`{12` is on its way to `{12: 3}`, and `{` `{` to `{{}: 12}` - a flow token
   used as a KEY). Only the shape the file cannot hold overrides it: a decided KEYED entry wears
-  the map brackets, since `[k: v]` does not parse. A pair in progress is DRAWN but never WRITTEN -
-  no op reaches the server until the key lands. ONE PRESS, ONE LEVEL - collapsing a structure
+  the map brackets, since `[k: v]` does not parse. A pair in progress is DRAWN **and WRITTEN**
+  locally (THE TEMPLATE-CELLS RULE: the named pair materializes as `{key: null}`, `meta.temporary`
+  on the entry) - and WITHHELD from the wire until its value lands (`yed-sync` prunes temporary
+  rows from every diff). ONE PRESS, ONE LEVEL - collapsing a structure
   returns the ENTRY that held it to what it was before it was typed: inside a flow token a keyless
   entry was decided BY the bracket alone, so it goes back to undecided, while in a block container
   the `- ` is its own decision and stays

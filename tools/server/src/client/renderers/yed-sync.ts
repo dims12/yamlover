@@ -172,9 +172,14 @@ export function serverPathOf(basePath: string, doc: Document, irPath: readonly n
   let path = basePath;
   let v: Value = doc.root;
   for (const idx of irPath) {
-    const e: Entry | undefined = isPointer(v) ? undefined : (v as Node).entries?.[idx];
+    const entries = isPointer(v) ? undefined : (v as Node).entries;
+    const e: Entry | undefined = entries?.[idx];
     if (!e) throw new Error(`serverPathOf: no entry at index ${idx} under ${path}`);
-    path = appendSeg(path, segOf(e, idx));
+    // the wire never saw TEMPORARY siblings (pruneTemporary) — a positional address counts
+    // only the flushed rows, or it would name the wrong member after a provisional `- `
+    const temps = (entries ?? []).slice(0, idx)
+      .filter((s) => (s.meta as { temporary?: boolean | "ordinal" } | undefined)?.temporary).length;
+    path = appendSeg(path, segOf(e, idx - temps));
     v = e.value;
   }
   return path;
@@ -182,9 +187,33 @@ export function serverPathOf(basePath: string, doc: Document, irPath: readonly n
 
 class Bail extends Error {}
 
+/** THE TEMPORARY GATE (the template-cells doctrine): a PROVISIONAL entry — `meta.temporary`
+ *  on the entry, minted when a marker gesture materializes its row — is drawn locally and
+ *  WITHHELD from the wire until its first value commit. Pruning BOTH sides of the diff makes
+ *  the gate total: a temporary row never appears in an op, and its later commit diffs as the
+ *  plain insert it always was. (The recorded splicer bug — flushed bare `a:` lines splitting
+ *  entries — is this gate's reason to exist.) */
+export function pruneTemporary(v: Value): Value {
+  if (isPointer(v)) return v;
+  const n = v as Node;
+  const entries = n.entries;
+  if (!entries || entries.length === 0) return v;
+  let changed = false;
+  const kept: Entry[] = [];
+  for (const e of entries) {
+    if ((e.meta as { temporary?: boolean | "ordinal" } | undefined)?.temporary) { changed = true; continue; }
+    const val = pruneTemporary(e.value);
+    if (val !== e.value) { changed = true; kept.push({ ...e, value: val } as Entry); }
+    else kept.push(e);
+  }
+  return changed ? ({ ...n, entries: kept } as unknown as Value) : v;
+}
+
 export function diffToOps(basePath: string, prev: Document, next: Document): DiffResult {
   const ops: Edit[] = [];
   const renames: { path: string; key: string }[] = [];
+  prev = { ...prev, root: pruneTemporary(prev.root) } as Document;
+  next = { ...next, root: pruneTemporary(next.root) } as Document;
   try {
     diffValue(prev.root, next.root, basePath, true, ops, renames);
     return { ops, renames, fallback: false, unserializable: false };

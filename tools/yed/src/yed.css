@@ -18,6 +18,11 @@
 .y2-debug .y2-cell > .y2-tag { display: block; position: absolute; top: -1px; left: 2px; font-size: 8px; line-height: 1; color: #8250df99; user-select: none; }
 .y2-active { box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent, #0969da) 30%, transparent); }
 .y2-debug .y2-active { border-color: #0969da; }
+/* the PROVISIONAL region (the template-cells doctrine): a temporary entry's cells and the
+   undecided hole — drawn locally, withheld from the wire until the first value commit.
+   The debug mode frames it dashed amber; plain stays clean (the temp class still rides). */
+.y2-debug .y2-temp { border-style: dashed; border-color: #d4a72c; background: #fff8c5aa; }
+.y2-debug .y2-temp.y2-active { border-color: #bf8700; }
 .y2-refused { box-shadow: 0 0 0 1px color-mix(in srgb, var(--danger, #cf222e) 45%, transparent); animation: y2ring .3s; }
 .y2-debug .y2-refused { border-color: #cf222e; }
 .y2-plain .y2-panels { display: none; }

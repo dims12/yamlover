@@ -127,6 +127,9 @@ export const docHints: HintProvider = (q: HintQuery): Hint[] => {
   const at = stack[stack.length - 1];
   const out: Hint[] = [];
   (at.entries ?? []).forEach((e: Entry, i: number) => {
+    // a PROVISIONAL row (the template-cells doctrine's `meta.temporary`) is the entry BEING
+    // typed — it must not offer itself as its own completion target
+    if ((e.meta as { temporary?: boolean | "ordinal" } | undefined)?.temporary) return;
     if (e.key !== null) out.push({ insert: quoteKey(e.key), detail: preview(e.value) });
     else if ((e as { nullKey?: true }).nullKey === true) out.push({ insert: "~", detail: preview(e.value) });
     else out.push({ insert: String(i), label: `[${i}]`, detail: preview(e.value) });

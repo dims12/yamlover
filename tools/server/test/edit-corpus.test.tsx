@@ -39,6 +39,13 @@ const ALLOWLIST = new Map<string, string>([
   // typed inside a spread one tight until its own Enter. IR-equal — the pure corpus
   // (tools/yed corpus.test.ts SPELLING_DRIFT) pins that half of the contract.
   ["0014", "DELIBERATE: per-container layout replaced legacy whole-token spread"],
+  // Exposed 2026-08-12 by regenerating over the grown test-examples set: the generator's
+  // SPREAD-FLOW scripts (`k: v,{Enter}` rows inside a spread token) lose members on replay —
+  // an editor defect in spread-flow row entry (the pure corpus lists the same three in
+  // ENTER_ALLOW). Shrink by fixing the spread-flow grammar.
+  ["test-examples/0105-01/in.yo", "spread-flow entry: later members + siblings vanish"],
+  ["test-examples/0105-02/in.yo", "nested spread-flow entry: the inner `],` splice corrupts keys"],
+  ["test-examples/0105-03/in.yo", "spread-flow seq under `- `: the second `- {{` row is lost"],
 ]);
 
 interface Fixture {

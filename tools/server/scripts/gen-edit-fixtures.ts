@@ -114,7 +114,10 @@ function parentOf(rows: Row[], i: number): number {
 
 function derive(src: string): Derived {
   if (/^---/m.test(src)) return { skip: "multi-document (`---`) — out of scope" };
-  if (/^\s*&/m.test(src)) return { skip: "a `&` path anchor — no cell types one, and it IS part of IR identity" };
+  // own-line `&: …` AND inline `&body value` alike: `&` in a value cell now OPENS the bookmark
+  // face (bookmarks are entered, not spelled), so the inline anchor+value one-liner is not a
+  // typeable line of text any more
+  if (/(^|\s)&/m.test(src)) return { skip: "a `&` path anchor — `&` opens the bookmark face; the inline spelling is not typeable" };
   if (/^\s*~[^\s]/m.test(src) || /^\s*~-/m.test(src)) return { skip: "a `~` back-edge — no cell types one, and it IS part of IR identity" };
   if (/(^|\s)[|>][+-]?\d*\s*$/m.test(src)) return { skip: "a block scalar — its cell is a textarea, finished by Shift-Tab, not a line of text" };
   // A `*` pointer opens the shared QUERY cell, whose value is accepted through its completion

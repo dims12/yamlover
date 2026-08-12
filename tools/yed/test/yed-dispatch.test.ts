@@ -157,6 +157,23 @@ describe("the dispatch table — one meaning per (site, key)", () => {
     expect(kind("x", a())).toBeNull(); // printables: native text
   });
 
+  it("the QUOTED cell — the paired-closer template: one key closes, everything else is content", () => {
+    const q = (over: Partial<Site> = {}) => site("quoted", "block", { entryCommitted: true, quote: '"', ...over });
+    expect(kind('"', q({ textEmpty: false }))).toBe("quoteClose"); // the matching quote at the end steps past
+    expect(kind('"', q())).toBe("quoteClose");                     // `""` — the empty string, closed
+    expect(kind('"', q({ textEmpty: false, caretAtEnd: false }))).toBeNull(); // mid-text: CONTENT
+    expect(kind("'", q({ textEmpty: false }))).toBeNull();         // the OTHER style: content
+    expect(kind(",", q({ container: "flowSeq", textEmpty: false }))).toBeNull(); // the SHIELDING: flow separators are text
+    expect(kind("]", q({ container: "flowSeq", textEmpty: false }))).toBeNull();
+    expect(kind(":", q({ textEmpty: false }))).toBeNull();
+    expect(kind("Enter", q({ textEmpty: false }))).toBe("commit"); // commit in place
+    expect(kind("Backspace", q())).toBe("undoMarker");             // emptied: the quote decision undoes
+    expect(kind("Backspace", q({ textEmpty: false }))).toBe("move");
+    expect(kind("Tab", q())).toBe("move");
+    expect(kind("ArrowUp", q())).toBe("move");
+    expect(kind("ArrowDown", q())).toBe("move");
+  });
+
   it("the ANCHORS row cell — commit in place, the emptied row is a removal, the fresh face undoes", () => {
     const r = (over: Partial<Site> = {}) => site("anchors", "block", { entryCommitted: true, ...over });
     expect(kind("Enter", r({ textEmpty: false }))).toBe("commit");

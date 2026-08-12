@@ -1,10 +1,13 @@
 Reference being entered (a *-led hole)
 description: the pointer_entry state - typing is primary, the completion rides as an inline tail
 - >
-  The hole's text begins with `*` - the reference decision (keys.ts classifies it). The reference
-  enters as SEGMENTS - the key-value gesture repeated: the cursor's `ref` carries the scope
-  ladder, the committed segment cells and the active one (state.ts RefEntry; the document is
-  untouched - incompleteness lives in the cursor alone). `:` commits the active segment and opens
+  The hole's text begins with `*` - the reference decision (keys.ts classifies it). THE
+  TEMPLATE-CELLS RULE applies here too: the DECIDED row materializes as its temporary entry (a
+  null value - an incomplete pointer has no valid IR - withheld from the wire), and the segment
+  cells render as the value cell's template over the PICK cursor. The reference itself enters as
+  SEGMENTS - the key-value gesture repeated: the cursor's `ref` carries the scope
+  ladder, the committed segment cells and the active one (state.ts RefEntry; the half-typed
+  reference lives in the cursor alone). `:` commits the active segment and opens
   the next; in the EMPTY FIRST cell it CLIMBS the scope ladder instead (`*` -> `*:` -> `*::` ->
   `*:::` - more colons, wider scope) and Backspace there steps it down. `[` in an empty non-first
   cell folds an INDEX onto the previous segment. Enter and Tab JOIN the segments and

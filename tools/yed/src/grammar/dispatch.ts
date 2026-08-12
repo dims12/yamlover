@@ -16,7 +16,7 @@ export interface Site {
    *  place (Enter opens `pick`); `pick` is a pointer's RAW being edited (the reference cell);
    *  `tag` is a node's editable `!!<…>` tag cell (its INNER text). Quotes are ORDINARY
    *  CHARACTERS of a token — there is no quote mode and no quote gap. */
-  cell: "holeEntry" | "holeValue" | "token" | "key" | "gapClose" | "atom" | "pick" | "tag" | "anchors" | "portion";
+  cell: "holeEntry" | "holeValue" | "token" | "key" | "gapClose" | "atom" | "pick" | "tag" | "anchors" | "portion" | "quoted";
   /** The container the caret's entry lives in. */
   container: "block" | "flowMap" | "flowSeq";
   /** For gaps: the kind of the token AROUND this one (undefined ⇒ not nested in a flow token). */
@@ -48,6 +48,9 @@ export interface Site {
   /** The caret's character offset in the active text cell, when the projection reports it
    *  (a mid-text `:` splits a portion AT the caret). Undefined: assume the end. */
   caretOffset?: number;
+  /** Quoted cells only (the paired-closer template): the entry's quote STYLE — the one key
+   *  that steps past the projected closer. */
+  quote?: '"' | "'";
 }
 
 export type Dir = -1 | 1;
@@ -69,6 +72,8 @@ export type Intent =
   | { kind: "undoMarker" }                  // Backspace, empty, uncommitted decided entry
   | { kind: "removeLevel" }                 // Backspace, empty: one structure level goes
   | { kind: "reopenToken" }                 // Backspace past the closer of an EMPTY token
+  | { kind: "quoteClose" }                  // the matching quote at the cell's end: commit the
+                                            //   string, step past the projected closer
   | { kind: "join" }                        // Backspace at the head of a token's first line
   | { kind: "siblingAfter" }                // Enter at a gap: a fresh element after this one
   | { kind: "siblingBefore" }               // Enter at the HEAD of a committed row: the row is
@@ -213,6 +218,23 @@ export function interpret(k: Key, s: Site): Intent | null {
     if (k.key === "ArrowUp") return { kind: "move", dir: -1 };
     if (k.key === "ArrowDown") return { kind: "move", dir: 1 };
     return flowCommon(k, s, /*textual*/ true);
+  }
+  // ---- a QUOTED-SCALAR cell (the paired-closer template) ----------------------------------- //
+  // The quotes SHIELD the content: `,` `]` `}` `:` and the other quote style are ordinary
+  // characters (native text — the flow grammar never sees them). Exactly one key closes: the
+  // MATCHING quote with the caret at the end — the `]`/`}` step-past law applied to strings.
+  // Enter commits in place; Backspace on the emptied cell undoes the quote decision.
+  if (s.cell === "quoted") {
+    if (k.key === s.quote && s.caretAtEnd) return { kind: "quoteClose" };
+    if (k.key === "Enter") return { kind: "commit", submit: true };
+    if (k.key === "Backspace" && s.textEmpty) return { kind: "undoMarker" };
+    if (k.key === "Backspace" && !s.textEmpty && s.caretAtStart) return { kind: "move", dir: -1 };
+    if (k.key === "Tab") return { kind: "move", dir: k.shift ? -1 : 1 };
+    if (k.key === "ArrowLeft" && s.caretAtStart) return { kind: "move", dir: -1 };
+    if (k.key === "ArrowRight" && s.caretAtEnd) return { kind: "move", dir: 1 };
+    if (k.key === "ArrowUp") return { kind: "move", dir: -1 };
+    if (k.key === "ArrowDown") return { kind: "move", dir: 1 };
+    return null; // everything printable is CONTENT — the shielding is the point
   }
   // ---- token cells and holes --------------------------------------------------------------- //
   const flowIntent = inFlow(s) ? flowCommon(k, s, /*textual*/ false) : null;

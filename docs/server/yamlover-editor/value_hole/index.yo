@@ -2,8 +2,12 @@ Entry value hole
 description: the value_hole state
 - >
   The entry's marker is drawn (`- `, or the key with its colon) and the empty value cell after it
-  holds the cursor. `dash_space` / `key_colon_space` here open the nested structure COMPACTLY -
-  the fresh marker and its value cell stay on THIS row
+  holds the cursor. THE TEMPLATE-CELLS RULE applies: the decided row is already IN the local
+  document (a null value, `meta.temporary` - withheld from the wire until a value commits), and
+  this state is its PROVISIONAL VALUE CELL. `dash_space` / `key_colon_space` here open the nested
+  structure COMPACTLY - the fresh marker and its value cell stay on THIS row. A `quote` opens the
+  [quoted cell](*::server:yamlover-editor:quoted_scalar_editing) - the paired-closer template
+  (`""` is wire-legal, so that row flushes eagerly)
 - !!<*yamlover: $defs: table>
   header:
     - Event
@@ -13,6 +17,7 @@ description: the value_hole state
     - 'Next state'
       width: 2
   - ['`alphanumeric`', '', '[unquoted_scalar_appending](*::server:yamlover-editor:unquoted_scalar_appending)']
+  - ['`quote`', 'the paired-closer cell opens - `"` or `''`', '[quoted_scalar_editing](*::server:yamlover-editor:quoted_scalar_editing)']
   - ['`asterisk`', '', '[pointer_entry](*::server:yamlover-editor:pointer_entry)']
   - ['`pipe`', '', '[block_scalar_editing](*::server:yamlover-editor:block_scalar_editing)']
   - ['`open_brace`', '', '[flow_map_editing](*::server:yamlover-editor:flow_map_editing)']

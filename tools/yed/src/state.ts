@@ -52,13 +52,26 @@ export type Path = number[];
  *             anchor's BODY (no `&`, the sidecar's spelling). */
 export type Cursor =
   | { at: "hole"; path: Path; index: number; text: string; key: string | null; ordinal?: boolean;
+      /** the VACANT-HEAD face: the caret walked (or clicked) into the cell right of a `key:`
+       *  whose value wraps below — the hole DRAWS on the key row (a bare scalar stays there
+       *  as the omni self value). Enter drops the bit: the row-allocation gesture — the same
+       *  hole re-renders as its own templatized row below, as in a text editor. */
+      head?: true;
+      /** the QUOTED cell at ENTRY stage (the paired-closer template, KEY interpreter inside):
+       *  `text` is the INNER content, the closing quote is projected. Closing returns the
+       *  spelled token to the hole's text, where `: ` may then name the pair — the same cell
+       *  as a quoted VALUE, only the interpreter inside differs. */
+      quote?: '"' | "'";
       /** the AUTHORED key token (`"a"` typed with its quotes) — commits as EntryMeta.keyRaw */
       keyRaw?: string;
       /** the `*` decision - the reference PORTIONS being entered (text = the active portion) */
       ref?: RefEntry;
       /** the `&` decision - `ref` spells the CONTAINER's bookmark BODY, not a value */
       anchor?: true; caret?: CaretHint }
-  | { at: "token"; path: Path; text: string; caret?: "start" | "end" }
+  | { at: "token"; path: Path; text: string; caret?: "start" | "end";
+      /** the QUOTED-SCALAR cell (the paired-closer template): `text` is the INNER content,
+       *  the closing quote is projected from the style — an unterminated quote cannot exist */
+      quote?: '"' | "'" }
   | { at: "key"; path: Path; text: string; caret?: "start" | "end" }
   | { at: "tag"; path: Path; text: string; caret?: "start" | "end" }
   | { at: "anchors"; path: Path; index: number; text: string; caret?: "start" | "end" }

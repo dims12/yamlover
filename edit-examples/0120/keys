@@ -1,1 +1,1 @@
-r: 5{Enter}x: 1{Blur}
+- one{Enter}{ShiftTab}30{Enter}{ShiftTab}two: three{Blur}

@@ -1,1 +1,1 @@
-m:{Enter}- a{Enter}{ShiftTab}- b{Enter}{ShiftTab}title: T{Enter}{ShiftTab}- c{Enter}{ShiftTab}count: 2{Blur}
+outer: {{{Enter}inner: [{Enter}1,{Enter}{ShiftTab}2{Enter}{ShiftTab}{ShiftTab}],{Enter}{ShiftTab}tight: {{p: 1},{Enter}{ShiftTab}n: 3{Enter}{ShiftTab}{ShiftTab}}{Blur}

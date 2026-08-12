@@ -1,1 +1,1 @@
-a: &': shared' 1{Enter}{ShiftTab}b: &': shared' 2{Blur}
+- [{Enter}1,{Enter}{ShiftTab}2{Enter}{ShiftTab}{ShiftTab}]{Enter}{ShiftTab}- {{{Enter}k: v{Enter}{ShiftTab}{ShiftTab}}{Blur}

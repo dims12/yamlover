@@ -137,7 +137,7 @@ describe("yed2 — Tab and Shift-Tab are inverses (THE LEVEL RULE)", () => {
     // container had no position and no cell. Now it has an `into` slot: ↑ lands the hole back
     // inside children, and typing simply continues.
     const s = type("- name: Eurasia{Enter}{ShiftTab}children:{Enter}{ShiftTab}{ArrowUp}");
-    expect(s.cursor).toEqual({ at: "hole", path: [0, 1], index: 0, text: "", key: null });
+    expect(s.cursor).toEqual({ at: "hole", path: [0, 1], index: 0, text: "", key: null, head: true }); // the walked-in VACANT-HEAD face
     const s2 = type("- name: Europe{ArrowRight}", s);
     expect(src(s2)).toBe("- name: Eurasia\n  children:\n    - name: Europe\n");
   });
@@ -262,8 +262,9 @@ describe("yed2 — pointer ATOMS: walkable, deletable, never editable", () => {
     expect(s.cursor).toEqual({ at: "ptr", path: [0] });
     watchdog(s);
     const rung = applyKey(s, { key: "Backspace" });                          // the value goes…
-    expect(rung.cursor).toEqual({ at: "hole", path: [], index: 0, text: "", key: "a" }); // …the name survives
-    expect(src(rung)).toBe("b: 1\n");
+    // …the name survives — as its PROVISIONAL row (drawn locally, withheld from the wire)
+    expect(rung.cursor).toEqual({ at: "token", path: [0], text: "" });
+    expect(src(rung)).toBe("a:\nb: 1\n");
   });
   it("typing into the atom RINGS and changes nothing", () => {
     let s = load("a: *x\n");
@@ -304,12 +305,13 @@ describe("yed2 — REFERENCE ENTRY: `*` in a hole commits a pointer", () => {
   it("`*` alone and garbage refuse — the ring, the text stands, nothing lands", () => {
     const alone = type("k: *{Enter}");
     expect(alone.refused).toBe(true);
-    expect(src(alone)).toBe(""); // the empty document — nothing landed
-    // the `*` decision stands as the ref cursor (empty portions) - the text was never lost
-    expect(alone.cursor).toMatchObject({ at: "hole", text: "", key: "k", ref: { ladder: 0, portions: [""], active: 0 } });
+    // the DECIDED row stands as its temporary entry (drawn locally, withheld from the wire);
+    // the `*` decision rides the materialized PICK over it - the text was never lost
+    expect(src(alone)).toBe("k:\n");
+    expect(alone.cursor).toMatchObject({ at: "pick", path: [0], text: "", ref: { ladder: 0, portions: [""], active: 0 } });
     const garbage = type("k: *::{Enter}");
     expect(garbage.refused).toBe(true);
-    expect(src(garbage)).toBe("");
+    expect(src(garbage)).toBe("k:\n");
   });
   it("a BARE pointer lands as the KEYLESS member it is — a pointer has no self-value form", () => {
     // `*x` at the fresh root: not the document's own value (the parser refuses a top-level
@@ -360,8 +362,10 @@ describe("yed2 — REFERENCE ENTRY: `*` in a hole commits a pointer", () => {
     let s = load("a: *x\n");
     s = { ...s, cursor: { at: "pick", path: [0], text: "" } };
     s = applyKey(s, { key: "Backspace" });
-    expect(src(s)).toBe("");
-    expect(s.cursor).toEqual({ at: "hole", path: [], index: 0, text: "", key: "a" });
+    // the surviving name is its PROVISIONAL row (the template-cells law): the entry stands
+    // locally with the empty value cell, withheld from the wire until a value lands
+    expect(src(s)).toBe("a:\n");
+    expect(s.cursor).toEqual({ at: "token", path: [0], text: "" });
     watchdog(s);
   });
   it("json dialects have no `*` sigil — the star is a plain illegal token and rings at commit", () => {
@@ -423,7 +427,7 @@ describe("yed2 — BLOCK-SCALAR BIRTH: a `|`/`>` header + Enter allocates the bl
   it("a digit-indicator header refuses, visibly (no edit-text form yet)", () => {
     const digit = type("k: |2{Enter}");
     expect(digit.refused).toBe(true);
-    expect(src(digit)).toBe("");
+    expect(src(digit)).toBe("k:\n"); // the decided row stands as its (withheld) temporary entry
   });
 });
 
@@ -597,8 +601,9 @@ describe("yed2 — committed labour is never dropped", () => {
   });
   it("Backspace on an empty `[` keeps the NAMED key (`{key: [` + Backspace → `key: ` hole)", () => {
     const s = type("{{key: [{Backspace}");
-    expect(src(s)).toBe("{}\n");
-    expect(s.cursor).toEqual({ at: "hole", path: [], index: 0, text: "", key: "key" });
+    // the surviving name is its PROVISIONAL pair — drawn locally (`{key: null}`), wire-pruned
+    expect(src(s)).toBe("{key: null}\n");
+    expect(s.cursor).toEqual({ at: "token", path: [0], text: "" });
     // …and the ladder stays one-press-one-level: the NEXT press only un-names
     const s2 = applyKey(s, { key: "Backspace" });
     expect(s2.cursor).toMatchObject({ at: "hole", key: null, text: "key" });
@@ -623,12 +628,15 @@ describe("yed2 — committed labour is never dropped", () => {
     expect(src(r)).toBe("12\n");
   });
 
-  it("deleting a committed VALUE keeps its key — the pair returns to a named hole", () => {
+  it("deleting a committed leaf VALUE eats the marker too — the text editor's expectation", () => {
     const s0 = type("{{key: 12}");
-    // a click on the token, its text cleared, then Backspace: the value goes, `key:` stays
+    // a click on the token, its text cleared, then Backspace: the emptied LEAF value's press
+    // takes the colon with it — the pair returns to the UNDECIDED text (`key`), one press
+    // (the chars were the value's level, deleted one by one; a named null row would charge
+    // an extra press for a level the eye cannot see)
     const s = applyKey({ ...s0, cursor: { at: "token", path: [0], text: "" } }, { key: "Backspace" });
     expect(src(s)).toBe("{}\n");
-    expect(s.cursor).toEqual({ at: "hole", path: [], index: 0, text: "", key: "key" });
+    expect(s.cursor).toEqual({ at: "hole", path: [], index: 0, text: "key", key: null });
   });
 });
 
@@ -670,8 +678,9 @@ describe("yed2 typing — the identity-meta law (tags survive structural edits)"
     expect(sourceOf(s.doc)).toBe(""); // the editor's empty document
     expect(meta(s).yo).toBe(true);
     expect(meta(s).schema).toBeDefined();
-    // the caret sits in the root hole (the KEY may survive one more press — one press, one level)
-    expect(s.cursor).toMatchObject({ at: "hole", path: [], index: 0, text: "" });
+    // the caret sits in the root hole — the KEY survived down the ladder as the hole's text
+    // (the provisional row serialized `serves:` until its marker was undone — one press, one level)
+    expect(s.cursor).toMatchObject({ at: "hole", path: [], index: 0, text: "serves" });
   });
 
   it("typing [ into an EMPTY tagged root keeps the tag on the flow root", () => {
@@ -763,10 +772,10 @@ describe("yed2 typing — the editable !!<…> TAG cell", () => {
 });
 
 describe("yed2 typing — the editable & ANCHOR rows", () => {
-  it("editing an anchor row re-spells it; the walk reaches the stop after the value", () => {
+  it("editing an anchor row re-spells it; the walk reaches the stop LEFT of the value (YAML order)", () => {
     const s0: EditorState = { ...initialState(), doc: parseSource("a: 1\n  &: p: q\n") };
-    // → from the value walks onto the anchors stop
-    let s = applyKey({ ...s0, cursor: { at: "token", path: [0], text: "1", caret: "end" } }, { key: "ArrowRight" });
+    // ← from the value's start walks onto the anchors stop — `a: &… 1`, the anchor before it
+    let s = applyKey({ ...s0, cursor: { at: "token", path: [0], text: "1", caret: "start" } }, { key: "ArrowLeft" }, { atStart: true, atEnd: false });
     expect(s.cursor).toMatchObject({ at: "anchors", path: [0], index: 0, text: ": p: q" });
     // retype the body and commit
     s = { ...s, cursor: { ...s.cursor, text: ": p: r" } as EditorState["cursor"] };
@@ -884,19 +893,24 @@ describe("yed2 typing — the `&` ENTRY face (the FIRST bookmark, docs/server/ya
   it("json5/json dialects: `&` stays text and refuses at the scalar gate", () => {
     let s = type("{{k: ", initialState("json5"));
     s = applyText(s, "&x");
-    expect(s.cursor).toMatchObject({ at: "hole", text: "&x" }); // no face — plain text
+    // no `&` face — plain text in the provisional value cell (the pair materialized on `k: `)
+    expect(s.cursor).toMatchObject({ at: "token", text: "&x" });
     expect((s.cursor as { anchor?: true }).anchor).toBeUndefined();
     s = applyKey(s, { key: "Enter" });
     expect(s.refused).toBe(true); // not a json5 scalar spelling
   });
 
-  it("the INLINE back door still types through verbatim (`&'p: q' 1` — raw-first parity)", () => {
-    // a VALUE hole (the entry named `a`): `&…` is not the entry-stage decision there — the
-    // inline anchor+value spelling commits with the meta riding the token (scalarFromText)
-    const s = type("a: &'p: q' 1{Enter}");
-    // the anchor rode the token (scalarFromText keeps the meta) — the serializer re-spells
-    // it in the canonical own-line form after the value
-    expect(src(s)).toBe("a: 1\n  &p: q\n");
+  it("`&` in the VALUE place opens the bookmark face ON THE ENTRY'S OWN NODE", () => {
+    // bookmarks are ENTERED, not spelled: `a: &` materializes a's value (the descend's empty
+    // container) and the `&` decision continues INSIDE it — the bookmark belongs to `a`
+    // (`a:` + its own `&: path` line). The old inline back door (`&'p: q' 1` typed as
+    // literal text) yields to the face; the inline spelling remains a PARSE form.
+    let s = type("a: &");
+    expect(s.cursor).toMatchObject({ at: "hole", path: [0], anchor: true, ref: { portions: [""] } });
+    s = type("shared{Enter}", s);
+    expect(s.refused).toBe(false);
+    // the EMPTY anchored mapping takes the serializer's `{}` spelling; entries later replace it
+    expect(src(s)).toBe("a: {}\n  &shared\n");
   });
 });
 

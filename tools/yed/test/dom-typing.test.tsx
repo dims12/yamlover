@@ -81,9 +81,11 @@ describe("yed2 DOM typing — the reported yaml, through real key events", () =>
   it("Enter after `children:` WRAPS THE ROW — the hole opens on its own line, never beside the key", () => {
     render(<Harness />);
     domType("- name: Eurasia⏎⇤children:⏎");
-    // the reported defect: the projection drew the block child ON the key's line. The key's
-    // visual row must hold the key alone; the descended hole lives on an indented row below.
-    expect(keyRow("children").querySelector(".y2-hole")).toBeNull();
+    // Enter is the ROW-ALLOCATION gesture: the descended hole is its own templatized row on
+    // an indented line below — never beside the key. (The cell BESIDE the key is the walked-in
+    // VACANT-HEAD face — the `head` cursor bit; Enter there drops the bit and allocates this
+    // same row view.)
+    expect(keyRow("children").querySelector(".y2-hole.y2-active")).toBeNull(); // the rest face may sit there; the CARET must not
     expect(document.querySelector(".y2-row.y2-indent .y2-hole")).toBeTruthy();
     domType("- name: Europe→");
     expect(keyRow("children").textContent).not.toContain("Europe"); // the child never shares the key's row
@@ -105,7 +107,7 @@ describe("yed2 DOM typing — the reported yaml, through real key events", () =>
   it("the reported LOCK: an empty children value draws a CLICKABLE placeholder — never a wall", () => {
     render(<Harness />);
     domType("- name: Eurasia⏎⇤children:⏎⇤↑"); // the exact reported keys — ↑ walks back inside
-    expect(lastState.cursor).toEqual({ at: "hole", path: [0, 1], index: 0, text: "", key: null });
+    expect(lastState.cursor).toEqual({ at: "hole", path: [0, 1], index: 0, text: "", key: null, head: true });
     domType("- name: Europe→");
     expect(sourceOf(lastState.doc)).toBe("- name: Eurasia\n  children:\n    - name: Europe\n");
   });

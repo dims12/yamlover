@@ -58,34 +58,37 @@ describe("portion entry - typing a reference IS the key-value gesture, many time
   });
   it("the cursor holds the portions while typing - the document stays untouched", () => {
     const s = type("k: *pets: 1");
-    expect(src(s)).toBe(""); // cursor-level commits: nothing landed yet
-    expect(s.cursor).toMatchObject({ at: "hole", key: "k", text: "1", ref: { ladder: 0, portions: ["pets", ""], active: 1 } });
+    // the DECIDED row stands as its temporary entry (template-cells; wire-withheld) - the
+    // half-typed REFERENCE itself is still cursor-held over the materialized PICK
+    expect(src(s)).toBe("k:\n");
+    expect(s.cursor).toMatchObject({ at: "pick", path: [0], text: "1", ref: { ladder: 0, portions: ["pets", ""], active: 1 } });
   });
   it("`:` in the EMPTY FIRST cell climbs the scope ladder; Backspace descends it", () => {
     let s = type("k: *::");
-    expect(s.cursor).toMatchObject({ at: "hole", ref: { ladder: 2 } });
+    expect(s.cursor).toMatchObject({ at: "pick", ref: { ladder: 2 } });
     s = type("{Backspace}", s);
-    expect(s.cursor).toMatchObject({ at: "hole", ref: { ladder: 1 } });
+    expect(s.cursor).toMatchObject({ at: "pick", ref: { ladder: 1 } });
     s = type("tags{Enter}", s);
     expect(src(s)).toBe("k: *: tags\n");
   });
   it("Backspace on the emptied floor undoes the `*` decision - back to the plain hole", () => {
     let s = type("k: *");
-    expect(s.cursor).toMatchObject({ at: "hole", ref: { ladder: 0 } });
+    expect(s.cursor).toMatchObject({ at: "pick", ref: { ladder: 0 } });
     s = type("{Backspace}", s);
-    expect(s.cursor).toMatchObject({ at: "hole", key: "k", text: "" });
+    // back to the PROVISIONAL value cell - the named row stands (wire-withheld)
+    expect(s.cursor).toMatchObject({ at: "token", path: [0], text: "" });
     expect((s.cursor as { ref?: unknown }).ref).toBeUndefined();
-    expect(src(s)).toBe("");
+    expect(src(s)).toBe("k:\n");
   });
   it("Backspace at a later portion's head MERGES it into the previous one, caret at the join", () => {
     let s = type("k: *pets: 1");
     s = applyKey(s, { key: "Backspace" }, { atStart: true, atEnd: false });
-    expect(s.cursor).toMatchObject({ at: "hole", text: "pets1", caret: 4, ref: { portions: ["pets1"], active: 0 } });
+    expect(s.cursor).toMatchObject({ at: "pick", text: "pets1", caret: 4, ref: { portions: ["pets1"], active: 0 } });
   });
   it("`[` in an empty portion folds an INDEX onto the previous one - `pets` `:` `[` spells `pets[|]`", () => {
     let s = type("k: *pets:");
     s = applyKey(s, { key: "[" });
-    expect(s.cursor).toMatchObject({ at: "hole", text: "pets[]", caret: 5, ref: { portions: ["pets[]"], active: 0 } });
+    expect(s.cursor).toMatchObject({ at: "pick", text: "pets[]", caret: 5, ref: { portions: ["pets[]"], active: 0 } });
     // the index typed inside the pair (the DOM inserts at the caret - the onChange path),
     // then Enter: the join normalizes to the canonical bare-digit portion
     s = applyKey({ ...s, cursor: { ...s.cursor, text: "pets[1]" } as never }, { key: "Enter" });
@@ -94,8 +97,8 @@ describe("portion entry - typing a reference IS the key-value gesture, many time
   it("an UNPARSEABLE join refuses the commit - the ring, the portions stand", () => {
     const s = type("k: *::{Enter}"); // `::` alone names nothing the wire can carry
     expect(s.refused).toBe(true);
-    expect(src(s)).toBe("");
-    expect(s.cursor).toMatchObject({ at: "hole", ref: { ladder: 2 } });
+    expect(src(s)).toBe("k:\n"); // the temporary row stands - wire-withheld
+    expect(s.cursor).toMatchObject({ at: "pick", ref: { ladder: 2 } });
   });
   it("the arrows walk BETWEEN portions commitlessly", () => {
     let s = type("k: *pets: 1");
@@ -130,8 +133,8 @@ describe("portion retarget - Enter on the atom opens the decomposed raw", () => 
     let s = load("k: *x\n");
     s = applyKey(s, { key: "Enter" });
     s = applyKey({ ...s, cursor: { ...s.cursor, text: "" } as never }, { key: "Backspace" }, { atStart: true, atEnd: true });
-    // the reference went; the NAME survives as the named hole (one press, one level)
-    expect(src(s)).toBe("");
-    expect(s.cursor).toEqual({ at: "hole", path: [], index: 0, text: "", key: "k" });
+    // the reference went; the NAME survives - as its PROVISIONAL row (one press, one level)
+    expect(src(s)).toBe("k:\n");
+    expect(s.cursor).toEqual({ at: "token", path: [0], text: "" });
   });
 });

@@ -114,7 +114,7 @@ export function EditorView({ state, setState, debug = true, cells = defaultRegis
     onFocus: (pos: Position) => {
       const cursor: Cursor =
         pos.at === "after" ? { at: "after", path: pos.path }
-        : pos.at === "into" ? { at: "hole", path: pos.path, index: 0, text: "", key: null }
+        : pos.at === "into" ? { at: "hole", path: pos.path, index: 0, text: "", key: null, ...(pos.head === true ? { head: true as const } : {}) }
         : pos.at === "ptr" ? { at: "ptr", path: pos.path }
         : pos.at === "key" ? { at: "key", path: pos.path, text: "" }
         : pos.at === "tag" ? { at: "tag", path: pos.path, text: "" }

@@ -4,7 +4,7 @@ Written by `npm run gen:edit-fixtures`. A skip is a statement about the EDITOR's
 not about the document: every entry here is a shape a person cannot currently type. Shrinking this
 list is a feature request; the corpus's honesty depends on it being complete.
 
-59 of 94 sources skipped.
+62 of 99 sources skipped.
 
 ## a `!!<…>` schema tag — its content lives in the tag cell
 
@@ -18,15 +18,21 @@ list is a feature request; the corpus's honesty depends on it being complete.
 - `test-examples/0401/in.yo`
 - `test-examples/0405/in.yo`
 
-## a `&` path anchor — no cell types one, and it IS part of IR identity
+## a `&` path anchor — `&` opens the bookmark face; the inline spelling is not typeable
 
 - `examples/06-tour.yo`
 - `examples/58-genealogy-dag/.yo/body.yo`
+- `examples/76-xyflow-graph.yo`
+- `test-examples/0300/in.yo`
 - `test-examples/0301/in.yo`
 - `test-examples/0302/in.yo`
 - `test-examples/0303/in.yo`
 - `test-examples/0304-01/in.yo`
+- `test-examples/0306/in.yo`
 - `test-examples/0504/in.yo`
+- `test-examples/0708/in.yo`
+- `test-examples/1047/in.yo`
+- `test-examples/1048/in.yo`
 
 ## a `*` pointer — its cell commits through the completion popup, not a blur
 
@@ -45,13 +51,9 @@ list is a feature request; the corpus's honesty depends on it being complete.
 - `test-examples/0206/in.yo`
 - `test-examples/0207/in.yo`
 - `test-examples/0208/in.yo`
-- `test-examples/0300/in.yo`
 - `test-examples/0500/in.yo`
 - `test-examples/0705/in.yo`
-- `test-examples/0708/in.yo`
 - `test-examples/0710/in.yo`
-- `test-examples/1047/in.yo`
-- `test-examples/1048/in.yo`
 
 ## a `~` back-edge — no cell types one, and it IS part of IR identity
 
@@ -74,6 +76,7 @@ list is a feature request; the corpus's honesty depends on it being complete.
 - `examples/66-pet-keeper-handbook/.yo/body.yo`
 - `examples/68-math-chapter/.yo/body.yo`
 - `examples/69-marklower-links.yo`
+- `examples/74-deep-book/.yo/body.yo`
 - `test-examples/0403/in.yo`
 - `test-examples/0503/in.yo`
 - `test-examples/0600/in.yo`
