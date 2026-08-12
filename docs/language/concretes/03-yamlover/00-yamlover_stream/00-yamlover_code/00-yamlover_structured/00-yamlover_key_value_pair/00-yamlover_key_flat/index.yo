@@ -1,8 +1,7 @@
 # The flat-key representation concrete - the authored fold of a nested chain onto one line.
+# Implemented: EntryMeta.keyConcrete in the parser IR; the serializer re-emits the fold.
 yamlover/key/flat
 description: a key spelled on a flat row - every segment after the first wears this concrete
-- >
-  *Status: defined, not yet implemented.*
 - >
   The representation concrete of a key that was authored on a
   [flat row](*::language:flattening): in `key1: key2: key3: value`, the keys `key2` and `key3`

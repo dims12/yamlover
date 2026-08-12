@@ -1,1 +1,1 @@
-a second colon on the line is TEXT — the value-position scalar, never a collapse (YAML ZCZ6)
+a colon in a VALUE CELL is content - the cell commits the string (the file spells it quoted; the bare line is a flat row)

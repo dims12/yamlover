@@ -99,7 +99,11 @@ test('yamlover rt: `-:` is the EXPLICIT KEYLESS CONVERSION — `-: v` ≡ `- v`,
   // the sugar is INPUT ONLY: every spelling below re-emits with the canonical dash marker
   assert.equal(rtYamlover('a: 1\n-: 2\n'), 'a: 1\n- 2\n');
   assert.equal(rtYamlover('-:\n  name: Whiskers\n  species: cat\n'), '- name: Whiskers\n  species: cat\n');
-  assert.equal(rtYamlover('-: name: Rex\n'), '- name: Rex\n');
+  // `-: key: …` FLIPPED under flattening (docs/language/flattening): key segments after a `-`
+  // make it a MIDDLE segment — it addresses the LAST keyless element and never adds one, so
+  // with nothing to address it refuses. The appends spell `- name: Rex` or `-:` + a block.
+  assert.throws(() => parseYamlover('-: name: Rex\n'), /middle "-" segment/);
+  assert.equal(rtYamlover('- 1\n-: name: Rex\n'), '- 1\n  name: Rex\n'); // …and WITH one, it paves into it
   assert.equal(rtYamlover('-: - x\n'), '- - x\n'); // nests like the dash it is
   // the marker is the WHOLE token: the colon sits tight, and space-or-EOL must follow
   assert.equal(rtYamlover('-:x\n'), '-:x\n'); // a plain scalar, not a marker

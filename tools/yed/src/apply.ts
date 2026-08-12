@@ -93,7 +93,17 @@ function valueScalarFromText(text: string): Node | null {
   if (t === "" || t.includes("\n")) return null;
   try {
     const v = (parseYamlover("x: " + t, "<cell>").root as Node).entries?.[0]?.value;
-    if (!v || isPointer(v) || (v as Node).kind !== "scalar" || ((v as Node).entries ?? []).length > 0) return null;
+    if (!v || isPointer(v)) return null;
+    if ((v as Node).kind !== "scalar" || ((v as Node).entries ?? []).length > 0) {
+      // the FILE grammar reads this spelling as structure — a FLAT row (docs/language/flattening).
+      // But a VALUE CELL's text is CONTENT, and the cell boundary is the structure: the typed
+      // colons commit as the STRING, which the serializer spells quoted (the escape the
+      // parser itself defines). Structure is entered through the cells (`{`, `[`, `k: `+
+      // classify), never by colon text landing in a committed value.
+      const flatRead = (v as Node).kind === "mapping" && !/^[{['"*&|>!]/.test(t) && t.includes(": ");
+      if (!flatRead) return null;
+      return { kind: "scalar", value: t } as unknown as Node;
+    }
     const s = v as { value?: unknown; raw?: string; meta?: unknown };
     return { kind: "scalar", value: s.value, ...(s.raw !== undefined ? { raw: s.raw } : {}) } as unknown as Node;
   } catch {

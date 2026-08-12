@@ -19,7 +19,16 @@ import { parsePointer, makeAnchor } from './pointer.ts';
 import { keyRawWorthKeeping, seqMarkLen } from './serialize-common.ts';
 import { attachComments, type RawComment } from './comments.ts';
 
-interface Line { indent: number; text: string; n: number; blankBefore?: boolean }
+interface Line {
+  indent: number; text: string; n: number; blankBefore?: boolean;
+  /** The REAL raw-line column of `text[0]`, when it differs from `indent` — a FLAT-row
+   *  rewrite gives its synthetic line a structural indent (outer + 1 per segment, so any
+   *  nested-equivalent continuation column stays in range) while spans keep raw columns. */
+  col?: number;
+  /** This synthetic line is a FLAT-row residue (docs/language/flattening): the entry it
+   *  produces carries the `yamlover/key/flat` concrete. */
+  flat?: true;
+}
 /** A captured `#` comment plus the raw line it sat on (so block-scalar content lines, where
  *  `#` is data not a comment, can be purged before attachment). */
 interface YComment extends RawComment { n: number }
@@ -176,10 +185,21 @@ class Block {
       body = quotedScalar(text.slice(1, j + 1)).value as string;
       tokenLen = j + 1;
     } else if (hasSeparatorColon(inline ? text.slice(1).split(/[ \t]/, 1)[0] : text.slice(1))) {
-      // COLON-form anchor (docs/language/pointers/paths): the `: ` styling holds spaces, so the token
-      // runs to END OF LINE — a same-line value needs the quoted form (M3).
-      body = text.slice(1).trim();
-      tokenLen = text.length;
+      // COLON-form anchor (docs/language/pointers/paths). OWN-LINE rows keep the greedy read — the
+      // `: ` styling holds spaces, the token runs to END OF LINE (the canonical spelling).
+      // INLINE (a pair tail, docs/language/flattening combinations) the chain is BOUNDED: it
+      // stops before the next `&` (another bookmark) or before a trailing colon-less token
+      // (the value) — so bookmark chains and a value share the row.
+      if (inline && !this.yaml) {
+        tokenLen = this.anchorChainEnd(text);
+        body = text.slice(1, tokenLen).trim();
+        // a chain that stopped before the value/next-`&` keeps its cursor PAST the
+        // separating colon — the separator is not part of the body
+        if (body.endsWith(':')) body = body.slice(0, -1).trimEnd();
+      } else {
+        body = text.slice(1).trim();
+        tokenLen = text.length;
+      }
     } else {
       let j = 1;
       while (j < text.length && text[j] !== ' ' && text[j] !== '\t') {
@@ -193,6 +213,45 @@ class Block {
     anchor.path.span = this.spanAt(lineN, col, tokenLen); // the whole `&…` token
     const a = adv(text, tokenLen, col);
     return { anchor, rest: a.rest, col: a.col };
+  }
+
+  /** Where an INLINE colon-form anchor chain ends (docs/language/flattening combinations):
+   *  the scope colons and the FIRST name always belong; each further `: `-terminated portion
+   *  extends the chain; a lone `-` portion (the keyless-membership suffix) belongs too. The
+   *  chain stops before the next `&` (another bookmark) and before any other colon-less
+   *  token (the value). Returns the index in `text` just past the chain (text[0] is `&`). */
+  anchorChainEnd(text: string): number {
+    let i = 1;
+    while (text[i] === ':') i++;          // the scope ladder
+    let end = i;                          // the scan cursor, just past what BELONGS so far
+    let first = true;
+    for (;;) {
+      let j = end;
+      while (text[j] === ' ' || text[j] === '\t') j++;
+      if (j >= text.length) return text.length;
+      if (text[j] === '&' && !first) return end;   // the next bookmark starts here
+      if (text[j] === '*') return end;             // a reference — never a bookmark portion
+      // read one portion: to the next unquoted `:`+(space|EOL), or to whitespace/EOL
+      let q: string | null = null;
+      let k = j;
+      let sawColon = false;
+      for (; k < text.length; k++) {
+        const c = text[k];
+        if (q !== null) {
+          if (c !== q) continue;
+          if (q === "'" && text[k + 1] === "'") { k++; continue; } // doubled '' — a literal quote
+          q = null;
+          continue;
+        }
+        if (c === "'" || c === '"') { q = c; continue; }
+        if (c === ':' && (text[k + 1] === undefined || text[k + 1] === ' ' || text[k + 1] === '\t')) { sawColon = true; break; }
+        if (c === ' ' || c === '\t') break;
+      }
+      const token = text.slice(j, k);
+      if (sawColon) { end = k + 1; first = false; continue; }        // colon-terminated: belongs
+      if (first || token === '-') { end = k; first = false; continue; } // the first name / `: -` suffix
+      return end;                                                    // a colon-less token: the value
+    }
   }
 
   /** Attach anchors to a (non-pointer) node's meta, appending to any it already has. */
@@ -216,6 +275,113 @@ class Block {
     this.attachAnchors(out, cont.meta?.anchors ?? []);
     return out;
   }
+
+  /** Is this residue a FLAT-row continuation (docs/language/flattening) — itself a keyed or
+   *  `-:` line, so the fold unrolls one more level? `!!<`, `*`, `&`, block indicators and
+   *  `~` open VALUES/decorations, never path segments; quotes are decided by splitKV (a
+   *  quoted KEY has a top-level `: `, a quoted VALUE does not). Never in .yaml mode. */
+  flatTail(rest: string): boolean {
+    if (this.yaml || rest === '') return false;
+    if (/^(!!|\*|&|[|>~])/.test(rest)) return false;
+    // a `-:`-headed rest ALWAYS continues the fold: whether the `-` is trailing (a value or
+    // block follows - the append) or middle (key segments follow - the last-element address)
+    // is decided one level down, where the residue re-reads
+    if (seqMarkLen(rest, false) === 2) return true;
+    if (isSeqLine(rest, false)) return false; // `- x` after a key: today's reading stands
+    const kv = splitKV(rest);
+    // a null-key `: v` and any `:`-led token (a scope-sigil value spelling like `::: host`)
+    // are VALUE lines, never path segments
+    return kv !== null && kv.key !== '' && kv.key !== '~' && !kv.key.startsWith(':');
+  }
+
+  /** THE PAVING (docs/language/flattening: rows are commands): a FLAT spine merges into the
+   *  sibling it addresses — a named segment pairs with the LAST same-key sibling, a middle
+   *  `-` with the LAST keyless one (and never adds). Returns false when the row simply
+   *  CREATES (the plain push). */
+  paveMerge(list: Entry[], e: Entry): boolean {
+    if (this.yaml) return false;
+    const child = this.spineChild(e.value);
+    if (e.key === null) {
+      if (e.nullKey === true || e.edge === 'back' || child === null) return false; // trailing `-` appends
+      const t = [...list].reverse().find((x) => x.key === null && x.nullKey !== true && x.edge !== 'back');
+      if (!t) this.fail('a middle "-" segment addresses the LAST keyless element - none exists here');
+      this.paveInto(t, child);
+      return true;
+    }
+    if (e.meta?.keyConcrete === undefined && child === null) return false; // not a flat spine at all
+    const t = [...list].reverse().find((x) => x.key === e.key && x.edge !== 'back');
+    if (!t) { this.validateFreshSpine(e); return false; } // no sibling — the row creates
+    if (child === null) { this.paveValue(t, e.value); return true; }
+    this.paveInto(t, child);
+    return true;
+  }
+
+  /** A spine about to be CREATED fresh may not contain a MIDDLE `-` — the middle segment
+   *  addresses an existing element and never adds one, so with nothing to address it fails
+   *  here rather than silently minting an element. */
+  validateFreshSpine(e: Entry): void {
+    for (let c = this.spineChild(e.value); c !== null; c = this.spineChild(c.value)) {
+      if (c.key === null && c.nullKey !== true && this.spineChild(c.value) !== null) {
+        this.fail('a middle "-" segment addresses the LAST keyless element - none exists here');
+      }
+    }
+  }
+
+  /** The next flat segment of a spine, when the fold continues below `v` — a mapping whose
+   *  single entry wears the flat concrete. A continuation BLOCK's entries are first
+   *  segments of their own lines (unmarked), so the spine detection stops there. */
+  spineChild(v: Value): Entry | null {
+    if (isPointer(v) || v.kind !== 'mapping') return null;
+    const ents = v.entries ?? [];
+    if (ents.length !== 1 || ents[0].meta?.keyConcrete !== 'yamlover/key/flat') return null;
+    if ((v.meta?.anchors ?? []).length > 0) return null; // decorated — not a bare spine link
+    return ents[0];
+  }
+
+  /** Pave the spine's next segment INTO an existing node — the child-adding walk (a valued
+   *  scalar grows fields: the omni). Paving through a reference is refused: an edge is not
+   *  a node. */
+  paveInto(t: Entry, seg: Entry): void {
+    if (isPointer(t.value)) this.fail('cannot pave through a reference - a pointer is an edge, not a node');
+    const v = t.value as Node;
+    if (v.kind === 'blob') this.fail('cannot pave into a blob');
+    if (v.entries === undefined) (v as { entries?: Entry[] }).entries = [];
+    if (!this.paveMerge(v.entries!, seg)) v.entries!.push(seg);
+    // the projection hint follows the members (the same law container() computes)
+    const owned = v.entries!.filter((x) => x.edge !== 'back');
+    (v as { array?: boolean }).array = owned.length > 0 && owned.every((x) => x.key === null && x.nullKey !== true);
+  }
+
+  /** Land a flat row's PAYLOAD on the existing node it addressed — THE WRITE-ONCE LAW: a
+   *  scalar value may change only while the node is null-valued AND childless. A block
+   *  continuation is child-adding and merges (mergeCont enforces the one-value law). */
+  paveValue(t: Entry, val: Value): void {
+    if (!isPointer(val) && val.kind === 'mapping') {
+      if (isPointer(t.value)) this.fail('a reference is exclusive - it takes no continuation block');
+      t.value = this.mergeCont(t.value as Node, val);
+      return;
+    }
+    const freshNull = !isPointer(val) && val.kind === 'scalar' && val.value === null && (val.raw ?? '') === ''
+      && (val.entries?.length ?? 0) === 0 && val.meta?.anchors === undefined && val.meta?.schema === undefined;
+    if (freshNull) return; // a valueless row over an existing node - nothing to write
+    if (isPointer(t.value)) this.fail('the flat row would overwrite a reference - a value may land only on a null-valued, childless node (write-once)');
+    const old = t.value as Node;
+    const oldNull = old.kind === 'scalar' && old.value === null && (old.raw ?? '') === '';
+    const oldChildless = (old.entries?.length ?? 0) === 0;
+    if (!oldNull || !oldChildless) {
+      this.fail('the flat row would overwrite - a value may land only on a null-valued, childless node (write-once)');
+    }
+    // the paved-over null's own decorations (bookmarks a prior row attached) survive the landing
+    const oldAnchors = old.meta?.anchors ?? [];
+    t.value = val;
+    if (isPointer(val)) {
+      if (oldAnchors.length > 0) this.fail('a reference is exclusive - it may not carry the bookmarks paved before it');
+      t.edge = 'ref';
+    } else if (oldAnchors.length > 0) {
+      this.attachAnchors(val, oldAnchors);
+    }
+  }
+
   fail(msg: string): never {
     const l = this.lines[this.i] ?? this.lines[this.i - 1];
     const where = l ? `${this.uri}:${l.n + 1}` : this.uri;
@@ -273,8 +439,9 @@ class Block {
     for (;;) {
       const l = this.peek();
       if (!l || l.indent !== indent) break;
+      const lCol = l.col ?? l.indent; // the REAL raw column (differs on flat-row rewrites)
       const startLineN = l.n;       // an entry's source range starts at its key/`-`/`~`
-      const startCol = l.indent;    // marker, at this line's indent column
+      const startCol = lCol;        // marker, at this line's indent column
       const startBlank = l.blankBefore === true; // a blank source line precedes this entry
       let value: Value;
       let entry: Entry;
@@ -282,7 +449,7 @@ class Block {
         // own-line anchor(s); a trailing inline value makes this also the self-value line
         if (keylessOnly) break;
         this.i++;
-        let { rest, col } = { rest: l.text, col: l.indent };
+        let { rest, col } = { rest: l.text, col: lCol };
         while (rest.startsWith('&')) {
           const r = this.anchorToken(rest, l.n, col);
           anchors.push(r.anchor);
@@ -303,9 +470,17 @@ class Block {
         this.i++;
         const afterDash = l.text.slice(mark);
         const lead = afterDash.length - afterDash.trimStart().length;
-        const contentCol = l.indent + mark + lead;
+        const contentCol = lCol + mark + lead;
         const rest = afterDash.trim();
-        if (rest === '') {
+        if (mark === 2 && this.flatTail(rest)) {
+          // a FLAT ROW headed by the `-` segment (docs/language/flattening): further KEY
+          // segments follow, so this `-` is a MIDDLE segment — it addresses the LAST
+          // keyless element and never adds one (paveMerge below; the residue re-reads one
+          // synthetic level deeper, marked flat)
+          this.i--;
+          this.lines[this.i] = { indent: indent + 1, col: contentCol, text: rest, n: l.n, flat: true };
+          value = this.container(indent + 1);
+        } else if (rest === '') {
           value = this.node(indent + 1) ?? nul();
         } else if (isSeqLine(rest, this.yaml) || (!/^(!!<|\*|&)/.test(rest) && splitKV(rest))) {
           // compact `- key: value` or compact nesting `- - item`: re-read this line
@@ -324,7 +499,7 @@ class Block {
         // names the container that holds this node, so it must be a pointer.
         if (keylessOnly) break;
         this.i++;
-        const a = adv(l.text, 2, l.indent); // past the `~-` marker, to the pointer token
+        const a = adv(l.text, 2, lCol); // past the `~-` marker, to the pointer token
         const rest = a.rest;
         if (!rest.startsWith('*')) this.fail('a "~-" entry needs a pointer value (the container that holds this node)');
         const ptr = parsePointer(rest.slice(1).trim());
@@ -346,7 +521,7 @@ class Block {
             // entries resume. (docs/language/vs-yaml/differences/mixtures — the value line may sit anywhere among the entries.)
             v = this.blockScalar(l.text, indent, l.n);
           } else {
-            const iv = this.valueInline(l.text, indent, /*allowBlock*/ false, l.n, l.indent);
+            const iv = this.valueInline(l.text, indent, /*allowBlock*/ false, l.n, lCol);
             if (isPointer(iv) || iv.kind !== 'scalar') this.fail('unexpected content (expected an entry, an anchor, or a scalar value line)');
             v = iv;
           }
@@ -363,7 +538,17 @@ class Block {
         // (a back-edge sigil needs a nonempty relation name: `~cain:`)
         const nullKey = rawKey === '' || rawKey === '~';
         if (!nullKey && rawKey.startsWith('~')) { back = true; rawKey = rawKey.slice(1); }
-        value = this.valueAfter(kv.rest, indent, l.n, l.indent + kv.restCol);
+        if (!nullKey && !back && this.flatTail(kv.rest)) {
+          // a FLAT ROW (docs/language/flattening): the rest is itself a keyed / `-:` line —
+          // the fold unrolls one level. The residue re-reads as a synthetic child line at
+          // indent+1 (so ANY nested-equivalent continuation column stays in range), carrying
+          // the real column for spans and the `flat` mark for the yamlover/key/flat concrete.
+          this.i--;
+          this.lines[this.i] = { indent: indent + 1, col: lCol + kv.restCol, text: kv.rest, n: l.n, flat: true };
+          value = this.container(indent + 1);
+        } else {
+          value = this.valueAfter(kv.rest, indent, l.n, lCol + kv.restCol);
+        }
         if (nullKey) {
           entry = { key: null, nullKey: true, edge: isPointer(value) ? 'ref' : 'contain', value };
         } else {
@@ -385,10 +570,17 @@ class Block {
       const endLine = this.lines[this.i - 1];
       const start = (this.lineStarts[startLineN] ?? 0) + startCol;
       const end = endLine
-        ? (this.lineStarts[endLine.n] ?? 0) + endLine.indent + endLine.text.length
+        ? (this.lineStarts[endLine.n] ?? 0) + (endLine.col ?? endLine.indent) + endLine.text.length
         : start;
       entry.meta = { ...entry.meta, span: { uri: this.uri, start, end }, ...(startBlank ? { blankBefore: true } : {}) };
-      entries.push(entry);
+      // a FLAT-row residue's entry wears the representation concrete (docs/language/flattening):
+      // every path segment after the first — the serializer re-emits the fold from it
+      if (l.flat === true) entry.meta = { ...entry.meta, keyConcrete: 'yamlover/key/flat' };
+      // rows are COMMANDS: a flat spine paves into the existing sibling it addresses. A
+      // REWRITTEN (flat-residue) line is the chain being BUILT - it never paves at its own
+      // level (its container holds only the chain); the real row's top does, recursively.
+      if (l.flat !== true && this.paveMerge(entries, entry)) { /* merged */ }
+      else entries.push(entry);
     }
     // projection hint: a pure sequence — judged over OWNED entries only (a `~-` back-edge
     // is not a member of THIS node and must not make it look like an array; a NULL-KEYED
@@ -442,6 +634,11 @@ class Block {
         continue;
       }
       break;
+    }
+    // THE PULL LINK IS EXCLUSIVE (docs/language/flattening): a reference is an edge, not a
+    // node — it carries no bookmarks, so no `&` chain may precede it on the row
+    if (anchors.length > 0 && rest.startsWith('*')) {
+      this.fail('a reference is exclusive - no bookmark may share its row (a pointer is an edge, not a node)');
     }
     let value: Value;
     if (/^[|>][+-]?\d*$/.test(rest)) {

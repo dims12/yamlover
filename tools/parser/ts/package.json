@@ -6,7 +6,7 @@
   "description": "Hand-written parsers for json5p and yamlover → the yamlover IR (see ../../IR.md).",
   "scripts": {
     "test": "node --test test/*.test.ts",
-    "test:unit": "node --test test/json5p.test.ts test/yamlover.test.ts test/comments.test.ts test/serialize.test.ts test/spans.test.ts",
+    "test:unit": "node --test test/json5p.test.ts test/yamlover.test.ts test/comments.test.ts test/serialize.test.ts test/spans.test.ts test/flatten.test.ts",
     "test:conformance": "node --test test/conformance.json.test.ts test/conformance.json5.test.ts test/conformance.yaml.test.ts"
   },
   "engines": { "node": ">=22" }

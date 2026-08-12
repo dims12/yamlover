@@ -1,0 +1,1 @@
+flat WRITE-ONCE - a value lands only on a null-valued, childless node

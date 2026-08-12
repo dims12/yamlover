@@ -208,6 +208,11 @@ export interface EntryMeta {
    *  (`"a": 1` quoted-by-choice, `{}: 12` a token key). The serializer prefers it — guarded
    *  by a reparse (a stale keyRaw must never change the key it spells). */
   keyRaw?: string;
+  /** The key was authored on a FLAT row (docs/language/flattening): every path segment after
+   *  the first carries `yamlover/key/flat` — a representation concrete like `style`/`concrete`
+   *  on NodeMeta: typography, not graph. Not part of IR identity (canon ignores entry meta);
+   *  the serializer re-emits the fold when it is still lossless, else drops it silently. */
+  keyConcrete?: 'yamlover/key/flat';
 }
 
 export type Value = Node | Pointer; // Node iff edge==='contain'; Pointer iff ref/back

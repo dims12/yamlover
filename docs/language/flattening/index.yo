@@ -1,9 +1,8 @@
-# Flattened yamlover - multicomponent keys as path commands. Defined here, not yet implemented;
-# the normalized form is the nested one.
+# Flattened yamlover - multicomponent keys as path commands. Implemented in the parser and
+# serializer (tools/parser: flatten.ts carries the flatten/deflatten routines); the
+# normalized form is the nested one.
 Flattening
 description: multicomponent keys - a whole nested document as flat path rows, and back
-- >
-  *Status: defined, not yet implemented.*
 - >
   A **flat row** folds a chain of nested single-pair lines onto one line: the key chains with
   colons - the same colon grammar [paths](*::language:pointers:paths) already use - and the
@@ -47,13 +46,19 @@ description: multicomponent keys - a whole nested document as flat path rows, an
 - >
   A row of scalars is therefore a repetition of trailing `-:` rows - `list: -: 1` then
   `list: -: 2` builds the two-element list. The standalone `-: value` row (the `-` as the whole
-  path) is today's tolerated spelling of `- value` and keeps that reading. Positions (bare
-  integer segments) are RESERVED in flat paths: named keys and `-` only.
+  path) is today's tolerated spelling of `- value` and keeps that reading - but a `-:` followed
+  by KEY segments (`-: name: Rex`) is now the MIDDLE form and addresses the last keyless
+  element (the old keyless-conversion reading of that one spelling is retired; the appends
+  spell `- name: Rex` or `-:` with a block). Positions (bare integer segments) are RESERVED in
+  flat paths: named keys and `-` only. A row whose head addresses an EXISTING key paves into
+  the LAST same-key sibling (the mirror of the middle `-` rule); plain single-segment rows
+  keep their duplicate-tolerant reading - rows are commands only when they carry a path.
 - >
   **Indentation.** A flat row's continuation block indents to the columns the NESTED spelling
   would give it in the same document - the number of indent steps equals the path's depth, as
   if the fold were undone. Flattening is a pure line fold: unfolding a flat row moves no other
-  line's column.
+  line's column. The law is EMIT-STRICT, PARSE-TOLERANT: the serializer writes exactly those
+  columns; the parser accepts any strictly deeper block as the row's continuation.
 - >
   **The write-once constraint.** A scalar value may land on a node only while that node is
   null-valued AND childless. This is what makes flattening and de-flattening predictable and
@@ -76,8 +81,12 @@ description: multicomponent keys - a whole nested document as flat path rows, an
   [pair](*::language:concretes:03-yamlover:00-yamlover_stream:00-yamlover_code:00-yamlover_structured:00-yamlover_key_value_pair)
   tail - after the path, the node's properties may precede the value. `&` BOOKMARKS chain
   their own colon paths; each bookmark runs to the next `&` or to the value, and the value is
-  the trailing colon-less token. The continuation block carries the rest of the node - further
-  bookmark rows, fields, keyless elements - at the fold's computed depth:
+  the trailing colon-less token. (Precisely: a chain's scope colons and its FIRST name always
+  belong to it, each further colon-terminated portion extends it, and a lone `-` portion - the
+  keyless-membership suffix - belongs too; a `:`-led value token like `::: host` is always a
+  VALUE.) The chain spellings are PARSE-ONLY tolerance: the serializer keeps the own-line
+  canonical form, as it always has for bookmarks. The continuation block carries the rest of
+  the node - further bookmark rows, fields, keyless elements - at the fold's computed depth:
 - !!<format: text/x-yamlover> |
   normal: flat: key: &book: mark1: &another: book: mark: scalar
         &third: book: mark

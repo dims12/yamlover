@@ -10,7 +10,7 @@
 // carries the content HASH, not the bytes; once a byte source is wired in, a blob can
 // emit INLINE as base64 — docs/language/model/values `type: binary` — the same node in a different concrete.)
 
-import type { Document, Node, Entry, Value, Scalar, Pointer, Comment } from './ir.ts';
+import type { Document, Node, Mapping, Entry, Value, Scalar, Pointer, Comment } from './ir.ts';
 import { isPointer } from './ir.ts';
 import { foldLines, plainScalar, splitKV, unquoteKey } from './yamlover.ts';
 import { renderPointer } from './pointer.ts';
@@ -156,10 +156,61 @@ class Emitter {
         this.seqItem(e.value, indent);
       } else {
         const head = (e.edge === 'back' ? '~' : '') + (authoredKey(e) ?? keyText(e.key)) + ':';
-        this.keyed(head, e.value, indent);
+        // a FLAT fold (docs/language/flattening): the entry's children were authored on flat
+        // rows and the fold is still lossless — emit them as flat rows with this head as the
+        // repeated prefix; otherwise the concrete drops silently and the nested form emits
+        if (e.edge !== 'back' && this.canFold(e.value) && ents.filter((s) => s.key === e.key).length === 1) {
+          for (const c of (e.value as Mapping).entries!) this.flatChild([head], c, indent, 1);
+        } else {
+          this.keyed(head, e.value, indent);
+        }
       }
       if (this.comments) this.emitTrailing(e, indent, before);
     }
+  }
+
+  /** Can this value still emit as FLAT rows losslessly? A bare mapping whose children all
+   *  wear the yamlover/key/flat concrete, none decorated, no duplicate keys (a duplicate's
+   *  second fold would PAVE into the first on reparse), no null keys, no back edges, no
+   *  comments between segments — the doc's silent-fallback list. */
+  canFold(v: Value): boolean {
+    if (isPointer(v) || v.kind !== 'mapping') return false;
+    const m = v.meta ?? {};
+    if (m.schema !== undefined || m.set === true || m.yo === true || m.style !== undefined) return false;
+    if ((m as { concrete?: string }).concrete !== undefined) return false;
+    if ((m.anchors ?? []).length > 0 || (m.comments ?? []).length > 0) return false;
+    const ents = v.entries ?? [];
+    if (ents.length === 0) return false;
+    const seen = new Set<string>();
+    for (const e of ents) {
+      if (e.meta?.keyConcrete !== 'yamlover/key/flat') return false;
+      if (e.nullKey === true || e.edge !== 'contain' && e.edge !== 'ref') return false;
+      if ((e.meta?.comments ?? []).length > 0 || e.meta?.blankBefore === true) return false;
+      if (e.key !== null) {
+        if (seen.has(e.key)) return false;
+        seen.add(e.key);
+      }
+    }
+    return true;
+  }
+
+  /** One FLAT segment: descend while the fold stays lossless, else emit the LEAF row — the
+   *  joined prefix through the ordinary pair machinery at the DEPTH-based indent (children
+   *  land at the nested-equivalent columns), with only the head line re-padded to the row's
+   *  own indent. A keyless element with container content takes this leaf path too: the
+   *  trailing `-:` row plus its block — the only APPEND spelling (inline `-` before key
+   *  segments would read back as the MIDDLE address). */
+  flatChild(prefix: string[], e: Entry, indent: number, depth: number): void {
+    const seg = e.key === null ? '-' : (authoredKey(e) ?? keyText(e.key));
+    const head = seg + ':';
+    if (e.key !== null && this.canFold(e.value)) {
+      for (const c of (e.value as Mapping).entries!) this.flatChild([...prefix, head], c, indent, depth + 1);
+      return;
+    }
+    const joined = prefix.join(' ') + ' ' + head;
+    const at = this.out.length;
+    this.keyed(joined, e.value, indent + depth * STEP);
+    this.out[at] = ' '.repeat(indent) + this.out[at].slice(indent + depth * STEP);
   }
 
   /** A `trailing` comment rides the entry's line when the entry emitted a single line;

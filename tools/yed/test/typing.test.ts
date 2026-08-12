@@ -180,11 +180,13 @@ describe("yed2 — ORDER is committed labour (meta.selfAt)", () => {
   });
 });
 
-describe("yed2 — a second colon is TEXT (YAML conformance ZCZ6)", () => {
-  it("`key1: key2: value` keeps key1 and commits the VALUE-POSITION scalar", () => {
-    // reported as a collapse to `key2: v…` — key1 was overwritten. YAML calls the one-line
-    // nested mapping an ERROR (ZCZ6); our parser reads the rest of the line as a plain scalar,
-    // and the editor now agrees: nothing collapses, nothing nests.
+describe("yed2 — a colon in a VALUE CELL is content", () => {
+  it("`key1: key2: value` keeps key1 and commits the STRING (the file spells it quoted)", () => {
+    // The FILE grammar now reads the bare `key1: key2: value` line as a FLAT row
+    // (docs/language/flattening) — but a projectional editor's structure is its CELLS, and a
+    // value cell's text is content: the typed colons commit as the string, which the
+    // serializer spells quoted (the parser's own escape). Structure is entered through the
+    // cells (`{`, `[`, `k: ` classify), never by colon text landing in a committed value.
     const s = type("key1: key2: value{ArrowRight}");
     expect(s.refused).toBe(false);
     expect(src(s)).toBe("key1: 'key2: value'\n");

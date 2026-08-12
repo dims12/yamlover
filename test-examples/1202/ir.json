@@ -1,0 +1,93 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": false,
+    "set": false,
+    "yo": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": "key1",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": false,
+          "set": false,
+          "yo": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": "key2",
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": true,
+                "set": false,
+                "yo": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": null,
+                    "edge": "contain",
+                    "value": {
+                      "kind": "mapping",
+                      "array": false,
+                      "set": false,
+                      "yo": false,
+                      "anchors": [],
+                      "entries": [
+                        {
+                          "key": "name",
+                          "edge": "contain",
+                          "value": {
+                            "kind": "scalar",
+                            "value": "Alice",
+                            "array": false,
+                            "set": false,
+                            "yo": false,
+                            "anchors": [],
+                            "entries": []
+                          }
+                        },
+                        {
+                          "key": "age",
+                          "edge": "contain",
+                          "value": {
+                            "kind": "scalar",
+                            "value": 30,
+                            "array": false,
+                            "set": false,
+                            "yo": false,
+                            "anchors": [],
+                            "entries": []
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "key": "link",
+              "edge": "ref",
+              "value": {
+                "ptr": {
+                  "base": {
+                    "scope": "current"
+                  },
+                  "steps": [
+                    {
+                      "sel": "key",
+                      "name": "key2"
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
