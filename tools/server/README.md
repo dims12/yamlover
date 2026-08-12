@@ -92,7 +92,7 @@ deep link expands the TOC along the path and selects (and scrolls to) the target
 splitting its path at the page boundary and replacing that `/` with `#`: for a full
 path `a/b/c/d` whose served page is `a/b`, the *scrollable* URL is `a/b#c/d` — the
 page loads `a/b` and scrolls to the `c/d` node within it. A **fragment** (a tagged
-region — see `docs/server/annotations`) is one instance: a region of `…/IMG.jpg` lives at
+region — see `docs/annotations`) is one instance: a region of `…/IMG.jpg` lives at
 `…/IMG.jpg/yamlover-fragments/<slug>`, so its scrollable URL is
 `…/IMG.jpg#yamlover-fragments/<slug>` — opening it (or clicking the region in the
 fragments panel) scrolls/pans to **and briefly flashes** the region.

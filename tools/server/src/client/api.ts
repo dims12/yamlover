@@ -172,7 +172,7 @@ export interface TagRef {
   color: string | null;
 }
 
-/** An annotation of a material — ONE TAG APPLICATION (docs/server/annotations): the whole node, or a
+/** An annotation of a material — ONE TAG APPLICATION (docs/annotations): the whole node, or a
  *  fragment within it (then `selector` carries that fragment's region and `fragmentSlug` its
  *  key, and `imageUrl` its crop), tagged by `tag` with optional `description` / `params`. */
 export interface Annotation {
@@ -184,7 +184,7 @@ export interface Annotation {
   params?: Record<string, unknown>;
   created?: string;
   node?: string; // the CLIENT path of the node this annotation/fragment lives ON — the chapter, or a
-                 // CHUNK when the fragment hangs off a chunk (docs/server/annotations/storage). Drives the delete
+                 // CHUNK when the fragment hangs off a chunk (docs/annotations/storage). Drives the delete
                  // target, the `#`-anchor, and which element the highlight is scoped to.
   path?: string; // a transient client marker only ("(preview)"/"(pending)"); annotations have no node path
 }
@@ -257,7 +257,7 @@ export function fetchConfig(): Promise<ConfigPayload> {
   return getJson<ConfigPayload>(api("/api/config"));
 }
 
-/** Create a FRAGMENT — a marked region in the node at `target` (docs/server/annotations). Returns its slug
+/** Create a FRAGMENT — a marked region in the node at `target` (docs/annotations). Returns its slug
  *  and full node path, which is then the `target` for {@link annotate}. `imageBase64` is an
  *  optional PNG crop for image-like selections. */
 export function createFragment(target: string, selector: Record<string, unknown>, imageBase64?: string): Promise<{ slug: string; fragmentPath: string }> {

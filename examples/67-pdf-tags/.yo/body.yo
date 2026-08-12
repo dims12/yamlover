@@ -1,7 +1,7 @@
 # A heap of famously short / deadpan academic papers — the real files, with their real
 # (messy) names — organized by a tag taxonomy. This `.yo/body.yo` overlay turns the
 # bare directory into an instance: it adds the `tags` tree and gives each file (a blob) its tag
-# applications under `yamlover-annotations` (so a blob carries members). Spec: docs/server/annotations.
+# applications under `yamlover-annotations` (so a blob carries members). Spec: docs/annotations.
 #
 # Each paper is TAGGED by appending a bare tag pointer to its `yamlover-annotations` array — the
 # embedded model: the application lives ON the target (here a blob, via the omni overlay), and the
@@ -35,7 +35,7 @@ tags: !!<*yamlover: $defs: tag> A small taxonomy for short / deadpan papers — 
     annotation: A secondary / derivative edition of another paper
 
 # --- the papers: each is the real file (a blob) tagged by the leaf tags it belongs to, as bare
-#     pointers in its `yamlover-annotations` array (docs/server/annotations) ---
+#     pointers in its `yamlover-annotations` array (docs/annotations) ---
 
 "S0002-9904-1966-11654-3.pdf":
   yamlover-annotations:

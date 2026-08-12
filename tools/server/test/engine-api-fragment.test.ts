@@ -6,7 +6,7 @@ import { tmpTree } from "./helpers";
 import { call, callBody } from "./http";
 import { nodeJson } from "./node-json";
 
-// A TEXT fragment lives ON the chunk it was drawn in (docs/server/annotations/storage), NOT the whole chapter:
+// A TEXT fragment lives ON the chunk it was drawn in (docs/annotations/storage), NOT the whole chapter:
 // tagging a chunk's text turns that chunk into an omni node (its prose becomes a block-scalar
 // self-value; `yamlover-fragments:`/`yamlover-annotations:` become keyed fields). Synthetic temp
 // trees only — never the repo's examples/.
@@ -40,7 +40,7 @@ async function tagChunk(h: ReturnType<typeof createHandlers>) {
   return frag.json as { slug: string; fragmentPath: string };
 }
 
-describe("chunk text fragments (docs/server/annotations/storage)", () => {
+describe("chunk text fragments (docs/annotations/storage)", () => {
   it("stores the fragment ON the chunk (an omni node), carrying the tag — not on the chapter", async () => {
     const { root, h } = await chapterHandlers();
     const { slug, fragmentPath } = await tagChunk(h);

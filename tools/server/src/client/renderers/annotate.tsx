@@ -907,7 +907,7 @@ export function AnnotatedMaterial({ path, children }: { path: string; children: 
   const { annotations } = material;
 
   // The node a selection lives on: the enclosing chapter CHUNK (its `.chunk[data-node-path]`), so the
-  // fragment attaches to the chunk (docs/server/annotations/storage); else the material itself (a standalone doc).
+  // fragment attaches to the chunk (docs/annotations/storage); else the material itself (a standalone doc).
   const nodeAt = (n: Node | null): string => {
     const start = n instanceof HTMLElement ? n : n?.parentElement;
     return (start?.closest?.("[data-node-path]") as HTMLElement | null)?.dataset.nodePath || path;

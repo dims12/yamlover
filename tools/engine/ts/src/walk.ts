@@ -220,7 +220,7 @@ export async function walkTreeAsync(absDir: string, opts: AsyncWalkOptions = {})
 // and color-tag annotations validate — in a PLAIN directory, not only a yamlover project. Mirrors
 // the on-disk taxonomy at the repo root; the palette hexes mirror COLOR_TAGS in annotate.tsx.
 const BUILTIN_TAG_SCHEMA = 'type: object\nformat: x-yamlover-tag\nproperties:\n  color:\n    type: string\nadditionalProperties: *:: yamlover: $defs: tag\n';
-// embedded fragments / annotations (docs/server/annotations) — minimal so the `!!<*::yamlover/$defs/…>`
+// embedded fragments / annotations (docs/annotations) — minimal so the `!!<*::yamlover/$defs/…>`
 // tags resolve (and the nodes index as x-yamlover-fragment / -annotation) in a plain served tree.
 const BUILTIN_FRAGMENT_SCHEMA = 'type: object\nformat: x-yamlover-fragment\n';
 const BUILTIN_ANNOTATION_SCHEMA = 'type: variant\nformat: x-yamlover-annotation\n';
@@ -955,7 +955,7 @@ function applySchemas(root: Node, defsRoot: string, builtinDefs?: Map<string, No
   // is a container (a titled CHILDLESS subchapter's body is a bare title, indistinguishable
   // from a chunk by value shape alone — its directory says what it is). An inline bare
   // scalar and a FILE-backed scalar stay leaves — chunks, which ARE title-only content
-  // (docs/documents/chapter). The overlay keys an annotated chunk gains (docs/server/annotations) are not body —
+  // (docs/documents/chapter). The overlay keys an annotated chunk gains (docs/annotations) are not body —
   // a scalar with only those stays a chunk.
   const OVERLAY_KEYS = new Set(['yamlover-annotations', 'yamlover-fragments']);
   const elemIsContainer = (el: Node): boolean =>

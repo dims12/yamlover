@@ -294,7 +294,7 @@ describe("diffChapter", () => {
   });
 
   // An ANNOTATED title projects as an omni marker — the tag applications laid over the scalar
-  // (docs/server/annotations). Unpeeled it stringifies, and the chapter's heading reads "[object Object]".
+  // (docs/annotations). Unpeeled it stringifies, and the chapter's heading reads "[object Object]".
   it("flowText peels an annotation overlay off a title", () => {
     const omni = { $yamloverMixed: { kind: "omni", entries: [{ key: "yamlover-annotations", value: [] }], value: "The Title" } };
     expect(flowText(omni)).toBe("The Title");

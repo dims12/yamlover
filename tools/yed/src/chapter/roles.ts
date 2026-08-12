@@ -28,7 +28,7 @@ export interface RoleEntry {
 }
 
 /** An ANNOTATION OVERLAY key — a tag application / fragment set laid OVER a value
- *  (docs/server/annotations). The overlay is the annotation layer's storage, never page content. */
+ *  (docs/annotations). The overlay is the annotation layer's storage, never page content. */
 export const isOverlayKey = (k: string | null): boolean =>
   k === "yamlover-annotations" || k === "yamlover-fragments";
 

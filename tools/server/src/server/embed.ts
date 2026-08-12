@@ -3,7 +3,7 @@
  * yamlover host body (a standalone `*.yo` document, or a directory's
  * `.yo/body.yo` overlay). Pure string→string transforms, like the chapter-list
  * insertion in engine-api.ts — the parser tracks no spans, so we edit the source text directly,
- * preserving the rest of the file (comments, formatting). See docs/server/annotations.
+ * preserving the rest of the file (comments, formatting). See docs/annotations.
  *
  * A host body is YAML-shaped: a mapping's keys at one indent; a sequence's `- ` items at the
  * SAME indent as their key; an item/value body 2 deeper. We descend a `within` path of mapping

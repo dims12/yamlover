@@ -633,7 +633,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
         return;
       }
 
-      // Create an annotation — TAG a target (a WRITE path; docs/server/annotations). The tag application is
+      // Create an annotation — TAG a target (a WRITE path; docs/annotations). The tag application is
       // appended to the target's own `yamlover-annotations` array, embedded in the target's host
       // body (a `*.yo` document, or a directory's `.yo/body.yo` overlay keyed by
       // filename). The target may be a whole node OR a fragment (`…:yamlover-fragments:<slug>`).
@@ -669,7 +669,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
         return;
       }
 
-      // Create a FRAGMENT — a user-marked region inside a target (a WRITE path; docs/server/annotations).
+      // Create a FRAGMENT — a user-marked region inside a target (a WRITE path; docs/annotations).
       // Stored under the target's `yamlover-fragments` mapping keyed by a fresh slug; for an
       // image-like selection the optional `imageBase64` crop is written as a sidecar blob the
       // fragment references. Body: { target, selector, imageBase64? } → { slug, fragmentPath }.
@@ -1659,7 +1659,7 @@ function firstChunkText(s: Store, p: string): string | null {
 }
 
 // --------------------------------------------------------------------------- //
-// Tags, fragments & annotations — EMBEDDED in the target (docs/server/annotations). A user-marked region
+// Tags, fragments & annotations — EMBEDDED in the target (docs/annotations). A user-marked region
 // is a FRAGMENT under the target's `yamlover-fragments` mapping (keyed by slug; selector + an
 // optional binary crop). TAGGING a target — a whole node or a fragment — appends to its
 // `yamlover-annotations` array: a bare tag pointer (`- *::tag`) or a `{tag, …params}` object. The
@@ -1764,7 +1764,7 @@ function readFragments(s: Store, hostStore: string): { slug: string; node: strin
 /** The annotations ON this material: its own whole-node tags, plus each fragment's tags carrying
  *  that fragment's selector + crop (so the client highlights the region and colors by tag). Each
  *  entry carries `node` — the CLIENT path of the node it lives on — so a multi-node page (a chapter
- *  whose CHUNKS each carry their own fragments, docs/server/annotations/storage) can target/highlight per node.
+ *  whose CHUNKS each carry their own fragments, docs/annotations/storage) can target/highlight per node.
  *  A chapter also gathers its DIRECT children's fragments (the chunks), one level deep. */
 function annotationsFor(dataRoot: string, s: Store, segs: Seg[]): unknown[] {
   void dataRoot;
@@ -1896,7 +1896,7 @@ function yScalar(v: unknown): string {
 }
 
 /** The yamlover host body holding the node at `segs`, and the mapping-key path WITHIN it to that
- *  node (docs/server/annotations/storage). A standalone `*.yo` document → the file itself (within = the
+ *  node (docs/annotations/storage). A standalone `*.yo` document → the file itself (within = the
  *  path inside it); a directory → its instance overlay; an on-disk blob (a PDF) →
  *  the ENCLOSING directory's overlay, keyed by the filename. */
 function hostFor(dataRoot: string, s: Store, segs: Seg[]): { bodyFile: string; within: string[] } {
@@ -1912,7 +1912,7 @@ function hostFor(dataRoot: string, s: Store, segs: Seg[]): { bodyFile: string; w
       // blob, or array — would become an UNTAGGED omni/mix if a key were appended to its source
       // (a parse error under the current parser), so route it through the enclosing directory's
       // overlay keyed by the filename: the engine merges the fields onto the file at IR level
-      // (augmentEntry — omni-blob), never reparsing a mixed source. docs/server/annotations/storage.
+      // (augmentEntry — omni-blob), never reparsing a mixed source. docs/annotations/storage.
       if (node?.meta?.documentRoot && node.type === "mapping" && !node.is_array) {
         return { bodyFile: abs, within: segs.slice(i).map(String) };
       }
@@ -1947,7 +1947,7 @@ function fragmentBlockLines(slug: string, selector: Record<string, unknown>, ima
 }
 
 /** Embed a tag application into the target's `yamlover-annotations` array (editing the target's
- *  host body in place — docs/server/annotations). */
+ *  host body in place — docs/annotations). */
 function embedAnnotation(dataRoot: string, s: Store, a: AnnotateInput): string {
   const segs = strToSegs(a.target || ":");
   // A tag ON a chunk fragment (`:chapter[k]:yamlover-fragments:<slug>`) descends past a body index:
@@ -1974,7 +1974,7 @@ function embedFragment(dataRoot: string, s: Store, mode: SidecarLocation, f: Fra
   const segs = strToSegs(f.target || ":");
   const slug = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   // A chunk target (`:chapter[k]`, a positional prose item) can't be reached by the mapping-key
-  // writer — turn the chunk into an omni node and hang `yamlover-fragments:` off it (docs/server/annotations/storage).
+  // writer — turn the chunk into an omni node and hang `yamlover-fragments:` off it (docs/annotations/storage).
   if (isChunkTarget(s, segs)) {
     const { docSegs, bodyFile } = chapterSource(dataRoot, s, segs);
     const { indices, keys } = splitChunkWithin(segs.slice(docSegs.length));
@@ -2070,7 +2070,7 @@ async function ensureThumbnail(dataRoot: string, s: Store, mode: SidecarLocation
 /** Remove a tag application from the target's `yamlover-annotations` array — the first element
  *  referencing `tag` (bare pointer or object `tag:` field). When the target is a FRAGMENT and that
  *  was its last tag, the now-empty fragment node is deleted whole (its selector + crop ref) — a
- *  fragment exists only to carry tags, so a tagless one is dead weight (docs/server/annotations). Sibling
+ *  fragment exists only to carry tags, so a tagless one is dead weight (docs/annotations). Sibling
  *  fragments and the host node are untouched. */
 function unembedAnnotation(dataRoot: string, s: Store, target: string, tag: string): string {
   const segs = strToSegs(target || ":");
@@ -3508,7 +3508,7 @@ function assignAt(lines: string[], r: Region, seg: Seg | undefined, op: string, 
   lines.splice(entry.start, entry.end - entry.start, ...rendered);
 }
 
-// --- chunk fragments (docs/server/annotations/storage): a text fragment lives ON the chunk it was drawn in ----- //
+// --- chunk fragments (docs/annotations/storage): a text fragment lives ON the chunk it was drawn in ----- //
 // A chunk that carries a fragment becomes an OMNI node — its prose is a block-scalar self-value and
 // `yamlover-fragments:`/`yamlover-annotations:` are keyed fields. These fields sit at the item's
 // child indent (item-indent + 2); the block-scalar content is pushed one step DEEPER (item-indent +
@@ -4828,7 +4828,7 @@ function descriptionOf(s: Store, p: string): string | null {
 /** A node's scalar keyed child `key` (a leaf scalar), or null — the chapter title/description.
  *
  *  CHILDLESSNESS is not part of being a scalar. Annotating a title lays the tag applications over it
- *  as keyed entries (docs/server/annotations): the row stays a `scalar` carrying its own value, and gains a
+ *  as keyed entries (docs/annotations): the row stays a `scalar` carrying its own value, and gains a
  *  child. That is precisely an omni/`variant` node — `type: string` and `type: variant` both match
  *  it (query.ts) — and tagging must never change how a node reads (docs/language/model/matching). Demanding no
  *  children here made a chapter lose its title, its tree label, and its browser-tab name the moment

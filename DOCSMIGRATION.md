@@ -62,7 +62,7 @@ are legal, the numbering is never order's source of truth.
 | `MARKLOWER.md` | `documents/marklower/` | the inline markup, tables, lists |
 | `UI.md` | `server/ui/` | operating the UI - layout, views, interaction, upload |
 | `EDITOR.md` | `server/editor/` | the projectional editor - the maintainer's map |
-| `ANNOTATIONS.md` | `server/annotations/` | fragments & tag applications |
+| `ANNOTATIONS.md` | `annotations/` (moved out from under `server/` 2026-08-12 — a first-class chapter) | fragments & tag applications |
 | `YAMLOVER_EDITOR.yo` | `server/yamlover-editor/` + `server/chapter-editor/` | the two machines split; one subchapter per state, transitions as linked tables |
 | `QUERY_EDITOR.yo` | `server/query-editor/` | the breadcrumb/pick machine, same shape |
 
@@ -132,7 +132,8 @@ Planning/process docs stay MD and stay put: `PLAN.md`, `TODO.md`, `FUTURE.md`, `
       embeds, structure division, tables with merges/widths, lists, WYSIWYG atoms, known
       paste divergence; MD tables → `$defs/table`, content lists → `$defs/bullets`)
 - [x] `docs/server/` - the "Demo server" chapter (2026-08-04): `UI.md` → `server/ui/`,
-      `EDITOR.md` → `server/editor/`, `ANNOTATIONS.md` → `server/annotations/`, and the two
+      `EDITOR.md` → `server/editor/`, `ANNOTATIONS.md` → `server/annotations/` (promoted to
+      `annotations/`, a top-level chapter, 2026-08-12), and the two
       state-machine diagrams converted from pure yamlover into marklower chapters -
       `server/yamlover-editor/` + `server/chapter-editor/` (split from `YAMLOVER_EDITOR.yo`
       at its CHAPTER-projection divider) and `server/query-editor/` (`QUERY_EDITOR.yo`).

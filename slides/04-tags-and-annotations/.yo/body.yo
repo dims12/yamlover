@@ -1,5 +1,5 @@
 # DECK 04 — SCAFFOLD. Titles, demo targets and `notes:` stubs in place; TODO prose to write.
-# Sources: docs/server/annotations, ../../TICKETS.md §2 (state is a tag), docs/server/ui/views
+# Sources: docs/annotations, ../../TICKETS.md §2 (state is a tag), docs/server/ui/views
 # (a tag's own page is a grid). Series rules: ../.yo/body.yo.
 !!<*yamlover: $defs: chapter>
 Tags and annotations
@@ -18,7 +18,7 @@ description: Filing without choosing a folder, and marking up a region of anythi
     A tag is an ordinary node; its **page** is a grid of everything filed under it.
 - Filing is an annotation
   notes: |
-    TODO — docs/server/annotations. Applying a tag writes an annotation on the document that
+    TODO — docs/annotations. Applying a tag writes an annotation on the document that
     points at the tag node. The edge is data, and it is visible in the source.
   - |
     TODO — show the `yamlover-annotations` entry in the yamlover tab.
@@ -30,7 +30,7 @@ description: Filing without choosing a folder, and marking up a region of anythi
 - Marking up a region
   notes: |
     TODO — examples/72-images: tag a REGION of an image, and a FRAGMENT of prose
-    (docs/server/annotations/storage). Show that the fragment lives on the chunk it was drawn in.
+    (docs/annotations/storage). Show that the fragment lives on the chunk it was drawn in.
   - |
     TODO — an annotation can target a region of a picture or a run of text, not only a
     whole file.

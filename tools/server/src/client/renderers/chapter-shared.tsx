@@ -413,7 +413,7 @@ export function ReadChunk({
 /** Build a {@link Chunk} (for a renderer's `renderChunk`) from a chapter chunk value/link marker.
  *
  *  An ANNOTATED chunk arrives as an omni marker — its tag applications are keyed entries laid over
- *  the prose (docs/server/annotations) — so the scalar is peeled out of it before anything else looks at it;
+ *  the prose (docs/annotations) — so the scalar is peeled out of it before anything else looks at it;
  *  an unannotated one is already its own value.
  *
  *  An INLINE string is a chapter's prose, so it carries the chunk schema's format — `text/marklower`

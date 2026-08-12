@@ -9,7 +9,7 @@ The whole feature is built by **reuse**, not by inventing parallel machinery:
 | concern | reuses |
 |---|---|
 | body (the self-value title, description, positional chunks + subtasks) | `$defs/chapter` (`docs/documents/chapter`, `$defs/chapter`) |
-| lifecycle state (backlog → done, due, postponed) | **tags** + **tag applications** (`docs/server/annotations`, `$defs/tag`) |
+| lifecycle state (backlog → done, due, postponed) | **tags** + **tag applications** (`docs/annotations`, `$defs/tag`) |
 | transitions / state machine | the tag **or-graph** — `next:` ref edges between state tags |
 | planning fields, scheduling fields | **parametrized annotations** (`additionalProperties: true`) |
 | boards, decks | directory views + the **unified change flow** (SSE) |
@@ -17,7 +17,7 @@ The whole feature is built by **reuse**, not by inventing parallel machinery:
 
 Companion specs: `docs/language` (omni, chapters), `docs/documents/chapter` (the model `task`
 extends) / `docs/documents/marklower` (the prose a task body is written in),
-`docs/server/annotations` (fragments + tag applications), `docs/meta` /
+`docs/annotations` (fragments + tag applications), `docs/meta` /
 `docs/meta/facets` (`$defs`, facets, `variant`), `docs/language/pointers` (the `::`
 project scope, `*` deref, ref vs contain), `docs/language/pointers/queries` (selecting tasks).
 
@@ -190,7 +190,7 @@ whose review schedule is an **SM-2** state carried on a parametrized annotation.
 ### 4.1 Quiz structure = chunk tags
 
 Chunks already carry their own `yamlover-annotations` (the omni block-scalar form,
-`docs/server/annotations/storage`). Tag them with the `card` taxonomy:
+`docs/annotations/storage`). Tag them with the `card` taxonomy:
 
 ```yamlover
 # tags/.yo/body.yo  (excerpt)

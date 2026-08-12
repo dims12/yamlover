@@ -260,7 +260,7 @@ test('schema propagation: `items: {anyOf:[chapter, chunk]}` routes container→c
   // The union's structural dispatch, over the FULLY-OMNI chapter shape (title = the self-value):
   // a titled subchapter (omni scalar + body entries) and an untitled one (a mapping) take the
   // chapter branch; a bare scalar — a chunk, which IS a title-only subchapter — takes the chunk
-  // branch, and so does an annotated chunk (its overlay keys are not body — docs/server/annotations).
+  // branch, and so does an annotated chunk (its overlay keys are not body — docs/annotations).
   const root = mkdtempSync(join(tmpdir(), 'yo-anyof-'));
   mkdirSync(join(root, '$defs'), { recursive: true });
   writeFileSync(join(root, '$defs', 'chapter'),
@@ -397,7 +397,7 @@ test('67-pdf-tags (instance): omni-blobs (file + embedded annotations) + a tag t
   assert.equal(s.node(R + ':tags')?.format, 'x-yamlover-tag');
   assert.equal(s.node(R + ':tags:field:mathematics:number-theory')?.format, 'x-yamlover-tag');
   // a paper is the real file (a blob) AUGMENTED with an owned `yamlover-annotations` array — an
-  // omni-blob (binary value + a field), the EMBEDDED tagging model (docs/server/annotations).
+  // omni-blob (binary value + a field), the EMBEDDED tagging model (docs/annotations).
   const euler = R + ':S0002-9904-1966-11654-3.pdf';
   assert.equal(s.node(euler)?.type, 'blob');
   assert.equal(s.node(euler)?.format, 'application/pdf');

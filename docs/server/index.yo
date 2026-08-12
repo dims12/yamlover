@@ -1,12 +1,12 @@
 # Demo server - tools/server documentation. Sources: UI.md, EDITOR.md, ANNOTATIONS.md,
 # YAMLOVER_EDITOR.yo, QUERY_EDITOR.yo - progress in ../../DOCSMIGRATION.md.
 Demo server
-description: the yamlover web server - the UI, the projectional editors and their state machines, annotations
+description: the yamlover web server - the UI, the projectional editors and their state machines
 - >
   `tools/server` (`npx yamlover <root>`) serves a web app that browses a yamlover project as a
   graph of nodes and edits it **in place**. This chapter is its documentation: [operating the
   UI](*::server:ui) is the user-facing guide, [the projectional editor](*::server:editor) is the
-  maintainer's architecture map, and [annotations](*::server:annotations) covers fragments and
+  maintainer's architecture map, and [annotations](*::annotations) covers fragments and
   tagging. The editors' behavior is specified state by state in three machine chapters - [the
   yamlover editor](*::server:yamlover-editor) (the source projection's typing grammar), [the
   chapter editor](*::server:chapter-editor) (the prose projection), and [the query
@@ -20,4 +20,4 @@ description: the yamlover web server - the UI, the projectional editors and thei
 - *: yamlover-editor
 - *: chapter-editor
 - *: query-editor
-- *: annotations
+- *:: annotations

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { appendAnnotation, upsertFragment, removeAnnotation, keyToken } from "../src/server/embed";
 
-// Surgical embedding of fragments + annotations into a yamlover host body (docs/server/annotations).
+// Surgical embedding of fragments + annotations into a yamlover host body (docs/annotations).
 // Pure string transforms — no fs / Store; the round-trip target is "parses back to the same data".
 
 const TAG = "- *::tags:colors:yellow";
