@@ -389,6 +389,19 @@ test('examples/08-flat.yo is a BYTE fixed point - the authored fold survives end
   assert.equal(serializeYamlover(parseYamlover(src, '08-flat'), { comments: true }), src);
 });
 
+test('examples/08-flat.yo: each flattenN block parses GRAPH-IDENTICAL to its unflattenN twin', () => {
+  const doc = parseYamlover(readFileSync(join(examples, '08-flat.yo'), 'utf8'), '08-flat');
+  const byKey = new Map((doc.root as Node).entries!.map((e) => [e.key, e.value]));
+  for (const n of [1, 2, 3, 4]) {
+    assert.ok(byKey.has(`flatten${n}`) && byKey.has(`unflatten${n}`), `pair ${n} present`);
+    assert.deepEqual(
+      canonDoc({ root: byKey.get(`flatten${n}`) } as Document),
+      canonDoc({ root: byKey.get(`unflatten${n}`) } as Document),
+      `pair ${n}: the flat spelling and the nested spelling are the same model`,
+    );
+  }
+});
+
 // ---- json5p: unit round-trips ----------------------------------------------------
 
 test('json5p rt: object/array nesting, odd keys, escapes', () => {

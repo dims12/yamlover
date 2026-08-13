@@ -1,27 +1,53 @@
-# FLATTENING (docs/language/flattening): depth moves into the key. Each row below is a
-# COMMAND that paves its path - a segment ensures its node exists, the value lands at the
-# end - and every segment after the first wears the yamlover/key/flat concrete, so the
-# authored fold survives the round-trip byte for byte. The model is IDENTICAL to the
-# nested spelling; nested stays the normalized (costless) form.
+# FLATTENING (docs/language/flattening): depth moves into the key. Each `flattenN:` block
+# below is authored as FLAT ROWS - path-paving commands: a segment ensures its node exists,
+# the value lands at the path's end, and every segment after the first wears the
+# yamlover/key/flat concrete, so the authored fold survives the round-trip byte for byte.
+# The `unflattenN:` twin spells the SAME model in the normalized nested form - parse both
+# and the graphs are identical.
 
-# Rows with a shared head pave into the SAME node - human1 is one mapping. A trailing `-`
-# segment APPENDS a keyless element; switching to nested keying under the `-:` gives the
-# new element its content, at the columns the nested spelling would have. (A comment or a
-# blank line BETWEEN the rows of one group would break its fold - the documented fallback
-# to nested form - so the group stays contiguous.)
-human1: name: Alice
-human1: age: 30
-human1: pets: -:
-      name: Whiskers
-      kind: cat
-human1: pets: -:
-      name: Rex
-      kind: dog
+# rows with a shared head pave into the SAME node - human1 is one mapping. (A comment or a
+# blank line BETWEEN the rows of one flat group would break its fold - the documented
+# fallback to nested form - so each group stays contiguous.)
+flatten1:
+  human1: name: Alice
+  human1: age: 30
+unflatten1:
+  human1:
+    name: Alice
+    age: 30
+
+# a trailing `-` segment APPENDS a keyless element; switching to nested keying under the
+# `-:` gives the new element its content, at the columns the nested spelling would have
+flatten2:
+  human1: pets: -:
+        name: Whiskers
+        kind: cat
+  human1: pets: -:
+        name: Rex
+        kind: dog
+unflatten2:
+  human1:
+    pets:
+      - name: Whiskers
+        kind: cat
+      - name: Rex
+        kind: dog
 
 # a row of scalars is a repetition of trailing `-:` rows
-scores: -: 7
-scores: -: 9
+flatten3:
+  scores: -: 7
+  scores: -: 9
+unflatten3:
+  scores:
+    - 7
+    - 9
 
 # a flat path may land a reference - the pull is EXCLUSIVE: nothing else on the node
-human2: name: Bob
-human2: friend: *: human1
+flatten4:
+  human1: name: Alice
+  human2: friend: *human1
+unflatten4:
+  human1:
+    name: Alice
+  human2:
+    friend: *human1
