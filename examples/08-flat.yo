@@ -52,3 +52,47 @@ unflatten4:
     name: Alice
   human2:
     friend: *human1
+
+# flat rows and normal nesting COMPOSE, each keeping its own law: a normal key counts its
+# indentation step by step, a flat row adds ONE step for its continuation - wherever either
+# starts. Here a flat append sits inside a nested block, normal keys nest inside its
+# element, and a normal sibling resumes after the continuation dedents
+flatten5:
+  company:
+    staff: -:
+      name: Carol
+      contacts:
+        email: c@e.org
+    founded: 2001
+unflatten5:
+  company:
+    staff:
+      - name: Carol
+        contacts:
+          email: c@e.org
+    founded: 2001
+
+# normal keys inside a flat row's continuation nest by their own indentation
+flatten6:
+  a: b: c:
+    normal:
+      deep: 1
+    other: 2
+unflatten6:
+  a:
+    b:
+      c:
+        normal:
+          deep: 1
+        other: 2
+
+# a flat row inside a flat row's continuation - each row adds its own single step
+flatten7:
+  a: b:
+    inner: x: y: 9
+unflatten7:
+  a:
+    b:
+      inner:
+        x:
+          y: 9

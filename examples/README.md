@@ -41,7 +41,7 @@ intentionally skipped so the JSON and YAML branches keep matching last digits.)
 
 | # | file | shows |
 |---|------|-------|
-| 08 | [`08-flat.yo`](08-flat.yo) | **flat rows** ([`docs/language/flattening`](../docs/language/flattening/)) — depth moved into the key, shown as `flattenN:` / `unflattenN:` **twin pairs**: each flat block (`human1: name: Alice` rows as path-paving commands, repeated heads merging into one node, the trailing `-:` append with inline scalars and indented blocks, a `*` reference as a flat path's value) is followed by the same model in the normalized nested spelling, and the pairs parse to **identical graphs**. Every segment after the first wears `yamlover/key/flat`, so the file is a **byte fixed point** of the serializer — each spelling survives the round-trip as authored |
+| 08 | [`08-flat.yo`](08-flat.yo) | **flat rows** ([`docs/language/flattening`](../docs/language/flattening/)) — depth moved into the key, shown as `flattenN:` / `unflattenN:` **twin pairs**: each flat block (`human1: name: Alice` rows as path-paving commands, repeated heads merging into one node, the trailing `-:` append with inline scalars and indented blocks, a `*` reference as a flat path's value, and flat/nested spellings **composed** either way — a normal key counts its indentation, a flat row adds one step) is followed by the same model in the normalized nested spelling, and the pairs parse to **identical graphs**. Every segment after the first wears `yamlover/key/flat`, so the file is a **byte fixed point** of the serializer — each spelling survives the round-trip as authored |
 
 ## Instance examples (directory + `.yo/` overlays)
 

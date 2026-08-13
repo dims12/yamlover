@@ -1,0 +1,12 @@
+company:
+  staff: -:
+    name: Carol
+    contacts:
+      email: c@e.org
+  founded: 2001
+a: b: c:
+  normal:
+    deep: 1
+  other: 2
+mixed: chain:
+  inner: x: y: 9

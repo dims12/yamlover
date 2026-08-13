@@ -66,7 +66,9 @@ description: multicomponent keys - a whole nested document as flat path rows, an
   continuation lines - deliberate: the conversion does real work, it is never a pure line
   fold.) The law is EMIT-STRICT, PARSE-TOLERANT: the serializer writes exactly one step; the
   parser accepts ANY strictly deeper block as the row's continuation, so spellings written
-  under the earlier depth-column law read forever.
+  under the earlier depth-column law read forever. The two laws COMPOSE: a flat row may sit
+  anywhere a normal key could - inside any nested block - and a continuation block holds
+  normal nesting and further flat rows alike, each key form keeping its own rule.
 - >
   **The write-once constraint.** A scalar value may land on a node only while that node is
   null-valued AND childless. This is what makes flattening and de-flattening predictable and

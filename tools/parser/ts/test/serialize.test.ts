@@ -392,7 +392,7 @@ test('examples/08-flat.yo is a BYTE fixed point - the authored fold survives end
 test('examples/08-flat.yo: each flattenN block parses GRAPH-IDENTICAL to its unflattenN twin', () => {
   const doc = parseYamlover(readFileSync(join(examples, '08-flat.yo'), 'utf8'), '08-flat');
   const byKey = new Map((doc.root as Node).entries!.map((e) => [e.key, e.value]));
-  for (const n of [1, 2, 3, 4]) {
+  for (const n of [1, 2, 3, 4, 5, 6, 7]) {
     assert.ok(byKey.has(`flatten${n}`) && byKey.has(`unflatten${n}`), `pair ${n} present`);
     assert.deepEqual(
       canonDoc({ root: byKey.get(`flatten${n}`) } as Document),

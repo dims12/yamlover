@@ -29,6 +29,21 @@ test('flat: the continuation block indents ONE STEP under the row, like a normal
   eqNested('key1: key2: key3:\n         value\n', 'key1:\n  key2:\n    key3: value\n');
 });
 
+test('flat: COMPOSITIONS — flat rows and normal nesting mix freely, each keeping its own law', () => {
+  // a flat row starts wherever a normal key could; its continuation is one step under ITS row
+  eqNested('outer:\n  a: b: 12\n', 'outer:\n  a:\n    b: 12\n');
+  // normal keys inside a flat continuation nest by their own indentation, step by step
+  eqNested('a: b: c:\n  normal:\n    deep: 1\n  other: 2\n',
+    'a:\n  b:\n    c:\n      normal:\n        deep: 1\n      other: 2\n');
+  // a flat row inside a flat row's continuation — each row adds its own single step
+  eqNested('a: b:\n  inner: x: y: 9\n', 'a:\n  b:\n    inner:\n      x:\n        y: 9\n');
+  // a flat append inside a nested block, with normal nesting inside the element,
+  // and a normal sibling resuming after the continuation dedents
+  eqNested(
+    'company:\n  staff: -:\n    name: Carol\n    contacts:\n      email: c@e.org\n  founded: 2001\n',
+    'company:\n  staff:\n    - name: Carol\n      contacts:\n        email: c@e.org\n  founded: 2001\n');
+});
+
 test('flat: a trailing `-` APPENDS a new element and puts the value there', () => {
   eqNested('key1: key2: -: scalar\n', 'key1:\n  key2:\n    - scalar\n');
   eqNested('list: -: 1\nlist: -: 2\n', 'list:\n  - 1\n  - 2\n');
@@ -155,6 +170,11 @@ test('flat: authored folds re-emit byte-identically (the concrete re-spells them
   // exactly as a normal key's block would — whatever the chain's depth
   fixpoint('key1: key2: -:\n  name: Alice\n  age: 30\n');
   fixpoint('normal: flat: key: *pull: link\n');
+  // COMPOSITIONS: normal keys count their indentation, flat rows add one step — mixed either way
+  fixpoint('outer:\n  a: b: 12\n');
+  fixpoint('a: b: c:\n  normal:\n    deep: 1\n  other: 2\n');
+  fixpoint('a: b:\n  inner: x: y: 9\n');
+  fixpoint('company:\n  staff: -:\n    name: Carol\n    contacts:\n      email: c@e.org\n  founded: 2001\n');
 });
 
 test('flat: the parse is TOLERANT of any deeper continuation column (legacy depth columns read forever)', () => {
