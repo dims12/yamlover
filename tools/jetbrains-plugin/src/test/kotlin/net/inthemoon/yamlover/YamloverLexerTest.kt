@@ -185,4 +185,22 @@ class YamloverLexerTest {
         // but a spaced # still opens a comment
         assertTrue(ofType("tag: c # x\n", "YAMLOVER_COMMENT").contains("# x"))
     }
+
+    @Test
+    fun `a FLAT row's path segments each colour as a KEY`() {
+        // docs/language/flattening: `a: a: a: 12` is a flat row — each word-before-colon is a key
+        val src = "a: a: a: 12\n"
+        assertEquals(listOf("a", "a", "a"), ofType(src, "YAMLOVER_KEY"))
+        assertTrue(ofType(src, "YAMLOVER_NUMBER").contains("12"))
+    }
+
+    @Test
+    fun `the keyless flat segment dash-colon is a DASH, never a key`() {
+        // highlight.ts's `-:` arm: the two-column marker (the keyless flat-path segment)
+        val src = "human1: pets: -: 1\n"
+        assertEquals(listOf("human1", "pets"), ofType(src, "YAMLOVER_KEY"))
+        assertTrue("`-:` is the dash: ${ofType(src, "YAMLOVER_DASH")}", ofType(src, "YAMLOVER_DASH").contains("-:"))
+        // `-:x` (no trailing space) is NOT the marker — it starts a word, exactly the TS rule
+        assertTrue(ofType("-:x\n", "YAMLOVER_DASH").isEmpty())
+    }
 }

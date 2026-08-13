@@ -64,6 +64,10 @@ export type Cursor =
       quote?: '"' | "'";
       /** the AUTHORED key token (`"a"` typed with its quotes) — commits as EntryMeta.keyRaw */
       keyRaw?: string;
+      /** a FLAT-ROW segment (docs/language/flattening): this hole was opened by `k2: ` typed
+       *  in a NAMED value hole — its entry commits with `meta.keyConcrete`, so the serializer
+       *  re-emits the authored fold (`a: b: c: 12` stays one line). */
+      flat?: true;
       /** the `*` decision - the reference PORTIONS being entered (text = the active portion) */
       ref?: RefEntry;
       /** the `&` decision - `ref` spells the CONTAINER's bookmark BODY, not a value */

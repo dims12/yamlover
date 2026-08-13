@@ -29,6 +29,10 @@ export interface Dialect {
    *  `&…` is plain text and refuses at the scalar gate. (json5p PARSES `&'p' v` — parse-side
    *  tolerance is not an entry gesture; the json5 dialect models plain-json5 typing.) */
   readonly anchors: boolean;
+  /** `k2: ` typed in a NAMED value hole extends the key path — a FLAT ROW segment
+   *  (docs/language/flattening), committed with the yamlover/key/flat concrete. false ⇒
+   *  the text stays content and refuses at the scalar gate (YAML's ZCZ6 reading). */
+  readonly flatRows: boolean;
   /** May this key be typed BARE (`k:` without quotes)? A refused key rings; `"k":` (the quoted
    *  form) is accepted by every dialect. */
   bareKey(key: string): boolean;
@@ -44,6 +48,7 @@ export const YAMLOVER: Dialect = {
   spread: true,
   pointers: true,
   anchors: true,
+  flatRows: true,
   bareKey: () => true,
   scalarToken: () => true,
 };
@@ -76,6 +81,7 @@ export const JSON5_D: Dialect = {
   spread: true,
   pointers: false, // json5 has no `*` sigil — a star is just an illegal token
   anchors: false,
+  flatRows: false,
   bareKey: (k) => IDENT.test(k),
   scalarToken: json5Token,
 };
@@ -88,6 +94,7 @@ export const JSON_D: Dialect = {
   spread: true,
   pointers: false,
   anchors: false,
+  flatRows: false,
   bareKey: () => false,
   scalarToken: jsonToken,
 };

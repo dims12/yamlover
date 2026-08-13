@@ -5,9 +5,14 @@ description: the value_hole state
   holds the cursor. THE TEMPLATE-CELLS RULE applies: the decided row is already IN the local
   document (a null value, `meta.temporary` - withheld from the wire until a value commits), and
   this state is its PROVISIONAL VALUE CELL. `dash_space` / `key_colon_space` here open the nested
-  structure COMPACTLY - the fresh marker and its value cell stay on THIS row. A `quote` opens the
+  structure COMPACTLY - the fresh marker and its value cell stay on THIS row. In a NAMED hole
+  the `key_colon_space` extends the KEY PATH - a [flat row](*::language:flattening): the entry
+  lands holding a fresh block mapping and the SAME hole continues inside it as the next
+  segment, wearing `yamlover/key/flat` so the file keeps the fold; the whole chain draws on ONE
+  row, and Backspace undoes it segment by segment (the ladder). A `quote` opens the
   [quoted cell](*::server:yamlover-editor:quoted_scalar_editing) - the paired-closer template
-  (`""` is wire-legal, so that row flushes eagerly)
+  (`""` is wire-legal, so that row flushes eagerly) - and is the ESCAPE for a literal scalar
+  containing `: `, exactly the file's own spelling
 - !!<*yamlover: $defs: table>
   header:
     - Event
@@ -24,8 +29,8 @@ description: the value_hole state
   - ['`open_bracket`', '', '[flow_seq_editing](*::server:yamlover-editor:flow_seq_editing)']
   - ['`dash_space`', '', '`value_hole` (stays)']
   - ['`key_colon_space`', 'the key already exists in the node', '[error_flash](*::server:yamlover-editor:error_flash)']
-  - ['`key_colon_space`', 'otherwise', '`value_hole` (stays)']
-  - ['`key_colon_enter`', '', '[entry_hole](*::server:yamlover-editor:entry_hole)']
+  - ['`key_colon_space`', 'otherwise - a NAMED hole chains a FLAT segment (`yamlover/key/flat`), a `- ` hole keys the seq-of-maps; either way the fresh value cell stays on THIS row', '`value_hole` (stays)']
+  - ['`key_colon_enter`', 'a NAMED hole descends THROUGH THE FOLD: the chain extends by the typed segment and the entry hole opens inside its block (the chain row stays; never a null commit)', '[entry_hole](*::server:yamlover-editor:entry_hole)']
   - ['`enter`', '', '[entry_hole](*::server:yamlover-editor:entry_hole)']
   - ['`backspace`', 'an uncommitted key - the colon is undone, its text (quoted spelling kept) returns to the hole', '[unquoted_scalar_appending](*::server:yamlover-editor:unquoted_scalar_appending)']
   - ['`backspace`', 'an uncommitted dash - the marker is undone', '[entry_hole](*::server:yamlover-editor:entry_hole)']

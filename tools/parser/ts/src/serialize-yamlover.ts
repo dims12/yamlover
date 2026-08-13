@@ -169,29 +169,9 @@ class Emitter {
     }
   }
 
-  /** Can this value still emit as FLAT rows losslessly? A bare mapping whose children all
-   *  wear the yamlover/key/flat concrete, none decorated, no duplicate keys (a duplicate's
-   *  second fold would PAVE into the first on reparse), no null keys, no back edges, no
-   *  comments between segments — the doc's silent-fallback list. */
+  /** Can this value still emit as FLAT rows losslessly? Delegates to {@link emitsFlat}. */
   canFold(v: Value): boolean {
-    if (isPointer(v) || v.kind !== 'mapping') return false;
-    const m = v.meta ?? {};
-    if (m.schema !== undefined || m.set === true || m.yo === true || m.style !== undefined) return false;
-    if ((m as { concrete?: string }).concrete !== undefined) return false;
-    if ((m.anchors ?? []).length > 0 || (m.comments ?? []).length > 0) return false;
-    const ents = v.entries ?? [];
-    if (ents.length === 0) return false;
-    const seen = new Set<string>();
-    for (const e of ents) {
-      if (e.meta?.keyConcrete !== 'yamlover/key/flat') return false;
-      if (e.nullKey === true || e.edge !== 'contain' && e.edge !== 'ref') return false;
-      if ((e.meta?.comments ?? []).length > 0 || e.meta?.blankBefore === true) return false;
-      if (e.key !== null) {
-        if (seen.has(e.key)) return false;
-        seen.add(e.key);
-      }
-    }
-    return true;
+    return emitsFlat(v);
   }
 
   /** One FLAT segment: descend while the fold stays lossless, else emit the LEAF row — the
@@ -461,6 +441,33 @@ export function schemaTagToken(v: Value): string {
 }
 
 // ---- helpers -------------------------------------------------------------------
+
+/** Does `v` still emit as FLAT rows losslessly (docs/language/flattening)? A bare mapping
+ *  whose children all wear the yamlover/key/flat concrete, none decorated, no duplicate keys
+ *  (a duplicate's second fold would PAVE into the first on reparse), no null keys, no back
+ *  edges, no comments between segments — the doc's silent-fallback list. Exported for the
+ *  editor's sync, which marks a fold-shaped insert op `flat` so the server's splicer keeps
+ *  the authored row instead of nesting it. */
+export function emitsFlat(v: Value): boolean {
+  if (isPointer(v) || v.kind !== 'mapping') return false;
+  const m = v.meta ?? {};
+  if (m.schema !== undefined || m.set === true || m.yo === true || m.style !== undefined) return false;
+  if ((m as { concrete?: string }).concrete !== undefined) return false;
+  if ((m.anchors ?? []).length > 0 || (m.comments ?? []).length > 0) return false;
+  const ents = v.entries ?? [];
+  if (ents.length === 0) return false;
+  const seen = new Set<string>();
+  for (const e of ents) {
+    if (e.meta?.keyConcrete !== 'yamlover/key/flat') return false;
+    if (e.nullKey === true || e.edge !== 'contain' && e.edge !== 'ref') return false;
+    if ((e.meta?.comments ?? []).length > 0 || e.meta?.blankBefore === true) return false;
+    if (e.key !== null) {
+      if (seen.has(e.key)) return false;
+      seen.add(e.key);
+    }
+  }
+  return true;
+}
 
 /** The `leading` comments of an entry, in source order. */
 function leadingOf(e: Entry): Comment[] {

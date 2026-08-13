@@ -180,16 +180,83 @@ describe("yed2 — ORDER is committed labour (meta.selfAt)", () => {
   });
 });
 
-describe("yed2 — a colon in a VALUE CELL is content", () => {
-  it("`key1: key2: value` keeps key1 and commits the STRING (the file spells it quoted)", () => {
-    // The FILE grammar now reads the bare `key1: key2: value` line as a FLAT row
-    // (docs/language/flattening) — but a projectional editor's structure is its CELLS, and a
-    // value cell's text is content: the typed colons commit as the string, which the
-    // serializer spells quoted (the parser's own escape). Structure is entered through the
-    // cells (`{`, `[`, `k: ` classify), never by colon text landing in a committed value.
+describe("yed2 — a colon in the VALUE place extends the key path (FLAT rows)", () => {
+  // The FILE grammar reads the bare `key1: key2: value` line as a FLAT row
+  // (docs/language/flattening), and the cells mirror it: `k2: ` typed in a NAMED value hole
+  // PIVOTS — the entry lands holding a fresh block mapping and the same hole continues inside
+  // it as the next segment, wearing the yamlover/key/flat concrete so the serializer re-emits
+  // the authored fold. The QUOTE face is the escape for a literal `a: b` string — exactly the
+  // spelling the file itself requires.
+  it("`key1: key2: value` builds the flat chain and the file keeps the fold", () => {
     const s = type("key1: key2: value{ArrowRight}");
     expect(s.refused).toBe(false);
+    expect(src(s)).toBe("key1: key2: value\n");
+  });
+  it("`a: a: a: 12` — the model is the NESTED chain, segments after the first flat-marked", () => {
+    const s = type("a: a: a: 12{ArrowRight}");
+    expect(src(s)).toBe("a: a: a: 12\n");
+    const root = s.doc.root as unknown as { entries: { key: string; meta?: { keyConcrete?: string }; value: { kind: string; value?: unknown; entries?: unknown[] } }[] };
+    const e1 = root.entries[0];
+    expect(e1.key).toBe("a");
+    expect(e1.meta?.keyConcrete).toBeUndefined(); // the FIRST segment owns the line, spells normally
+    const e2 = (e1.value.entries as typeof root.entries)[0];
+    expect(e2.key).toBe("a");
+    expect(e2.meta?.keyConcrete).toBe("yamlover/key/flat");
+    const e3 = (e2.value.entries as typeof root.entries)[0];
+    expect(e3.key).toBe("a");
+    expect(e3.meta?.keyConcrete).toBe("yamlover/key/flat");
+    expect(e3.value).toMatchObject({ kind: "scalar", value: 12 });
+  });
+  it("the caret ends on the LEAF token; the walk crosses the fold cell by cell", () => {
+    const s = type("a: b: 12{ArrowRight}");
+    expect(s.cursor).toMatchObject({ at: "token", path: [0, 0], text: "12" });
+    const l1 = type("{ArrowLeft}", s);
+    expect(l1.cursor).toMatchObject({ at: "key", path: [0, 0], text: "b" });
+    const l2 = type("{ArrowLeft}", l1);
+    expect(l2.cursor).toMatchObject({ at: "hole", path: [0], index: 0, head: true }); // a's head slot
+    const l3 = type("{ArrowLeft}", l2);
+    expect(l3.cursor).toMatchObject({ at: "key", path: [0], text: "a" });
+  });
+  it("Backspace unwinds the pivot symmetrically — the ladder back to the empty document", () => {
+    const s = type("a: b: "); // the pivot armed: the provisional segment `b` inside `a`'s chain
+    expect(src(s)).toBe("a: b:\n"); // the fold spells even the provisional chain
+    const b1 = type("{Backspace}", s); // the pivot undone — `b` back as hole TEXT (one press, one level)
+    expect(b1.cursor).toMatchObject({ at: "hole", path: [0], index: 0, key: null, text: "b" });
+    const b2 = type("{Backspace}", applyText(b1, "")); // level removed — a's provisional value cell again
+    expect(b2.cursor).toMatchObject({ at: "token", path: [0], text: "" });
+    const b3 = type("{Backspace}", b2); // un-named — `a` back as hole text
+    expect(b3.cursor).toMatchObject({ at: "hole", path: [], index: 0, key: null, text: "a" });
+    expect(src(b3)).toBe("");
+    expect(type("{Backspace}", applyText(b3, "")).refused).toBe(true); // the bottom, visibly
+  });
+  it("the QUOTE face is the escape — the literal string still enters, quoted", () => {
+    const s = type("key1: 'key2: value'{ArrowRight}");
     expect(src(s)).toBe("key1: 'key2: value'\n");
+  });
+  it("the LEVEL RULE holds at the leaf: Enter descends into the committed value's fields", () => {
+    const s = type("a: b: 12{Enter}sub: x{ArrowRight}");
+    expect(src(s)).toBe("a: b: 12\n    sub: x\n");
+  });
+  it("`c:` + Enter in the chain DESCENDS — the segment opens its block, never a null commit", () => {
+    // the reported dead end: the bare-colon text committed `c` as a NULL leaf and the level
+    // rule descended INTO the scalar, where every commit refused beside an empty token cell
+    const s = type("a: b: c:{Enter}");
+    expect(s.cursor).toMatchObject({ at: "hole", path: [0, 0, 0], index: 0, key: null });
+    expect(src(s)).toBe("a: b: c: {}\n"); // the empty container's spelling, as in nested descends
+    const done = type("12{ArrowRight}", s);
+    expect(src(done)).toBe("a: b: c: 12\n");
+  });
+  it("`c: ` + Enter (the spaced spelling) reaches the same block", () => {
+    const s = type("a: b: c: {Enter}12{ArrowRight}");
+    expect(src(s)).toBe("a: b: c: 12\n");
+  });
+  it("a blur-committed NULL leaf is revivable — write-once lets the value land", () => {
+    // `a: b: c:` + blur is the file's own reading (a null leaf); descending into it and
+    // typing the value must not be a wall: null-and-childless still takes its scalar
+    const blurred = commitPending(type("a: b: c:"))!;
+    expect(src(blurred)).toBe("a: b: c:\n");
+    const revived = type("{Enter}12{ArrowRight}", blurred);
+    expect(src(revived)).toBe("a: b: c: 12\n");
   });
 });
 

@@ -1,1 +1,1 @@
-a colon in a VALUE CELL is content - the cell commits the string (the file spells it quoted; the bare line is a flat row)
+a colon in the VALUE place extends the key path - typing `key1: key2: value` builds the FLAT ROW (docs/language/flattening); the quote face is the escape for a literal string

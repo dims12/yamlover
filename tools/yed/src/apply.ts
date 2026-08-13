@@ -85,24 +85,22 @@ function scalarFromText(text: string): Node | null {
   }
 }
 
-/** A scalar read in VALUE POSITION — where the parser reads `key2: value` as the plain scalar
- *  "key2: value" (YAML ZCZ6: no one-line nested mapping). The fallback for NAMED holes whose
- *  text is not a standalone scalar. */
-function valueScalarFromText(text: string): Node | null {
+/** A value read in VALUE POSITION — the parse of `x: <text>`, the fallback for NAMED holes
+ *  whose text is not a standalone scalar. Under the FLAT-ROW gate (`flat` — a block container
+ *  in a flat-rows dialect) a `key2: value` tail commits as the STRUCTURE the file grammar
+ *  reads: the flat chain, its segments already wearing the yamlover/key/flat concrete
+ *  (docs/language/flattening) — paste parity with typing's live pivot; the quote face is the
+ *  escape for a scalar CONTAINING `: `. Without the gate the non-scalar refuses (YAML ZCZ6:
+ *  no one-line nested mapping — flow containers, json dialects). */
+function valueScalarFromText(text: string, flat: boolean): Node | null {
   const t = text.trim();
   if (t === "" || t.includes("\n")) return null;
   try {
     const v = (parseYamlover("x: " + t, "<cell>").root as Node).entries?.[0]?.value;
     if (!v || isPointer(v)) return null;
     if ((v as Node).kind !== "scalar" || ((v as Node).entries ?? []).length > 0) {
-      // the FILE grammar reads this spelling as structure — a FLAT row (docs/language/flattening).
-      // But a VALUE CELL's text is CONTENT, and the cell boundary is the structure: the typed
-      // colons commit as the STRING, which the serializer spells quoted (the escape the
-      // parser itself defines). Structure is entered through the cells (`{`, `[`, `k: `+
-      // classify), never by colon text landing in a committed value.
-      const flatRead = (v as Node).kind === "mapping" && !/^[{['"*&|>!]/.test(t) && t.includes(": ");
-      if (!flatRead) return null;
-      return { kind: "scalar", value: t } as unknown as Node;
+      if (!flat || (v as Node).kind !== "mapping" || isFlow(v as Node)) return null;
+      return v as Node;
     }
     const s = v as { value?: unknown; raw?: string; meta?: unknown };
     return { kind: "scalar", value: s.value, ...(s.raw !== undefined ? { raw: s.raw } : {}) } as unknown as Node;
@@ -603,12 +601,36 @@ function toCursor(doc: Document, p: Position): Cursor {
  *  rides only when it differs from the canonical emission (the parser's one representation
  *  law), so a plainly-typed key stays meta-free. Every entry a hole materializes goes
  *  through here — quoted keys survive whichever boundary lands them. */
-function keyFields(cursor: { key: string | null; keyRaw?: string }): Pick<Entry, "key" | "meta"> {
-  return {
-    key: cursor.key,
+function keyFields(cursor: { key: string | null; keyRaw?: string; flat?: true }): Pick<Entry, "key" | "meta"> {
+  const meta = {
     ...(cursor.key !== null && cursor.keyRaw !== undefined && keyRawWorthKeeping(cursor.keyRaw, cursor.key)
-      ? { meta: { keyRaw: cursor.keyRaw } } : {}),
+      ? { keyRaw: cursor.keyRaw } : {}),
+    // a FLAT-ROW segment commits its concrete — the serializer re-emits the authored fold
+    ...(cursor.key !== null && cursor.flat === true ? { keyConcrete: "yamlover/key/flat" } : {}),
   };
+  return { key: cursor.key, ...(Object.keys(meta).length > 0 ? { meta } : {}) };
+}
+
+/** A committed value makes the FLAT-chain intermediates above it committed labour: the pivot
+ *  marks them `meta.temporary` (the whole chain is ONE gesture, withheld from the wire until
+ *  a real value lands — the template-cells law), and the first commit under them clears the
+ *  flag along the path, so the sync flushes the chain as one insert spelling the fold. */
+function unTempAlong(doc: Document, path: Path): Document {
+  let out = doc;
+  for (let i = 1; i <= path.length; i++) {
+    const p = path.slice(0, i);
+    const e = entryAt(out, p);
+    if ((e?.meta as { temporary?: boolean | "ordinal" } | undefined)?.temporary !== true) continue;
+    out = withNode(out, p.slice(0, -1), (n) => {
+      const entries = [...(n.entries ?? [])];
+      const idx = p[p.length - 1];
+      const { temporary: _t, ...rest } = (entries[idx].meta ?? {}) as Record<string, unknown>;
+      const { meta: _m, ...bare } = entries[idx] as Entry & { meta?: unknown };
+      entries[idx] = (Object.keys(rest).length > 0 ? { ...bare, meta: rest } : bare) as Entry;
+      return { ...n, entries } as Node;
+    });
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------------------- //
@@ -640,12 +662,13 @@ function provisionalOf(state: EditorState): Provisional | null {
  *  returns, pending text (and a pick's portions) riding the cursor as they always did. */
 function dematerialize(state: EditorState, prov: Provisional): EditorState {
   const c = state.cursor;
-  const meta = (prov.entry.meta ?? {}) as { keyRaw?: string; temporary?: boolean | "ordinal" };
+  const meta = (prov.entry.meta ?? {}) as { keyRaw?: string; keyConcrete?: string; temporary?: boolean | "ordinal" };
   const hole: Cursor = {
     at: "hole", path: prov.parentPath, index: prov.idx,
     text: c.at === "token" || c.at === "pick" ? c.text : "",
     key: prov.entry.key,
     ...(meta.keyRaw !== undefined ? { keyRaw: meta.keyRaw } : {}),
+    ...(meta.keyConcrete !== undefined ? { flat: true as const } : {}),
     // the `- ` DECISION is recorded in the temporary flag's spelling — a keyless entry a
     // plain hole's `*` materialized must NOT dematerialize into an ordinal (the omni and
     // whole-value rules branch on it)
@@ -789,25 +812,30 @@ export function commitPending(state: EditorState): EditorState | null {
       if (!ptr) return null; // not a pointer the wire can carry — the ring, the text stands
       if (cursor.key === null && cursor.ordinal !== true && !isFlow(container)
           && container.kind === "mapping" && (container.entries ?? []).length === 0 && cursor.path.length > 0) {
-        return { ...state, doc: withValue(doc, cursor.path, ptr), cursor: { at: "ptr", path: cursor.path } };
+        return { ...state, doc: unTempAlong(withValue(doc, cursor.path, ptr), cursor.path), cursor: { at: "ptr", path: cursor.path } };
       }
       const entry = { ...keyFields(cursor), edge: "ref", value: ptr } as unknown as Entry;
       return {
         ...state,
-        doc: insertEntry(doc, cursor.path, cursor.index, entry),
+        doc: unTempAlong(insertEntry(doc, cursor.path, cursor.index, entry), cursor.path),
         cursor: { at: "ptr", path: [...cursor.path, cursor.index] },
       };
     }
     if (cursor.text.trim() !== "" && !d.scalarToken(cursor.text.trim())) return null; // not a scalar SPELLING here — visibly
+    const flatHere = d.flatRows && d.blockContext && !isFlow(container);
     const value = cursor.text.trim() === "" ? scalarFromText('""')!
-      : scalarFromText(cursor.text) ?? (cursor.key !== null ? valueScalarFromText(cursor.text) : null);
+      : scalarFromText(cursor.text) ?? (cursor.key !== null ? valueScalarFromText(cursor.text, flatHere) : null);
     if (!value) return null;
     // THE OMNI RULE: a bare scalar in a BLOCK container (no key, no `- `) is the container's OWN
     // value — `42` typed into a fresh file is the root value `42`, not `- 42`; typed after
     // `world:` + Enter it makes `world: 42`; typed among entries it makes the value-plus-fields
     // node (!!var). A `- ` decision (cursor.ordinal) opts OUT into a keyless entry instead.
     if (cursor.key === null && cursor.ordinal !== true && !isFlow(container)) {
-      if (container.kind !== "mapping") return null; // the container already HAS a value
+      // WRITE-ONCE (docs/language/flattening): a NULL-valued, childless node may still take its
+      // value — the descend into a committed `a: b: c:` null leaf is never a dead end
+      const nullChildless = container.kind === "scalar"
+        && (container as { value?: unknown }).value === null && (container.entries ?? []).length === 0;
+      if (container.kind !== "mapping" && !nullChildless) return null; // the container already HAS a value
       if ((container.entries ?? []).length > 0 && !d.omniValue) return null; // no value-plus-fields form here
       const v = value as { value?: unknown; raw?: string; meta?: unknown };
       // the value keeps its AUTHORED position among the entries (`meta.selfAt`) — typed after
@@ -815,18 +843,36 @@ export function commitPending(state: EditorState): EditorState | null {
       const selfAt = cursor.index > 0 ? { selfAt: cursor.index } : {};
       return {
         ...state,
-        doc: withNode(doc, cursor.path, (n) => ({
-          ...n, kind: "scalar", value: v.value,
-          ...(v.raw !== undefined ? { raw: v.raw } : {}),
-          meta: { ...(n.meta ?? {}), ...((v.meta as object) ?? {}), ...selfAt },
-        }) as unknown as Node),
+        doc: unTempAlong(withNode(doc, cursor.path, (n) => {
+          const { raw: _r, ...bare } = n as Node & { raw?: string }; // a spelled `~`'s raw must not shadow the new value
+          return {
+            ...bare, kind: "scalar", value: v.value,
+            ...(v.raw !== undefined ? { raw: v.raw } : {}),
+            meta: { ...(n.meta ?? {}), ...((v.meta as object) ?? {}), ...selfAt },
+          } as unknown as Node;
+        }), cursor.path),
         cursor: { at: "token", path: cursor.path, text: cursor.text },
       };
     }
     const entry = { ...keyFields(cursor), edge: "contain", value } as unknown as Entry;
+    const doc2 = unTempAlong(insertEntry(doc, cursor.path, cursor.index, entry), cursor.path);
+    // a FLAT chain landed whole (a pasted `a: b: 12`): the caret takes the LEAF token — where
+    // typing the same text stroke by stroke would have left it
+    if ((value as Node).kind === "mapping") {
+      let leafPath = [...cursor.path, cursor.index];
+      let leaf: Value = value;
+      while (!isPointer(leaf) && (leaf as Node).kind === "mapping" && ((leaf as Node).entries ?? []).length === 1) {
+        leafPath = [...leafPath, 0];
+        leaf = (leaf as Node).entries![0].value;
+      }
+      const land: Cursor = isPointer(leaf) ? { at: "ptr", path: leafPath }
+        : (leaf as Node).kind === "scalar" ? toCursor(doc2, { at: "token", path: leafPath })
+        : { at: "key", path: leafPath, text: String(entryAt(doc2, leafPath)?.key ?? "") };
+      return { ...state, doc: doc2, cursor: land };
+    }
     return {
       ...state,
-      doc: insertEntry(doc, cursor.path, cursor.index, entry),
+      doc: doc2,
       cursor: { at: "token", path: [...cursor.path, cursor.index], text: cursor.text },
     };
   }
@@ -1395,9 +1441,31 @@ function classifyHole(state: EditorState): EditorState {
   }
   if (action.kind === "keyed") {
     if (container && isFlow(container) && bracketOf(container) === "[") return refuse(state); // a seq has no keys
-    // the pair is ALREADY NAMED — `key2: ` inside the value is plain TEXT, not a re-keying and
-    // not a one-line nesting (YAML conformance ZCZ6: invalid mapping in plain single line value)
-    if (cursor.key !== null) return state;
+    // the pair is ALREADY NAMED — `key2: ` typed in the VALUE place extends the key path: a
+    // FLAT ROW (docs/language/flattening — `a: b: c` paves `a`→`b`→`c`). The entry lands
+    // holding a fresh block mapping and the SAME hole continues inside it as the next
+    // segment, wearing the flat concrete so the serializer re-emits the fold on one line.
+    // The QUOTE face is the escape — a scalar CONTAINING `: ` is entered quoted, exactly the
+    // file's own spelling. Dialects without flat rows keep the old reading: the text is
+    // content (YAML ZCZ6: no one-line nested mapping).
+    if (cursor.key !== null) {
+      if (!d.flatRows || !d.blockContext || container === null || isFlow(container)
+          || cursor.ref !== undefined || cursor.ordinal === true) return state;
+      if (!d.bareKey(action.key)) return refuse(state);
+      const child: Node = { kind: "mapping", entries: [] } as unknown as Node;
+      // the intermediate rides `meta.temporary` like any half-built row: the WHOLE chain is one
+      // gesture, withheld from the wire until its leaf value commits — then it flushes as ONE
+      // insert whose payload spells the fold (the sync's `flat` op), never a bare `key1:` line
+      // followed by a nested child that would split the authored row for good
+      const kf = keyFields(cursor);
+      const entry = { ...kf, meta: { ...(kf.meta ?? {}), temporary: true }, edge: "contain", value: child } as unknown as Entry;
+      const { head: _h, keyRaw: _kr, caret: _c, ...base } = cursor;
+      return classifyHole(ok({
+        ...state,
+        doc: insertEntry(doc, cursor.path, cursor.index, entry),
+        cursor: { ...base, path: [...cursor.path, cursor.index], index: 0, text: "", key: action.key, flat: true },
+      }));
+    }
     if (!d.bareKey(action.key)) return refuse(state); // this dialect wants the key QUOTED — visibly
     // `- k: …` — a keyless entry HOLDING a block mapping, the key naming its first pair (the
     // block seq-of-maps shape). The `- ` decision materializes here, on the first key.
@@ -1642,7 +1710,9 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
         return ok({ ...state, cursor: { ...rest, text: "" } });
       }
       if (cursor.at === "hole" && cursor.key !== null) {
-        return ok({ ...state, cursor: { ...cursor, key: null, text: cursor.key } });
+        // un-naming also undoes the FLAT decision — the restored text re-pivots if retyped
+        const { flat: _f, ...rest } = cursor;
+        return ok({ ...state, cursor: { ...rest, key: null, text: cursor.key } });
       }
       if (cursor.at === "hole" && cursor.ordinal === true) {
         return ok({ ...state, cursor: { ...cursor, ordinal: false } }); // the `- ` decision undone
@@ -1676,12 +1746,16 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
         const idx = cursor.path[cursor.path.length - 1];
         // ONE press, ONE level: the container goes, but a NAME the entry already carried is
         // committed labour — it survives as the named hole (`{key: [` + Backspace → `key: `),
-        // and only the NEXT press un-names it (undoMarker).
-        const named = entryAt(doc, cursor.path)?.key ?? null;
+        // and only the NEXT press un-names it (undoMarker). A FLAT segment's concrete is part
+        // of that labour: the restored hole keeps the flat bit, so the ladder stays symmetric.
+        const removed = entryAt(doc, cursor.path);
+        const named = removed?.key ?? null;
+        const wasFlat = (removed?.meta as { keyConcrete?: string } | undefined)?.keyConcrete !== undefined;
         return ok({
           ...state,
           doc: removeEntryAt(doc, parentPath, idx),
-          cursor: { at: "hole", path: parentPath, index: idx, text: "", key: named },
+          cursor: { at: "hole", path: parentPath, index: idx, text: "", key: named,
+            ...(named !== null && wasFlat ? { flat: true as const } : {}) },
         });
       }
       if (cursor.at === "tag") {
@@ -1951,6 +2025,31 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
           });
         }
       }
+      // `k2:` + Enter in a NAMED hole — the same descend THROUGH THE FOLD (docs/language/
+      // flattening): the chain extends by the typed segment and Enter opens its block below.
+      // Without this, committing the bare-colon text landed the segment as a NULL leaf and the
+      // level rule descended into the scalar — where every commit refused (the reported dead
+      // end with the empty token cell).
+      if (cursor.at === "hole" && cursor.key !== null && cursor.ref === undefined && cursor.ordinal !== true) {
+        const act = classifyHoleInput(cursor.text, false, /*enterPressed*/ true);
+        const d2 = dialectOf(state);
+        const container2 = nodeAt(doc, cursor.path);
+        if (act && act.kind === "keyed" && act.viaEnter
+            && d2.flatRows && d2.blockContext && container2 !== null && !isFlow(container2)) {
+          if (!d2.bareKey(act.key)) return refuse(state);
+          const kf = keyFields(cursor);
+          const mid = { ...kf, meta: { ...(kf.meta ?? {}), temporary: true }, edge: "contain",
+            value: { kind: "mapping", entries: [] } } as unknown as Entry;
+          const seg = { ...keyFields({ key: act.key, flat: true }), edge: "contain",
+            value: { kind: "mapping", entries: [] } } as unknown as Entry;
+          const doc2 = insertEntry(insertEntry(doc, cursor.path, cursor.index, mid), [...cursor.path, cursor.index], 0, seg);
+          return ok({
+            ...state,
+            doc: doc2,
+            cursor: { at: "hole", path: [...cursor.path, cursor.index, 0], index: 0, text: "", key: null },
+          });
+        }
+      }
       // `|`/`>` + Enter — BLOCK-SCALAR BIRTH: the header allocates the block cell. A valid ""
       // scalar materializes per the hole's shape and the cursor takes the header-with-newline
       // spelling (siteOf's blockToken bit → the textarea face) — the document stays valid, the
@@ -1985,7 +2084,7 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
           const entry = { ...keyFields(cursor), edge: "contain", value: { kind: "scalar", value: "", entries: [] } } as unknown as Entry;
           return ok({
             ...state,
-            doc: insertEntry(doc, cursor.path, cursor.index, entry),
+            doc: unTempAlong(insertEntry(doc, cursor.path, cursor.index, entry), cursor.path),
             cursor: blockCursor([...cursor.path, cursor.index]),
           });
         }

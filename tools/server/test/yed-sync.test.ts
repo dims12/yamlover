@@ -48,6 +48,18 @@ describe("diffToOps — targeted, order-safe, concrete-blind", () => {
     expect(d.ops).toEqual([{ path: ":doc:1", op: "insert", yamlover: "- x\n- y", key: "kids" }]);
   });
 
+  it("an inserted FLAT chain rides one insert marked `flat` — the fold crosses the wire", () => {
+    // docs/language/flattening: the payload spells the TAIL fold; the boundary row (the new
+    // entry's key + the payload's first row) is the splicer's to join — the `flat` mark says so
+    const d = diff("a: 1\n", "a: 1\nk1: k2: k3: 12\n");
+    expect(d.ops).toEqual([{ path: ":doc:1", op: "insert", yamlover: "k2: k3: 12", key: "k1", flat: true }]);
+  });
+
+  it("a nested-authored insert carries NO flat mark — the spelling is the author's", () => {
+    const d = diff("a: 1\n", "a: 1\nk1:\n  k2: 12\n");
+    expect(d.ops).toEqual([{ path: ":doc:1", op: "insert", yamlover: "k2: 12", key: "k1" }]);
+  });
+
   it("a change INSIDE a flow token is ONE whole-token emplace at the token", () => {
     const d = diff("a: [1, 2]\n", "a: [1, 9]\n");
     expect(d.ops).toEqual([{ path: ":doc:a", op: "emplace", yamlover: "[1, 9]" }]);

@@ -61,7 +61,9 @@ Network access is needed once to fetch the IntelliJ Platform SDK.
 ./gradlew runIde        # launches a sandbox IDE with the plugin
 ```
 
-Current version **0.6.0** (the brand mark as the file-type icon, plus dark variants and a
+Current version **0.6.1** (flat rows — `key1: key2: value` segments colour as keys and the
+keyless `-:` segment as the sequence marker, re-synced from the shared highlight.ts; 0.6.0
+brought the brand mark as the file-type icon, plus dark variants and a
 Marketplace logo). Built against the **2023.2 (build 232)** platform with an **open-ended**
 upper bound (`since-build=232`, no `until-build`) so one artifact loads on any 2023.2+ backend.
 

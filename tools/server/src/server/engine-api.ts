@@ -3288,11 +3288,22 @@ function preferPlainScalar(src: string): string {
  *  A positional container inlines its first keyed entry on the marker line (`- title: X`), the shape
  *  a chapter's subchapters already have. A node with children keeps its block scalar one step
  *  deeper than them, so the dedent ends the block. */
-function renderNode(f: Facets, indent: number, marker: string, tag?: string): string[] {
+function renderNode(f: Facets, indent: number, marker: string, tag?: string, flat?: boolean): string[] {
   const pad = " ".repeat(indent);
   const childPad = " ".repeat(indent + 2);
   const groups = orderedGroups(f);
   const child = (g: string[]): string[] => g.map((l) => (l.trim().length ? childPad + l : ""));
+
+  // THE FLAT SPLICE (docs/language/flattening): the caller says the payload's first row is a
+  // flat CONTINUATION of the key — join them as ONE row (`key1: key2: value`), the keyed twin
+  // of the positional inline below (`- title: Sub`). Only when the shape can spell it: exactly
+  // one keyed group, no self value, no tag (a tag cannot ride a flat row); anything else falls
+  // through to the nested splice — parse-correct, the fold merely unspelled.
+  if (flat === true && !marker.startsWith("-") && f.scalar === undefined && !tag
+      && f.keyed.length === 1 && (f.ordinal ?? []).length === 0) {
+    const [g0] = groups;
+    return [`${pad}${marker}${g0[0]}`, ...child(g0.slice(1))];
+  }
 
   const selfAt = f.scalar !== undefined ? Math.min(f.selfAt ?? 0, groups.length) : 0;
   if (f.scalar !== undefined && selfAt > 0) {
@@ -3380,7 +3391,7 @@ function trailingCommentOf(line: string): string | null {
   return null;
 }
 
-function assignAt(lines: string[], r: Region, seg: Seg | undefined, op: string, valueSrc: string, meta: string | null | undefined, key?: string, at?: number): void {
+function assignAt(lines: string[], r: Region, seg: Seg | undefined, op: string, valueSrc: string, meta: string | null | undefined, key?: string, at?: number, flat?: boolean): void {
   // the entry-opening marker a fresh emplace writes: `key: ` for a keyed target, `~: ` for the
   // NULL key (its canonical emission), `- ` for a positional one. The key goes through keyToken —
   // spelling is ONE law (embed.ts): a bare `-:` is the keyless marker and a bare `12:` a position,
@@ -3398,7 +3409,7 @@ function assignAt(lines: string[], r: Region, seg: Seg | undefined, op: string, 
     const at = entry ? entry.start
       : seg !== undefined && entries.length ? entries[entries.length - 1].end
       : bodyAppendPoint(lines, r);
-    lines.splice(at, 0, ...renderNode(payloadFacets(valueSrc), r.indent, key !== undefined ? `${keyToken(key)}: ` : "- ", metaTag(meta, undefined, false)));
+    lines.splice(at, 0, ...renderNode(payloadFacets(valueSrc), r.indent, key !== undefined ? `${keyToken(key)}: ` : "- ", metaTag(meta, undefined, false), key !== undefined && flat === true));
     return;
   }
 
@@ -3898,11 +3909,11 @@ function editFlowRowCell(lines: string[], row: ChapterEntry, cellIdx: number, op
  *
  *  With an empty `within` the path named the document root: `insert` appends to it, and `emplace`
  *  may set its `!!<…>` tag. */
-function editChapterSource(src: string, within: Seg[], op: string, valueSrc: string, meta: string | null | undefined, key?: string, at?: number): string {
+function editChapterSource(src: string, within: Seg[], op: string, valueSrc: string, meta: string | null | undefined, key?: string, at?: number, flat?: boolean): string {
   const lines = src.split("\n");
   if (within.length === 0) {
     if (op === "insert") {
-      assignAt(lines, reachChapter(lines, []), undefined, op, valueSrc, meta, key);
+      assignAt(lines, reachChapter(lines, []), undefined, op, valueSrc, meta, key, undefined, flat);
       return lines.join("\n");
     }
     if (op === "emplace") {
@@ -3978,7 +3989,7 @@ function editChapterSource(src: string, within: Seg[], op: string, valueSrc: str
       return lines.join("\n");
     }
   }
-  assignAt(lines, reachChapter(lines, within.slice(0, -1)), within[within.length - 1], op, valueSrc, meta, key, at);
+  assignAt(lines, reachChapter(lines, within.slice(0, -1)), within[within.length - 1], op, valueSrc, meta, key, at, flat);
   return lines.join("\n");
 }
 
@@ -4120,6 +4131,7 @@ interface ResolvedEdit {
   name?: string;
   key?: string; // insert only: make a KEYED entry at the position (order-preserving)
   at?: number; // scalar emplace: the self-value line's position — entries preceding it
+  flat?: boolean; // insert only: join the key and the payload's first row as ONE flat row
   docSegs: Seg[];
   dirBacked: boolean;
 }
@@ -4186,7 +4198,7 @@ function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: 
       return "";
     }
     try {
-      for (const o of byFile.get(bodyFile) ?? []) src = editChapterSource(src, o.within, o.op, o.valueSrc, o.meta, o.key, o.at);
+      for (const o of byFile.get(bodyFile) ?? []) src = editChapterSource(src, o.within, o.op, o.valueSrc, o.meta, o.key, o.at, o.flat);
     } catch {
       return src; // a queued op that cannot fold will fail loudly at the end of the batch
     }
@@ -4573,6 +4585,7 @@ function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: 
       name: e.name ? String(e.name) : undefined,
       key: e.key === undefined ? undefined : String(e.key),
       at: typeof e.at === "number" && Number.isFinite(e.at) && e.at >= 0 ? Math.floor(e.at) : undefined,
+      flat: e.flat === true ? true : undefined,
       docSegs,
       dirBacked,
     };
@@ -4616,7 +4629,7 @@ function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: 
       // in `valueSrc` — a `concrete: file/yamlover | dir/.yo` op was born back there, its
       // pointer swapped in and its concrete cleared).
       if (valueSrc && !isPointerValue(valueSrc)) parseYamlover(valueSrc, "<edit>");
-      src = editChapterSource(src, o.within, o.op, valueSrc, meta, o.key, o.at);
+      src = editChapterSource(src, o.within, o.op, valueSrc, meta, o.key, o.at, o.flat);
     }
     // the SPLICED document must itself parse: a surgical bug must 400 with the file untouched,
     // never persist a corrupt body (the reported orphaned block lines)
@@ -4662,6 +4675,9 @@ interface EditInput {
   at?: number; // scalar emplace only: the self-value LINE's authored position — the number of
                // entries that precede it. A fresh self line splices there instead of the top;
                // replacing an existing line keeps its position regardless.
+  flat?: boolean; // insert only: the payload's first row is a FLAT continuation of the key
+                  // (docs/language/flattening) — splice `key: <first row>` as ONE line when the
+                  // payload's shape allows (one keyed group, no self value, no tag), else nested.
 }
 
 // A dataRoot that never exists: `concreteOf`'s stats throw and every node falls through to plain

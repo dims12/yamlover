@@ -394,6 +394,10 @@ export interface Edit {
   /** insert only: create a KEYED entry (`key: value`) at the position — keeps authored order,
    *  unlike a fresh keyed emplace (which the server splices at the top of the block). */
   key?: string;
+  /** insert only: the payload's first row is a FLAT continuation of the key
+   *  (docs/language/flattening) — the splicer joins them as ONE row (`key1: key2: value`)
+   *  when the payload's shape allows, else falls back to the nested splice. */
+  flat?: boolean;
   /** scalar emplace only: the self-value LINE's authored position — the number of entries that
    *  precede it. A fresh self line splices there instead of at the top of the block. */
   at?: number;

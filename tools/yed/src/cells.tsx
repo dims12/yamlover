@@ -50,6 +50,56 @@ function headHoleHere(ctx: CellCtx, containerPath: Path): boolean {
   return keyRowOwns(ctx, containerPath);
 }
 
+/** THE FLAT-ROW FACE (docs/language/flattening): a keyed entry whose value is a single-child
+ *  chain of `yamlover/key/flat` segments draws ON ONE ROW — `a: a: a: 12` as the file spells
+ *  it. Mirrors the serializer's canFold guard, restricted to the LINEAR chain with an
+ *  inline-renderable leaf: a multi-child fold, a block-mapping leaf (a continuation block, an
+ *  abandoned `a: b:`), or a decorated intermediate draws nested — the file keeps its flat
+ *  spelling regardless. The chain UNFOLDS while a cursor needs a ROW inside an intermediate
+ *  (a non-head hole, an anchors/tag face) — the same edits that break the fold on disk. */
+function flatChainOf(e: Entry, p: Path, ctx: CellCtx): { segs: { e: Entry; p: Path }[]; leaf: Value; leafPath: Path; blockLeaf: boolean } | null {
+  if (e.key == null) return null;
+  const segs: { e: Entry; p: Path }[] = [];
+  let cur: Entry = e;
+  let curPath = p;
+  let blockLeaf = false;
+  const foldsOn = (v: Value, at: Path): boolean => {
+    if (isPointer(v) || (v as Node).kind !== "mapping" || isFlow(v as Node)) return false;
+    const n = v as Node;
+    const m = (n.meta ?? {}) as { schema?: unknown; set?: boolean; yo?: boolean; style?: unknown; concrete?: unknown; anchors?: unknown[]; comments?: unknown[] };
+    if (m.schema !== undefined || m.set === true || m.yo === true || m.style !== undefined || m.concrete !== undefined) return false;
+    if ((m.anchors ?? []).length > 0 || (m.comments ?? []).length > 0) return false;
+    const ents = n.entries ?? [];
+    if (ents.length !== 1) return false;
+    const c = ents[0];
+    const cm = (c.meta ?? {}) as { keyConcrete?: string; comments?: unknown[]; blankBefore?: boolean };
+    if (cm.keyConcrete !== "yamlover/key/flat") return false;
+    if (c.key == null || (c as { nullKey?: boolean }).nullKey === true) return false;
+    if ((cm.comments ?? []).length > 0 || cm.blankBefore === true) return false;
+    const cc = ctx.cursor;
+    if ((cc.at === "hole" && pathEq(cc.path, at) && cc.head !== true)
+      || (cc.at === "anchors" && pathEq(cc.path, at))
+      || (cc.at === "tag" && pathEq(cc.path, at))) return false;
+    return true;
+  };
+  while (true) {
+    const v = cur.value;
+    if (foldsOn(v, curPath)) {
+      curPath = [...curPath, 0];
+      segs.push({ e: (v as Node).entries![0], p: curPath });
+      cur = (v as Node).entries![0];
+      continue;
+    }
+    // a BLOCK mapping that cannot fold further is the chain's BLOCK LEAF: the descend state
+    // (`a: b: c:` + the hole below), a continuation body, an abandoned empty container — the
+    // chain row stays, the leaf's rows render indented beneath it (the keyrow pattern)
+    blockLeaf = !isPointer(v) && (v as Node).kind === "mapping" && !isFlow(v as Node);
+    break;
+  }
+  if (segs.length === 0) return null;
+  return { segs, leaf: cur.value, leafPath: curPath, blockLeaf };
+}
+
 export interface CellCtx {
   cursor: Cursor;
   refused: boolean;
@@ -672,12 +722,77 @@ function ContainerCell({ node, path, ctx, trailingComma = false, lead, valueRow,
         && (((e.value as Node).entries ?? []).length > 0
           || (ctx.cursor.at === "hole" && pathEq(ctx.cursor.path, p))
           || blockRawOf(e.value) !== null);
+      // THE FLAT-ROW FACE: the whole chain (key cells, walkable head slots, the leaf) rides
+      // ONE row — the leaf's `lead` routing when it owns rows of its own (omni fields, a
+      // block scalar, a spread token), plain inline cells otherwise
+      const fold = !flow && childBlock && e.key != null ? flatChainOf(e, p, ctx) : null;
+      const foldChain = fold === null ? null : (
+        <>
+          {keyFrag}
+          {fold.segs.map((s, k) => {
+            const holderPath = k === 0 ? p : fold.segs[k - 1].p;
+            return (
+              <Fragment key={k}>
+                {headHoleHere(ctx, holderPath)
+                  ? <HoleCell ctx={ctx} />
+                  : <Cell kind="hole" active={false} refused={false}>
+                      <button
+                        className="y2-gapslot y2-headslot"
+                        onFocus={() => ctx.onFocus({ at: "into", path: holderPath, head: true })}
+                        onKeyDown={(ev) => ctx.onKey(ev)}
+                      >
+                        {" "}
+                      </button>
+                    </Cell>}
+                <KeyCell entry={s.e} path={s.p} ctx={ctx} />
+                <span className="y2-punct">: </span>
+              </Fragment>
+            );
+          })}
+        </>
+      );
+      const leafOwnRows = fold !== null && !fold.blockLeaf && (
+        (!isPointer(fold.leaf) && (fold.leaf as Node).kind === "scalar"
+          && (((fold.leaf as Node).entries ?? []).length > 0
+            || (ctx.cursor.at === "hole" && pathEq(ctx.cursor.path, fold.leafPath))
+            || blockRawOf(fold.leaf) !== null))
+        || (!isPointer(fold.leaf) && isFlow(fold.leaf as Node) && isSpread(fold.leaf as Node)));
       out.push({
         el: (
           <Fragment key={i}>
             {/* a SPREAD child takes the key INTO its first row (`children: [`) so its body rows
                 come back to the container's own indent — K&R, not a hang at the key's column */}
-            {childSpread || childOmni
+            {fold !== null && fold.blockLeaf
+              ? <div className="y2-rows">
+                  {/* the chain's BLOCK LEAF (the descend state, a continuation body): the chain
+                      row STAYS — it is the keyrow, the leaf's rows render indented beneath it
+                      (the same two-row law a nested `key:` block child has) */}
+                  <div
+                    className="y2-row y2-keyrow"
+                    onMouseDown={(ev) => { if (ev.target === ev.currentTarget) { ev.preventDefault(); ctx.onFocus({ at: "into", path: fold.leafPath, head: true }); } }}
+                  >
+                    {foldChain}
+                    {(anchorDecorations(fold.leaf).length > 0 || (ctx.cursor.at === "anchors" && pathEq(ctx.cursor.path, fold.leafPath)))
+                      && <AnchorsCell node={fold.leaf} path={fold.leafPath} ctx={ctx} />}
+                    {headHoleHere(ctx, fold.leafPath)
+                      ? <HoleCell ctx={ctx} />
+                      : <Cell kind="hole" active={false} refused={false}>
+                          <button
+                            className="y2-gapslot y2-headslot"
+                            onFocus={() => ctx.onFocus({ at: "into", path: fold.leafPath, head: true })}
+                            onKeyDown={(ev) => ctx.onKey(ev)}
+                          >
+                            {" "}
+                          </button>
+                        </Cell>}
+                  </div>
+                  <div className="y2-row y2-indent"><NodeCell node={fold.leaf as Node} path={fold.leafPath} ctx={ctx} /></div>
+                </div>
+              : fold !== null
+              ? (leafOwnRows
+                ? <NodeCell node={fold.leaf as Node} path={fold.leafPath} ctx={ctx} lead={foldChain} />
+                : <>{foldChain}<NodeCell node={fold.leaf} path={fold.leafPath} ctx={ctx} /></>)
+              : childSpread || childOmni
               ? <NodeCell node={e.value as Node} path={p} ctx={ctx} trailingComma={wantComma} lead={keyFrag} />
               : childBlock && e.key != null && !flow
                 ? <div className="y2-rows">

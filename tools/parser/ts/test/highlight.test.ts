@@ -115,3 +115,14 @@ test('hl yaml: a bare alias/anchor name is one ref, no colon run', () => {
     ['key', 'b'], ['punct', ':'], ['pointer', '*'], ['ref', 'x'],
   ]);
 });
+
+test('hl: FLAT rows - every path segment colours as a KEY, the `-:` segment as the DASH', () => {
+  // docs/language/flattening: `a: a: a: 12` is a flat row — each word-before-colon is a key
+  assert.deepEqual(kinds('a: a: a: 12\n'), [
+    ['key', 'a'], ['punct', ':'], ['key', 'a'], ['punct', ':'], ['key', 'a'], ['punct', ':'], ['number', '12'],
+  ]);
+  // the keyless segment `-:` keeps the sequence-marker colour, never a key's
+  assert.deepEqual(kinds('human1: pets: -: 1\n'), [
+    ['key', 'human1'], ['punct', ':'], ['key', 'pets'], ['punct', ':'], ['dash', '-:'], ['number', '1'],
+  ]);
+});

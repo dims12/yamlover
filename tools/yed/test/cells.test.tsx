@@ -353,3 +353,41 @@ describe("yed2 cells — the renderer-parity round (the read view is the standar
     expect(Array.from(doc.querySelectorAll(".y2-comment")).map((el) => el.textContent)).toContain("# the end");
   });
 });
+
+describe("yed2 cells — the FLAT-ROW face (docs/language/flattening)", () => {
+  it("a flat-authored chain draws on ONE row — key cells, walkable head slots, the leaf", () => {
+    const state = stateFor("a: b: c: 12\n");
+    const { container } = render(<EditorView state={state} setState={() => {}} />);
+    // row divs NEST (a wrapped child renders its rows inside the parent's) — the INNERMOST
+    // row holding the leaf token is the one whose cells we count
+    const rows = Array.from(container.querySelectorAll(".y2-row")).reverse();
+    const foldRow = rows.find((r) => r.querySelector('[data-kind="token"]'));
+    expect(foldRow).toBeTruthy();
+    // all three key cells share the leaf's row — the fold is one line, as the file spells it
+    expect(foldRow!.querySelectorAll('[data-kind="key"]')).toHaveLength(3);
+    // every intermediate's `into` position stays drawn: one head slot per chain container
+    expect(foldRow!.querySelectorAll(".y2-headslot")).toHaveLength(2);
+  });
+
+  it("a nested-authored document does NOT fold — the spelling is the author's", () => {
+    const state = stateFor("a:\n  b: 12\n");
+    const { container } = render(<EditorView state={state} setState={() => {}} />);
+    const rows = Array.from(container.querySelectorAll(".y2-row")).reverse();
+    const tokenRow = rows.find((r) => r.querySelector('[data-kind="token"]'))!;
+    // the leaf's row carries only ITS key — `a:` stays a row of its own above
+    expect(tokenRow.querySelectorAll('[data-kind="key"]')).toHaveLength(1);
+  });
+
+  it("the DESCEND state keeps the chain row — `a: b: c:` + Enter draws the hole BELOW it", () => {
+    // the reported jump: the chain unfolded into nested rows on Enter, then refolded on the
+    // value commit. The law: the chain row stays; the leaf's block renders indented beneath.
+    let state = initialState();
+    for (const k of parseScript("a: b: c:{Enter}")) state = applyKey(state, "ch" in k ? { key: k.ch } : k);
+    const { container } = render(<EditorView state={state} setState={() => {}} />);
+    const keyrow = Array.from(container.querySelectorAll(".y2-row.y2-keyrow"))
+      .find((r) => r.querySelectorAll('[data-kind="key"]').length === 3);
+    expect(keyrow).toBeTruthy(); // all three segments share ONE row
+    expect(keyrow!.querySelector(".y2-cell.y2-hole.y2-active")).toBeNull(); // the hole is not on it…
+    expect(container.querySelector(".y2-cell.y2-hole.y2-active .y2-input")).toBeTruthy(); // …but drawn below
+  });
+});

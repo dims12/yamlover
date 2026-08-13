@@ -37,6 +37,12 @@ intentionally skipped so the JSON and YAML branches keep matching last digits.)
 |---|------|-------|
 | 07 | [`07-omni.yo`](07-omni.yo) | the **unified node** (omni) — **tagless** (no `!!var` needed): one node carrying a scalar *self-value* (here a multi-line **block scalar**, which is self-delimiting so it may sit anywhere among the entries), **positional** fields, and **keyed** fields all at once, instead of forcing scalar-vs-array-vs-object |
 
+## Flattening
+
+| # | file | shows |
+|---|------|-------|
+| 08 | [`08-flat.yo`](08-flat.yo) | **flat rows** ([`docs/language/flattening`](../docs/language/flattening/)) — depth moved into the key: `human1: name: Alice` rows as path-paving commands, repeated heads merging into one node, the trailing `-:` append (inline scalars and indented blocks at the nested-equivalent columns), and a `*` reference as a flat path's value. Every segment after the first wears `yamlover/key/flat`, so the file is a **byte fixed point** of the serializer — the fold survives the round-trip |
+
 ## Instance examples (directory + `.yo/` overlays)
 
 The modern, instance-only shapes. In a directory an optional overlay splits the two layers:

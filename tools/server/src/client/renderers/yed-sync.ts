@@ -25,7 +25,7 @@ import { isPointer, type Anchor, type Pointer } from "../../../../parser/ts/src/
 import { parsePointer, renderPointer } from "../../../../parser/ts/src/pointer.ts";
 import { anchorBody } from "../../../../parser/ts/src/serialize-common.ts";
 import { segToken } from "../../../../parser/ts/src/pathseg.ts";
-import { schemaText } from "../../../../parser/ts/src/serialize-yamlover.ts";
+import { emitsFlat, schemaText } from "../../../../parser/ts/src/serialize-yamlover.ts";
 
 export interface DiffResult {
   ops: Edit[];
@@ -402,6 +402,9 @@ function diffEntries(prev: Entry[], next: Entry[], parentPath: string, ops: Edit
       op: "insert",
       yamlover: payloadOf(i.e.value),
       ...(i.e.key != null ? { key: i.e.key } : {}),
+      // an authored FOLD (docs/language/flattening): the payload's rows are flat continuations
+      // of the key — the splicer keeps them on ONE row instead of nesting the committer's fold
+      ...(i.e.key != null && emitsFlat(i.e.value) ? { flat: true } : {}),
     });
   }
 }

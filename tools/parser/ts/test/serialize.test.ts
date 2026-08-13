@@ -369,6 +369,7 @@ test('cross-concrete: a json5 Infinity/NaN serializes to yamlover .inf/.nan (no 
 const yamloverFiles: string[] = [
   join(examples, '05-tour.yaml'),
   join(examples, '06-tour.yo'),
+  join(examples, '08-flat.yo'),
   join(root, 'tags', '.yo', 'body.yo'),
 ];
 for (const dir of readdirSync(examples, { withFileTypes: true })) {
@@ -382,6 +383,11 @@ for (const file of yamloverFiles) {
     rtYamlover(readFileSync(file, 'utf8'), file);
   });
 }
+
+test('examples/08-flat.yo is a BYTE fixed point - the authored fold survives end to end', () => {
+  const src = readFileSync(join(examples, '08-flat.yo'), 'utf8');
+  assert.equal(serializeYamlover(parseYamlover(src, '08-flat'), { comments: true }), src);
+});
 
 // ---- json5p: unit round-trips ----------------------------------------------------
 

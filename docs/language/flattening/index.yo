@@ -1,8 +1,13 @@
 # Flattened yamlover - multicomponent keys as path commands. Implemented in the parser and
 # serializer (tools/parser: flatten.ts carries the flatten/deflatten routines); the
-# normalized form is the nested one.
+# normalized form is the nested one. The yed editor's flat-row support is a work in progress,
+# paused - see the Status note below.
 Flattening
 description: multicomponent keys - a whole nested document as flat path rows, and back
+- >
+  *Status: the parser, serializer and file round-trips are complete. The interactive (yed)
+  editor's flat-row support is still being worked out - typing and rendering the fold has
+  known rough edges - and is paused for now.*
 - >
   A **flat row** folds a chain of nested single-pair lines onto one line: the key chains with
   colons - the same colon grammar [paths](*::language:pointers:paths) already use - and the

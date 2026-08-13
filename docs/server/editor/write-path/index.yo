@@ -9,7 +9,10 @@ description: a tree diff turns edits into surgical /api/edit ops - the machine n
   - 'The flush is **debounced 500 ms**, one batch in flight; a failed flush alerts, keeps the change, and the NEXT flush re-diffs from the same committed snapshot against the newest document - never a queued-op double-apply. `flush()` is forced on lock and unmount. (The yed chapter mount keeps the same discipline and additionally forces a flush before an auto-descend into a subchapter.)'
 - >
   The op shape is `{ path, op: "emplace" | "replace" | "insert" | "remove", yamlover?, meta? }`
-  (`meta` carries the `!!<...>` facet). Ops address body elements by **absolute entry index**
+  (`meta` carries the `!!<...>` facet; an insert may carry `key`, and `flat: true` when the
+  payload's first row is a [flat](*::language:flattening) continuation of that key - the
+  splicer then keeps the authored fold as ONE row, `key1: key2: value`, instead of nesting
+  it). Ops address body elements by **absolute entry index**
   (`:doc[3]` - keyed entries consume indices too, [the chapter model](*::documents:chapter)); the
   server applies a batch strictly in order, re-scanning after each op. The yed chapter mount
   likewise auto-stamps the document's chapter meta with its first flush - the exactly-once
