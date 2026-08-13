@@ -21,9 +21,11 @@ test('flat: `key1: key2: key3: value` reads exactly as the nested spelling', () 
   eqNested('key1: key2: key3: value\n', 'key1:\n  key2:\n    key3: value\n');
 });
 
-test('flat: the continuation block indents to the nested-equivalent columns', () => {
+test('flat: the continuation block indents ONE STEP under the row, like a normal key', () => {
+  eqNested('key1: key2: key3:\n  value\n', 'key1:\n  key2:\n    key3:\n      value\n');
+  // parse-tolerant: ANY deeper column reads the same (the column law is an emission law) —
+  // the retired depth-equivalent spellings included
   eqNested('key1: key2: key3:\n      value\n', 'key1:\n  key2:\n    key3:\n      value\n');
-  // parse-tolerant: ANY deeper column reads the same (the column law is an emission law)
   eqNested('key1: key2: key3:\n         value\n', 'key1:\n  key2:\n    key3: value\n');
 });
 
@@ -149,8 +151,29 @@ test('flat: authored folds re-emit byte-identically (the concrete re-spells them
   fixpoint('key1: key2: key3: value\n');
   fixpoint('k1: a: 1\nk1: b: 2\n');
   fixpoint('list: -: 1\nlist: -: 2\n');
-  fixpoint('key1: key2: -:\n      name: Alice\n      age: 30\n');
+  // the ONE-STEP indentation law: the continuation block sits one step under the ROW,
+  // exactly as a normal key's block would — whatever the chain's depth
+  fixpoint('key1: key2: -:\n  name: Alice\n  age: 30\n');
   fixpoint('normal: flat: key: *pull: link\n');
+});
+
+test('flat: the parse is TOLERANT of any deeper continuation column (legacy depth columns read forever)', () => {
+  const canonical = 'key1: key2: -:\n  name: Alice\n  age: 30\n';
+  // the retired nested-equivalent columns (depth × step), and anything else strictly deeper
+  // than the ROW, still read as the leaf's continuation — the emission normalizes to one step
+  for (const legacy of [
+    'key1: key2: -:\n      name: Alice\n      age: 30\n',
+    'key1: key2: -:\n   name: Alice\n   age: 30\n',
+    'key1: key2: -:\n        name: Alice\n        age: 30\n',
+  ]) {
+    assert.deepEqual(canonDoc(parse(legacy)), canonDoc(parse(canonical)), legacy);
+    assert.equal(serializeYamlover(parse(legacy)), canonical, legacy);
+  }
+  // a deep chain with the one-step column — the case the synthetic depths must not eat
+  assert.equal(serializeYamlover(parse('a: b: c: d:\n  leaf: 1\n')), 'a: b: c: d:\n  leaf: 1\n');
+  assert.deepEqual(
+    canonDoc(parse('a: b: c: d:\n  leaf: 1\n')),
+    canonDoc(parse('a:\n  b:\n    c:\n      d:\n        leaf: 1\n')));
 });
 
 test('flat: the fallback list DROPS the fold — nested emits, losslessly', () => {
@@ -174,9 +197,9 @@ test('flatten: nested → fully flat text; deflatten: back to the nested form �
   const nested = 'human1:\n  name: Alice\n  pets:\n    - name: Whiskers\n      kind: cat\n    - name: Rex\n';
   const doc = parse(nested);
   const flatText = serializeYamlover(flattenYamlover(doc));
-  // the element blocks sit at the nested-equivalent columns: depth 3 (human1 > pets > -) × step 2
+  // the element blocks sit ONE STEP under their rows — the flat key indents like a normal key
   assert.equal(flatText,
-    'human1: name: Alice\nhuman1: pets: -:\n      name: Whiskers\n      kind: cat\nhuman1: pets: -:\n      name: Rex\n');
+    'human1: name: Alice\nhuman1: pets: -:\n  name: Whiskers\n  kind: cat\nhuman1: pets: -:\n  name: Rex\n');
   const re = parse(flatText);
   assert.deepEqual(canonDoc(re), canonDoc(doc), 'the flat text must reparse IR-equal');
   assert.equal(serializeYamlover(re), flatText, 'the flat form is a fixed point');

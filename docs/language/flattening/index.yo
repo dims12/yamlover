@@ -46,8 +46,8 @@ description: multicomponent keys - a whole nested document as flat path rows, an
   block under a trailing `-:` is the new element's content:
 - !!<format: text/x-yamlover> |
   key1: key2: -:
-        name: Alice
-        age: 30
+    name: Alice
+    age: 30
 - >
   A row of scalars is therefore a repetition of trailing `-:` rows - `list: -: 1` then
   `list: -: 2` builds the two-element list. The standalone `-: value` row (the `-` as the whole
@@ -59,11 +59,14 @@ description: multicomponent keys - a whole nested document as flat path rows, an
   the LAST same-key sibling (the mirror of the middle `-` rule); plain single-segment rows
   keep their duplicate-tolerant reading - rows are commands only when they carry a path.
 - >
-  **Indentation.** A flat row's continuation block indents to the columns the NESTED spelling
-  would give it in the same document - the number of indent steps equals the path's depth, as
-  if the fold were undone. Flattening is a pure line fold: unfolding a flat row moves no other
-  line's column. The law is EMIT-STRICT, PARSE-TOLERANT: the serializer writes exactly those
-  columns; the parser accepts any strictly deeper block as the row's continuation.
+  **Indentation.** A flat row's continuation block indents ONE STEP under the row - a flat key
+  indents exactly like a normal key, whatever the path's depth. (Counting depth-equivalent
+  columns was rejected: humans cannot count segments reliably, and renaming the path would
+  force re-indenting the block. The cost is that flattening and un-flattening RE-INDENT the
+  continuation lines - deliberate: the conversion does real work, it is never a pure line
+  fold.) The law is EMIT-STRICT, PARSE-TOLERANT: the serializer writes exactly one step; the
+  parser accepts ANY strictly deeper block as the row's continuation, so spellings written
+  under the earlier depth-column law read forever.
 - >
   **The write-once constraint.** A scalar value may land on a node only while that node is
   null-valued AND childless. This is what makes flattening and de-flattening predictable and
@@ -91,12 +94,12 @@ description: multicomponent keys - a whole nested document as flat path rows, an
   keyless-membership suffix - belongs too; a `:`-led value token like `::: host` is always a
   VALUE.) The chain spellings are PARSE-ONLY tolerance: the serializer keeps the own-line
   canonical form, as it always has for bookmarks. The continuation block carries the rest of
-  the node - further bookmark rows, fields, keyless elements - at the fold's computed depth:
+  the node - further bookmark rows, fields, keyless elements - one step under the row:
 - !!<format: text/x-yamlover> |
   normal: flat: key: &book: mark1: &another: book: mark: scalar
-        &third: book: mark
-        field1: value1
-        - value2
+    &third: book: mark
+    field1: value1
+    - value2
 - >
   **The pull link is exclusive.** A flat path may land a
   [reference](*::language:pointers:reference) as its value - and nothing else may share the

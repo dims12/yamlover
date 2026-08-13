@@ -235,7 +235,7 @@ describe("yed2 — a colon in the VALUE place extends the key path (FLAT rows)",
   });
   it("the LEVEL RULE holds at the leaf: Enter descends into the committed value's fields", () => {
     const s = type("a: b: 12{Enter}sub: x{ArrowRight}");
-    expect(src(s)).toBe("a: b: 12\n    sub: x\n");
+    expect(src(s)).toBe("a: b: 12\n  sub: x\n"); // the field ONE step under the row — the flat key indents like a normal key
   });
   it("`c:` + Enter in the chain DESCENDS — the segment opens its block, never a null commit", () => {
     // the reported dead end: the bare-colon text committed `c` as a NULL leaf and the level

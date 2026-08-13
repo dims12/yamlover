@@ -17,14 +17,15 @@ unflatten1:
     age: 30
 
 # a trailing `-` segment APPENDS a keyless element; switching to nested keying under the
-# `-:` gives the new element its content, at the columns the nested spelling would have
+# `-:` gives the new element its content, ONE indent step under the row - a flat key
+# indents exactly like a normal key, whatever the path's depth
 flatten2:
   human1: pets: -:
-        name: Whiskers
-        kind: cat
+    name: Whiskers
+    kind: cat
   human1: pets: -:
-        name: Rex
-        kind: dog
+    name: Rex
+    kind: dog
 unflatten2:
   human1:
     pets:

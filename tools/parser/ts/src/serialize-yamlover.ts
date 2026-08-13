@@ -160,7 +160,7 @@ class Emitter {
         // rows and the fold is still lossless — emit them as flat rows with this head as the
         // repeated prefix; otherwise the concrete drops silently and the nested form emits
         if (e.edge !== 'back' && this.canFold(e.value) && ents.filter((s) => s.key === e.key).length === 1) {
-          for (const c of (e.value as Mapping).entries!) this.flatChild([head], c, indent, 1);
+          for (const c of (e.value as Mapping).entries!) this.flatChild([head], c, indent);
         } else {
           this.keyed(head, e.value, indent);
         }
@@ -175,22 +175,20 @@ class Emitter {
   }
 
   /** One FLAT segment: descend while the fold stays lossless, else emit the LEAF row — the
-   *  joined prefix through the ordinary pair machinery at the DEPTH-based indent (children
-   *  land at the nested-equivalent columns), with only the head line re-padded to the row's
-   *  own indent. A keyless element with container content takes this leaf path too: the
+   *  joined prefix through the ordinary pair machinery at the ROW's own indent, so the leaf's
+   *  continuation block lands ONE STEP under the row, exactly as a normal key's block would
+   *  (the one-step indentation law — flattening does real re-indentation work, it is never a
+   *  pure line fold). A keyless element with container content takes this leaf path too: the
    *  trailing `-:` row plus its block — the only APPEND spelling (inline `-` before key
    *  segments would read back as the MIDDLE address). */
-  flatChild(prefix: string[], e: Entry, indent: number, depth: number): void {
+  flatChild(prefix: string[], e: Entry, indent: number): void {
     const seg = e.key === null ? '-' : (authoredKey(e) ?? keyText(e.key));
     const head = seg + ':';
     if (e.key !== null && this.canFold(e.value)) {
-      for (const c of (e.value as Mapping).entries!) this.flatChild([...prefix, head], c, indent, depth + 1);
+      for (const c of (e.value as Mapping).entries!) this.flatChild([...prefix, head], c, indent);
       return;
     }
-    const joined = prefix.join(' ') + ' ' + head;
-    const at = this.out.length;
-    this.keyed(joined, e.value, indent + depth * STEP);
-    this.out[at] = ' '.repeat(indent) + this.out[at].slice(indent + depth * STEP);
+    this.keyed(prefix.join(' ') + ' ' + head, e.value, indent);
   }
 
   /** A `trailing` comment rides the entry's line when the entry emitted a single line;

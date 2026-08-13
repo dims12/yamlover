@@ -22,9 +22,14 @@ import { attachComments, type RawComment } from './comments.ts';
 interface Line {
   indent: number; text: string; n: number; blankBefore?: boolean;
   /** The REAL raw-line column of `text[0]`, when it differs from `indent` — a FLAT-row
-   *  rewrite gives its synthetic line a structural indent (outer + 1 per segment, so any
-   *  nested-equivalent continuation column stays in range) while spans keep raw columns. */
+   *  rewrite gives its synthetic line a structural indent (outer + 1 per segment) while
+   *  spans keep raw columns. */
   col?: number;
+  /** The flat ROW's real indent, carried through every residue rewrite: the LEAF reads its
+   *  continuation block relative to the ROW (one step under it, tolerant of any deeper
+   *  column), never to the synthetic depth — the one-step indentation law
+   *  (docs/language/flattening). */
+  base?: number;
   /** This synthetic line is a FLAT-row residue (docs/language/flattening): the entry it
    *  produces carries the `yamlover/key/flat` concrete. */
   flat?: true;
@@ -478,10 +483,10 @@ class Block {
           // keyless element and never adds one (paveMerge below; the residue re-reads one
           // synthetic level deeper, marked flat)
           this.i--;
-          this.lines[this.i] = { indent: indent + 1, col: contentCol, text: rest, n: l.n, flat: true };
+          this.lines[this.i] = { indent: indent + 1, col: contentCol, text: rest, n: l.n, flat: true, base: l.base ?? indent };
           value = this.container(indent + 1);
         } else if (rest === '') {
-          value = this.node(indent + 1) ?? nul();
+          value = this.node((l.base ?? indent) + 1) ?? nul();
         } else if (isSeqLine(rest, this.yaml) || (!/^(!!<|\*|&)/.test(rest) && splitKV(rest))) {
           // compact `- key: value` or compact nesting `- - item`: re-read this line
           // (+ deeper siblings) as a container — the rewrite recurses, so `- - - x`
@@ -491,7 +496,7 @@ class Block {
           this.lines[this.i] = { indent: contentCol, text: rest, n: l.n };
           value = this.container(contentCol);
         } else {
-          value = this.valueAfter(rest, indent, l.n, contentCol);
+          value = this.valueAfter(rest, l.base ?? indent, l.n, contentCol);
         }
         entry = { key: null, edge: isPointer(value) ? 'ref' : 'contain', value };
       } else if (isBackSeqLine(l.text)) {
@@ -541,13 +546,14 @@ class Block {
         if (!nullKey && !back && this.flatTail(kv.rest)) {
           // a FLAT ROW (docs/language/flattening): the rest is itself a keyed / `-:` line —
           // the fold unrolls one level. The residue re-reads as a synthetic child line at
-          // indent+1 (so ANY nested-equivalent continuation column stays in range), carrying
-          // the real column for spans and the `flat` mark for the yamlover/key/flat concrete.
+          // indent+1, carrying the real column for spans, the `flat` mark for the
+          // yamlover/key/flat concrete, and the ROW's real indent (`base`) so the leaf's
+          // continuation block reads one step under the ROW, whatever the chain's depth.
           this.i--;
-          this.lines[this.i] = { indent: indent + 1, col: lCol + kv.restCol, text: kv.rest, n: l.n, flat: true };
+          this.lines[this.i] = { indent: indent + 1, col: lCol + kv.restCol, text: kv.rest, n: l.n, flat: true, base: l.base ?? indent };
           value = this.container(indent + 1);
         } else {
-          value = this.valueAfter(kv.rest, indent, l.n, lCol + kv.restCol);
+          value = this.valueAfter(kv.rest, l.base ?? indent, l.n, lCol + kv.restCol);
         }
         if (nullKey) {
           entry = { key: null, nullKey: true, edge: isPointer(value) ? 'ref' : 'contain', value };
