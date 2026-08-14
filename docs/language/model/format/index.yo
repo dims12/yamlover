@@ -1,12 +1,14 @@
 Format
-description: a named constraint on node content - not a type; markups, codecs, structures
+description: a named constraint on node content - not a type, never a decoder; markups, media, structures
 - >
   A **format** is a **named constraint** on a node's content - finer than any type can state:
   `type: string` admits every string, while `format: text/x-plantuml` claims the string parses as a
   PlantUML diagram. A format refines a facet; it is **not a type**
   ([terminology](*::language:model:terminology)), and it has an open sub-lattice of its own (whether
-  `text/markdown` subtypes `text/plain` is deliberately unsettled). The `format:` schema keyword and
-  its resolution order are the [meta chapter](*::meta:format)'s subject.
+  `text/markdown` subtypes `text/plain` is deliberately unsettled). And it is **not a decoder**:
+  since the concrete/format split, how bytes or text become the value is the
+  [concrete](*::language:concretes)'s job - the format only says what the decoded value *means*.
+  The `format:` schema keyword is the [meta chapter](*::meta:format)'s subject.
 - 'A few formats in action, spanning the range - JSON Schema''s own values first, then beyond them:'
 - !!<format: text/x-yamlover> |
   adopted:  !!<format: date-time> 2019-06-01        # JSON Schema's own …
@@ -19,10 +21,10 @@ description: a named constraint on node content - not a type; markups, codecs, s
     Cat -> Ball : chase
     @enduml
 - !!<format: text/x-yamlover> |
-  # … and, in a directory's .yo/meta.yo, bytes with a decoding:
-  properties:
-    avatar: {type: binary, format: image/png}       # an image file member
-    weight: {type: binary, format: int32/le}        # a four-byte integer
+  # … and, in a directory's .yo/meta.yo, the format CONSTRAINS while the concrete DECODES:
+  members:
+    avatar: {type: binary, format: image/png}       # bytes ARE the value; the format names the meaning
+    weight: {concrete: binary/int32/le}             # the CONCRETE decodes four bytes to an integer
 - >
   Usually a format constrains a **string scalar**. But a scalar is just a node **without
   members** ([members](*::language:model:members)), so nothing limits formats to strings: a format
@@ -52,23 +54,15 @@ description: a named constraint on node content - not a type; markups, codecs, s
   - - '`text/plain`'
     - '`contentMediaType`'
     - bytes
-    - 'Deliberately opaque - kept as raw bytes so the client decodes under a chosen encoding (legacy Cyrillic text files are common), rather than the server fixing UTF-8.'
-  - - '`yamlover` · `yaml` · `json` · `json5` · `json5p` - and the `.../meta` variants'
-    - '-'
-    - a file or string
-    - 'Sub-document encodings - the text parses into a node in that surface language; a `.../meta` variant marks a schema document.'
+    - 'Deliberately opaque - kept as raw bytes so the client decodes under a chosen encoding (legacy Cyrillic text files are common), rather than the server fixing UTF-8. Declaring a charset CONCRETE (`text/utf-8`, `text/ibm866`) decodes it server-side instead.'
   - - '`text/x-yamlover` · `text/x-yaml` · `text/x-json5p`'
     - '-'
     - a string
-    - 'Quoted code - the same surfaces kept *as text*, unparsed (how this book shows its examples).'
+    - 'Quoted code - the surfaces kept *as text*, unparsed (how this book shows its examples).'
   - - '`image/png` · `application/pdf` · any MIME type'
-    - '`contentMediaType` + `contentEncoding: base64`'
+    - '`contentMediaType`'
     - bytes
     - 'Opaque media - the viewer picks a renderer by the MIME name; an open set.'
-  - - '`int32/le`'
-    - '-'
-    - bytes
-    - 'A codec - decode the bytes into a value (a four-byte file becomes a number).'
   - - '`date-time`'
     - '`format: date-time`'
     - a string
@@ -82,6 +76,14 @@ description: a named constraint on node content - not a type; markups, codecs, s
     - an omni or keyed node
     - 'The platform structures - tags and annotations are omni, a fragment a plain map.'
   - - '`application/octet-stream`'
-    - '`contentEncoding: base64`'
+    - '`contentMediaType`'
     - bytes
     - 'The fallback - a binary leaf nothing else claimed.'
+- >
+  Two families that USED to sit in this table are formats no longer - they are
+  [concretes](*::language:concretes), because they name a *decoding*, not a constraint: the
+  **sub-document encodings** (`format: yamlover`, `json5p`, the `.../meta` variants → now
+  `concrete: yamlover/stream`, `json5p/code`, `yamlover/meta`, …) and the **codecs**
+  (`format: int32/le` → now `concrete: binary/int32/le`; base64 is `concrete: base64`, the tag
+  `!!binary` its inline alias - [transforms](*::transform)). The old format spellings read
+  forever; the authored corpus states the concrete.

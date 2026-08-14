@@ -1222,22 +1222,30 @@ a.chunk-index {
   /* the body line box (14px base × 1.65 .chapter leading) expressed over this 12px font, so a
      digit's baseline sits on the chunk's FIRST-LINE baseline */
   line-height: calc(1.65 * 14 / 12);
-  color: var(--accent); /* bluish, like the § anchors — one address system, one ink */
-  opacity: 0.65;
+  /* bluish, like the § anchors — one address system, one ink. The fade lives in the COLOR,
+     not element opacity: the crumb's background below is a mask over the vertical rules, and
+     an element-level opacity would let the rule ghost through the cut. */
+  color: color-mix(in srgb, var(--accent) 65%, transparent);
   user-select: none;
   border-bottom-width: 0;
 }
 /* one crumb of the chain: `--lvl` 0 is the chunk's own digit, each ancestor one nesting step
-   further out — every digit's right edge lands just left of the vertical rule of ITS level */
+   further out — every digit's right edge lands just left of the vertical rule of ITS level.
+   A KEYED label (a filename, not a digit) can be longer than its gutter and lie across the
+   rules of outer levels — the page-background mask CUTS each rule it crosses, and the side
+   paddings keep a breath of gap around the cut (margin-right holds the text's right edge at
+   its calibrated 4px-from-the-rule spot). */
 .chunk-crumb {
   position: absolute;
   top: 0;
   width: max-content;
   right: calc(4px + var(--lvl, 0) * var(--sub-step));
+  background: var(--bg);
+  padding: 0 4px;
+  margin-right: -4px;
 }
 a.chunk-index:hover {
   color: var(--accent);
-  opacity: 1;
 }
 /* A CARD-FACED chunk (a `!!yo` data island, a plaintext/code block) does not start its text at
    its own top edge: the frame's border + padding push the first line down, and its 13px/1.55

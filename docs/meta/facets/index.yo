@@ -81,3 +81,9 @@ description: value, keyed, ordinal - the capability cube and its corners
   JSON Schema. The merge key `<<` and YAML's `!!value` are mechanisms, not types. And `!!omap`,
   `!!pairs`, `!!binary` are more than refinements - reserved [transform names](*::transform), the
   records above being only their *result* shapes.
+- >
+  **The cube's schema spelling.** The facet keywords are the theory; today's authored spelling
+  covers the same ground with `value:` for the value facet and the
+  [members clause](*::meta:members) for the other two: keyed clauses and keyless clauses of ONE
+  omni `members:` describe named and positional members respectively - matching the model, where
+  both live in one ordered stream - and the sibling `others:` sweeps whatever no clause matched.

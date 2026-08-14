@@ -10,9 +10,9 @@
 type: variant
 format: x-yamlover-annotation
 value: *:: yamlover: $defs: tag          # the parameterless case: the self-value IS a tag (by ref)
-properties:
+members:
   tag: *:: yamlover: $defs: tag          # the parametrized case: the applied tag, by pointer
   description:
     type: string
     format: text/marklower
-additionalProperties: true               # any other field is a free-form parameter
+others: true                             # any other field is a free-form parameter

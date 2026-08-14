@@ -1,6 +1,7 @@
 # The abstract model - terminology, the value axis, order, the graph, matching, and the
-# constructs-in-concretes matrix; each a subdirectory chapter. The facets/type system and
-# the metadata vocabulary moved to the toplevel meta chapter (docs/meta).
+# constructs-in-concretes matrix; each a subdirectory chapter, closed by the tests chapter
+# mirroring the first test-examples/ fixtures. The facets/type system and the metadata
+# vocabulary moved to the toplevel meta chapter (docs/meta).
 The logical (abstract) model
 description: omnivorous nodes with ordered relations - the terminology and the graph
 
@@ -67,3 +68,4 @@ description: omnivorous nodes with ordered relations - the terminology and the g
 - *: matching
 - *: terminology
 - *: constructs
+- *: tests

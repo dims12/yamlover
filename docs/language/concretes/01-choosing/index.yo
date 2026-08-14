@@ -5,8 +5,10 @@ description: defaults, the language lock, and member encodings - birth-order ind
   unspecified concrete inherits the storage family - a directory-concrete parent keeps its
   children directory-concrete (a subchapter of a directory chapter becomes a subdirectory
   member, the shape this book itself uses); everything else stays inline in the parent's
-  source. An explicit concrete always wins - and it may name a bare `dir`, which births an OS
-  folder carrying no overlay at all. **Obligatory (the language lock)**: content inside
+  source. An explicit concrete always wins - stated at creation, or DECLARED per member in the
+  directory's `.yo/meta.yo` ([the members clause](*::meta:members)), which also covers the decode
+  axis (`concrete: yamlover/stream`, `binary/int32/le`, ...) - and it may name a bare `dir`,
+  which births an OS folder carrying no overlay at all. **Obligatory (the language lock)**: content inside
   a file document speaks that file's language - the interior of a `.json5p` cannot switch to
   yaml - and an existing node never changes concrete through an edit: a conversion is a move.
   **Member encoding** - the same inheritance seen from the write side, for edits that name no

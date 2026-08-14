@@ -26,7 +26,7 @@ export function createHandlers(...args: Parameters<typeof engineHandlers>): Retu
   return h;
 }
 
-/** A DISPOSABLE COPY of one example fixture (e.g. tmpExample("51-object-in-dir")), in a temp
+/** A DISPOSABLE COPY of one example fixture (e.g. tmpExample("50-dir")), in a temp
  *  dir cleaned up after the test. Tests must never run the engine against the repo's own
  *  `examples/` — indexing and the write paths (annotate/paste) mutate the served tree. */
 export function tmpExample(name: string): string {

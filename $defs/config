@@ -6,12 +6,12 @@
 #  !!<*yamlover:$defs:config>.
 type: object
 format: x-yamlover-config
-properties:
+members:
   uri:                                  # this project's identity (IMPORTS.md §1) — an authority,
     type: string                        #   authored as `::: host`; identity, not transport
   exports:                              # the paths exported to importers (IMPORTS.md §2):
     type: array                         #   a list of pointer/query texts
-    items:
+    others:
       type: string
   annotations: *:: yamlover: $defs: tag   # where new annotations are created (`*:: annotations`)
   tags: *:: yamlover: $defs: tag          # where new tags are created (`*:: tags`)

@@ -10,11 +10,115 @@
         "key": "age",
         "edge": "contain",
         "value": {
+          "kind": "scalar",
+          "value": 30,
+          "array": false,
+          "set": false,
+          "yo": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "as-text.yaml",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": "name: Whiskers\nspecies: cat\ntoys:\n  - ball\n  - mouse\n",
+          "array": false,
+          "set": false,
+          "yo": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "as-tree.yaml",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": false,
+          "set": false,
+          "yo": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": "name",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "Whiskers",
+                "array": false,
+                "set": false,
+                "yo": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": "species",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "cat",
+                "array": false,
+                "set": false,
+                "yo": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
+            {
+              "key": "toys",
+              "edge": "contain",
+              "value": {
+                "kind": "mapping",
+                "array": true,
+                "set": false,
+                "yo": false,
+                "anchors": [],
+                "entries": [
+                  {
+                    "key": null,
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "ball",
+                      "array": false,
+                      "set": false,
+                      "yo": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
+                    "key": null,
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "mouse",
+                      "array": false,
+                      "set": false,
+                      "yo": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "sample.png",
+        "edge": "contain",
+        "value": {
           "kind": "blob",
           "blob": {
-            "format": "application/octet-stream",
-            "hash": "xxh64:f027ba76bfe8cf01",
-            "size": 4
+            "format": "image/png",
+            "hash": "xxh64:2a8e48bede9eff6a",
+            "size": 667
           },
           "array": false,
           "set": false,

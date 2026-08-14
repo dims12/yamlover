@@ -194,8 +194,9 @@ export interface SchemaRule {
 
 /** FUTURE SEAM — compile a `meta.yo` document into value rules. Ships EMPTY: the type and
  *  the `opts.schema` plumbing are real from day one so landing the real body later is additive.
- *  When it grows, it walks the keyword nesting (`properties:` / `prefixItems:` / `items:`) and
- *  emits one rule per keyword; the engine's existing overlay read (walk.ts) supplies `meta`. */
+ *  When it grows, it walks the member clauses (`members:` keyed + keyless, `others:` — legacy
+ *  `properties:` / `prefixItems:` / `items:` read forever) and emits one rule per keyword; the
+ *  engine's existing overlay read (walk.ts) supplies `meta`. */
 export function compileMeta(meta: unknown, atPath: string): SchemaRule[] {
   void meta;
   void atPath;

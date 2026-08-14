@@ -52,6 +52,7 @@ Fill the **Decision** column: `switch` (rename to `yo`), `alias` (accept both, e
 | 11 | Package / binary / product / repo names                     | keep     | avoids the `npx yo` / Yeoman collision entirely |
 | 12 | Virtual paths & UI fixtures                                 | keep     | but §2/§3 spellings inside them follow: gear path becomes `:.yo:settings.yo` |
 | 13 | Docs, state diagrams, repo's own data                       | keep     | prose stays "yamlover"; file *names* under examples/corpus follow §1–§3 where renamed |
+| 14 | Meta vocabulary v2 (2026-08-14): `members:`/`others:` clauses, per-member `concrete:` decode | switch | legacy `properties`/`items`/`additionalProperties` and format-as-decoder (`format: int32/le`, `format: yamlover/meta`) read FOREVER, never authored; the authored corpus states the new spellings. Index invalidation via `SCHEMA_VERSION` 11→12 (store.ts) — first serve reindexes |
 
 ---
 

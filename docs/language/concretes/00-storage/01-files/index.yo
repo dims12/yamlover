@@ -16,5 +16,8 @@ description: a whole text file of a given language - the extension names the con
   An extension the tables do not know - or none at all - is SNIFFED rather than assumed: a NUL
   byte in the head, or a size past a megabyte, makes it the binary concrete below; anything else
   is read as text and modeled as a `file/yaml` scalar, its content parsed so a lone `42` is a
-  number and a lone `Alice` a string. A `meta.yo` entry saying `type: binary` overrides the
-  sniff - the metadata always outranks the guess.
+  number and a lone `Alice` a string. The metadata always outranks the guess: a `meta.yo` member
+  clause DECLARING the decode concrete (`concrete: yamlover/stream` parses a `.txt` as yamlover;
+  `concrete: text/utf-8` decodes it to a string; [the members clause](*::meta:members)) wins over
+  extension and sniff alike, and `type: binary` alone still forces bytes - "read whatever you
+  have so this type comes out".

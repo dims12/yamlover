@@ -1,0 +1,1 @@
+meta concrete: base64 stamps the codec; blob identity stays the file bytes (decode-on-serve pending)

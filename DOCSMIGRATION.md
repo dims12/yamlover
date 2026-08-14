@@ -433,16 +433,34 @@ chapters, the `entries:` keyword) deliberately run AHEAD of the code. The rules:
       (order:21 lexicographic vs chapter/model:25 scan order vs order-is-data:20 keyed-only);
       model/format:8 points at the meta/format stub for a resolution order the stub doesn't
       state (it lives in meta/index:19).
-- [ ] Meta stub chapters await prose: `value`, `keyed`, `ordinal`, `enum-const`, `annotations`,
-      `format`, `composition`, `conditionals` (the `keyed`/`ordinal` pair may merge into an
-      `entries` chapter - next item)
-- [ ] Spec the `entries:` design round (2026-08-09 discussion) into `meta/`: ONE omni
-      `entries:` keyword - a keyed clause describes the same-named entry (`properties`), the
-      k-th keyless clause the k-th keyless entry (`prefixItems`), selector clauses sweep by
-      pattern/index-range; `others:` covers what no clause matched (`additionalProperties`/
-      `unevaluated*`); per-clause `min`/`max` subsume `required`/`contains`; a clause position
-      keyword (`at:` - restart the ordinal count from N, `~` = floating). Add the rows to
-      `meta/vs-json-schema`.
+- [ ] Meta stub chapters await prose: `value`, `enum-const`, `annotations`, `composition`,
+      `conditionals` (the `keyed`/`ordinal` pair merged into the `members` chapter and
+      `format` was written - the 2026-08-14 round, next item)
+- [x] The MEMBERS round (2026-08-14; renames the 2026-08-09 working name `entries:` - same
+      design, ruled spelling `members:`): ONE omni `members:` clause - a keyed clause
+      describes the same-named member (`properties`), the k-th keyless clause the k-th
+      keyless member (`prefixItems`); the sibling keyword `others:` covers what no clause
+      matched (`additionalProperties`/`unevaluated*` + the uniform `items`). SHIPPED: the
+      engine reads members/others alongside the legacy clauses (walk.ts applySchemas +
+      loadMeta), all 12 $defs + every meta.yo respelled, meta/members chapter written
+      (absorbing the keyed/ordinal stubs), vs-json-schema rows flipped. Design-ahead (docs
+      only, unchecked): selector clauses (key regex / index ranges), the `at:` clause
+      position keyword (restart the ordinal count from N, `~` = floating), per-clause
+      `min`/`max` subsuming `required`/`contains`.
+- [x] The CONCRETE/TYPE/FORMAT split (2026-08-14): a `concrete` is the representation AND its
+      translation to the abstract value (usually inferring the type); `format` is a pure
+      CONSTRAINT and never selects decoding. Meta declares a member's decode concrete
+      (`members: <name>: concrete: ...`): languages (`yamlover/stream|code|meta`, `yaml/...`,
+      `json*/...`), codecs (`base64` - `!!binary`'s alias - and `binary/<width>/<endianness>`),
+      charset texts (`text/utf-8`, ...). SHIPPED: walk.ts decodeConcrete + DOC_CONCRETES,
+      NodeMeta.concrete stamps, examples/55 decodes to `age: 30` (fixture 0911 regenerated;
+      0810/0811 added), $defs/.yo/meta.yo states `concrete: yamlover/meta`. Legacy
+      format-as-decoder (DOC_FORMATS, `format: int32/le`) reads forever. Respelled: meta
+      charter + meta/format + meta/members, model/format (decoder rows moved out of the
+      table), model/values, terminology, concretes index + 00-storage/01-files +
+      02-binary_files + 01-choosing, transform (`!!binary` = `concrete: base64` alias).
+      Follow-up (code ticket): encode-back for decoded members (the write gate refuses via
+      the NodeMeta.concrete stamp today); decode-on-serve for `base64` blobs.
 - [x] TYPE NAMES RULED (2026-08-09) and respelled end-to-end across the book: value types
       `str`/`int`/`float`/`bool`/`null`/`binary` with `leaf` the no-members alias (was
       `scalar`); shapes `map`/`seq` (were `object`/`array`), `kseq` - a sequence with keys
@@ -453,8 +471,8 @@ chapters, the `entries:` keyword) deliberately run AHEAD of the code. The rules:
       vmap/vseq rows), meta/vs-json-schema (rows + prose), meta/value, the query matcher
       examples (`!!<type: omni>`), terse-keywords records the ruling. Quoted `$defs` schema
       code keeps its authored `type: variant` until the code adopts the aliases.
-- [ ] Decide the remaining terse keyword spellings (the non-type keywords - properties/items/
-      entries, kebab-case for compounds)
+- [ ] Decide the remaining terse keyword spellings (the member clauses are RULED - `members:`/
+      `others:`, 2026-08-14; kebab-case for compounds still open)
 - [ ] Write out the named metas/transforms that are hardcoded today: `!!yo` (the yamlover meta
       itself), `!!omap`, `!!pairs`, `!!binary` - `docs/transform` carries the frame
 - [ ] Root `docs/index.yo` header comment still says `.yo/body.yo` - respell to `index.yo`

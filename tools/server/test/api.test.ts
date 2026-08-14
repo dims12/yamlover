@@ -11,13 +11,13 @@ import { nodeJson } from "./node-json";
 
 describe("api endpoints (engine-backed)", () => {
   it("/api/info returns the served root's directory name", async () => {
-    const h = createHandlers(tmpExample("51-object-in-dir"), { gitignore: false });
+    const h = createHandlers(tmpExample("50-dir"), { gitignore: false });
     await h.ready;
-    expect(call(h, "/api/info").json).toEqual({ root: "51-object-in-dir", readOnly: false });
+    expect(call(h, "/api/info").json).toEqual({ root: "50-dir", readOnly: false });
   });
 
   it("/api/tree lists scalars and respects depth", async () => {
-    const h = createHandlers(tmpExample("51-object-in-dir"), { gitignore: false });
+    const h = createHandlers(tmpExample("50-dir"), { gitignore: false });
     await h.ready;
     const { json } = call(h, "/api/tree", { depth: "3" });
     // filesystem order = sorted names (no body.yo to impose another); the `yamlover`
@@ -26,7 +26,7 @@ describe("api endpoints (engine-backed)", () => {
   });
 
   it("the `yamlover` self-import graft is HIDDEN from listings yet fully REACHABLE", async () => {
-    const h = createHandlers(tmpExample("51-object-in-dir"), { gitignore: false });
+    const h = createHandlers(tmpExample("50-dir"), { gitignore: false });
     await h.ready;
     // hidden: not in the TOC (asserted above), not among the root projection's entries
     const rootJson = (await nodeJson(h, { path: ":", depth: "1" })).json;
@@ -112,7 +112,9 @@ describe("api endpoints (engine-backed)", () => {
   });
 
   it("/api/json?binary=1 returns base64 for a binary node (even one with overlay entries)", async () => {
-    // a png typed via meta, carrying embedded fragment overlay entries in body
+    // a png typed via meta, carrying embedded fragment overlay entries in body. Deliberately
+    // the LEGACY `properties:` spelling — and `concrete: file/binary` is a STORAGE id, inert
+    // on the decode axis by design (walk.ts decodeConcrete): the `type: binary` does the work.
     const h = createHandlers(tmpTree({
       "pic.png": "pretend-png-bytes",
       ".yo/meta.yo": "properties:\n  pic.png:\n    type: binary\n    format: image/png\n    concrete: file/binary\n",
@@ -131,7 +133,7 @@ describe("api endpoints (engine-backed)", () => {
   });
 
   it("/api/schema returns the instance schema", async () => {
-    const h = createHandlers(tmpExample("51-object-in-dir"), { gitignore: false });
+    const h = createHandlers(tmpExample("50-dir"), { gitignore: false });
     await h.ready;
     const { json } = call(h, "/api/schema", { path: ":" });
     expect(json.type).toBe("object");
@@ -139,7 +141,7 @@ describe("api endpoints (engine-backed)", () => {
   });
 
   it("reports an unknown path as a 404", async () => {
-    const h = createHandlers(tmpExample("51-object-in-dir"), { gitignore: false });
+    const h = createHandlers(tmpExample("50-dir"), { gitignore: false });
     await h.ready;
     const { status, json } = (await nodeJson(h, { path: ":nope" }));
     expect(status).toBe(404);

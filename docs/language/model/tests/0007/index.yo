@@ -1,0 +1,2 @@
+# Mirror of test-examples/0007 - the title below is copied from its `===` member.
+a multi-line plain value falls back to double quotes on re-emit

@@ -1,5 +1,0 @@
-properties:
-  age:
-    type: binary
-    # format: int32/le
-    # concrete: file/binary

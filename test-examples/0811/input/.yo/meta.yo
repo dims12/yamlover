@@ -1,0 +1,4 @@
+members:
+  logo:
+    concrete: base64
+    format: image/png

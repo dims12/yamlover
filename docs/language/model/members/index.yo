@@ -71,5 +71,6 @@ description: entries seen from the container - keyed, keyless, bookmark-created
   How a constraint is *written* - the facet record behind each name (`seq` is
   `{value: false, keyed: false}`), the read-forever long aliases (`object`, `array`, `mixed`,
   `variant`), and the capability cube the names are corners of - is the
-  [three facets](*::meta:facets) chapter's subject; the schema keywords that state one are the
-  [meta chapter](*::meta)'s.
+  [three facets](*::meta:facets) chapter's subject; the schema keywords that describe the members
+  themselves are ONE omni clause mirroring this chapter's model - the
+  [members clause](*::meta:members): keyed clauses, keyless clauses, and the `others:` sweep.

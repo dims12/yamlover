@@ -4,11 +4,13 @@ description: the keyword-by-keyword equivalence - kept, renamed, replaced, dropp
   **The yamlover specifics** over JSON Schema: `type` adds `binary`, `kseq` (a sequence with keys -
   the `!!mix` shape, was `mixed`), `vmap`/`vseq` (a map or seq carrying a scalar value), and `omni`
   (the top - the value-plus-fields shape, the self-value given as `value:`; was `variant`);
-  `format` is open - a MIME type, a codec, or a yamlover-defined view; `uniqueItems: true` marks a set
-  (the overlay-and-json5p route to `!!set`); `concrete` may be stated but is normally inferable from
-  the filesystem - keep meta minimal. References use `*` pointers, not `$ref`. The combinators
-  (`anyOf`, `oneOf`, `allOf`, `not`, type unions) are kept: a heterogeneous positional body is an
-  `items` union, and `allOf` over a schema pointer is the provisional "extends".
+  `format` is a named **constraint** on the abstract value - a MIME type or a yamlover-defined
+  view - never a decoder; `concrete` names the decoding (a language, codec, or charset -
+  [concretes](*::language:concretes)) and is normally inferable from the filesystem - keep meta
+  minimal, state it per member when it must win. `uniqueItems: true` marks a set (the
+  overlay-and-json5p route to `!!set`). References use `*` pointers, not `$ref`. The combinators
+  (`anyOf`, `oneOf`, `allOf`, `not`, type unions) are kept: a heterogeneous body is an
+  `others:` union, and `allOf` over a schema pointer is the provisional "extends".
 - >
   The table tracks each JSON Schema keyword's fate - kept, renamed, replaced, dropped, or still
   undecided (the spellings await [terse keywords](*::meta:principles:terse-keywords)):
@@ -21,14 +23,17 @@ description: the keyword-by-keyword equivalence - kept, renamed, replaced, dropp
   - ['`type: string/integer/number/boolean/null`', 'short YAML names - `str`, `int`, `float`, `bool`, `null`; `leaf` covers them all (a node with no members)', 'renamed']
   - ['`type: object` / `type: array`', '`map` / `seq`', 'renamed']
   - ['-', '`type: binary`, `kseq` (was `mixed`), `vmap`, `vseq`, `omni` (was `variant`)', 'added']
+  - ['-', '`concrete` - the decoding: a language (`yamlover/stream`), a codec (`base64`, `binary/int32/le`), a charset text (`text/utf-8`); inferable, explicit wins', 'added']
   - ['`$ref`', 'a `*` pointer', 'replaced']
   - ['`$defs`', '`$defs`, referenced by normal pointers', 'kept']
   - ['`$id` / `$schema` / `$anchor`', 'paths and `&` anchors', 'dropped']
-  - ['`properties` / `items` / `prefixItems`', 'kept today; per-facet spellings TBD', 'kept/TBD']
-  - ['`minProperties`/`maxProperties`, `minItems`/`maxItems`', '`min`/`max` inside the facet sub-schema', 'renamed']
+  - ['`properties` / `prefixItems`', 'the [members clause](*::meta:members) - keyed clauses and keyless (prefix) clauses of ONE omni `members:`', 'replaced (legacy read forever)']
+  - ['`items` / `additionalProperties` / `unevaluated*`', '`others:` - the sweep for every member no clause matched, keyed or keyless', 'replaced (legacy read forever)']
+  - ['`minProperties`/`maxProperties`, `minItems`/`maxItems`, `required`, `contains`', 'per-clause `min`/`max` inside `members:` (design)', 'renamed/TBD']
   - ['`uniqueItems: true`', 'the set marker (≡ `!!set`)', 'kept']
   - ['`enum` / `const`', 'kept - `const` describes, never stores', 'kept']
   - ['`allOf`/`anyOf`/`oneOf`/`not`', 'kept; `allOf` over a schema pointer is the provisional "extends"', 'kept']
   - ['`title`/`description`/`default`/`examples`', 'kept - the primary purpose, not an annotation afterthought', 'kept']
-  - ['`contentMediaType`/`contentEncoding`', 'the open `format` (and `concrete`)', 'replaced']
+  - ['`contentMediaType`', 'the open `format` - the constraint', 'replaced']
+  - ['`contentEncoding`', '`concrete` - the decoding (`base64` is its most literal value)', 'replaced']
   - ['`if`/`then`/`else`, `dependentRequired`/`dependentSchemas`', 'undecided', 'TBD']

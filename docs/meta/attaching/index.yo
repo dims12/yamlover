@@ -2,9 +2,10 @@ Attaching a meta
 description: the .yo/meta.yo overlay and the !!<...> tag - two routes to one vocabulary
 - '*Status: the overlay route reads one level of the vocabulary today; the general meta-path mapping is design.*'
 - >
-  **Two ways to attach.** A directory's `.yo/meta.yo` overlay nests under the JSON-Schema keywords, so
-  the engine maps a meta-path to an instance-path (`properties: age` annotates the instance node
-  `age`). In a file, the `!!<...>` tag attaches a meta to the value that follows it - or, alone at the
+  **Two ways to attach.** A directory's `.yo/meta.yo` overlay nests under the schema keywords, so
+  the engine maps a meta-path to an instance-path (`members: age` - legacy `properties: age` -
+  annotates the instance node `age`; [the members clause](*::meta:members)). In a file, the
+  `!!<...>` tag attaches a meta to the value that follows it - or, alone at the
   top, to the document root. The tag's contents are themselves yamlover: a pointer to a hosted schema,
   or an inline schema literal - a one-off format needs no named definition. json5p has no tags:
   overlay only.

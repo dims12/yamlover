@@ -18,7 +18,7 @@ description: $defs/bullets and $defs/numbered - same-kind nesting at any depth
   and hands a deeper container back to `chapter`, a list schema applies **at any depth** - an
   untagged container item *is* a nested sublist of the same kind - until an **explicit tag** switches
   (a numbered list inside a bullets list, a table inside an item, each by its own tag). Both schemas
-  are two-line mirrors of each other (`items: anyOf: [<self>, chunk]`, `type: variant` deriving
+  are two-line mirrors of each other (`others: anyOf: [<self>, chunk]`, `type: variant` deriving
   `x-yamlover-bullets` / `x-yamlover-numbered`), registered like every `$defs` schema and rendered as
   `<ul>` / `<ol>`.
 - >

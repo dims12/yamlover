@@ -5,8 +5,8 @@ description: $defs/task narrows the body recursion to subtasks
   `allOf: [*chapter]` - so it inherits the fully-omni shape (the self-value title, the keyed
   `description`) and the omni body, adds keyed planning fields (`priority`, `due`, `assignee`,
   `estimate`, `depends`), and **narrows** the body recursion to subtasks with its own
-  `items: {anyOf: [*task, *chunk]}`. Because `task ⊆ chapter`, the intersection collapses to
-  `task | chunk` - a subtask, not a subchapter.
+  `others: {anyOf: [*task, *chunk]}` sweep ([the members clause](*::meta:members)). Because
+  `task ⊆ chapter`, the intersection collapses to `task | chunk` - a subtask, not a subchapter.
 - >
   The positional-body model **replaces** the earlier `title`/`description`/`chunks`/`children`
   encoding (chunks and subchapters once lived in two separate keyed arrays), and the self-value

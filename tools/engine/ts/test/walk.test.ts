@@ -18,26 +18,30 @@ function indexedDir(name: string): Store {
   return s;
 }
 
-test('plain directory: each file is an entry keyed by filename (51-object-in-dir)', () => {
-  const s = indexedDir('51-object-in-dir');
+test('plain directory: each file is an entry keyed by filename (50-dir)', () => {
+  const s = indexedDir('50-dir');
   assert.equal(s.node(':name')?.value, 'Alice'); // "Alice" parsed
   assert.equal(s.node(':age')?.value, 30); // 30 parsed as a number
   assert.equal(s.node(':isAdmin')?.value, true);
   s.close();
 });
 
-test('overlay-only directory: body.yo supplies the content (50-object-in-overlay)', () => {
-  const s = indexedDir('50-object-in-overlay');
+test('overlay-only directory: body.yo supplies the content (51-dir-yo)', () => {
+  const s = indexedDir('51-dir-yo');
   assert.equal(s.node(':name')?.value, 'Alice');
   assert.equal(s.node(':age')?.value, 30);
   assert.equal(s.node(':isAdmin')?.value, true);
   s.close();
 });
 
-test('single-file directory parses its scalar (53-plain-dir)', () => {
-  const s = indexedDir('53-plain-dir');
+test('single-file directory parses its scalar', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'yo-walk-single-'));
+  writeFileSync(join(dir, 'age'), '30');
+  const s = new Store(':memory:');
+  s.indexDocument(walkDir(dir));
   assert.equal(s.node(':age')?.value, 30);
   s.close();
+  rmSync(dir, { recursive: true, force: true });
 });
 
 test('pointer-array body grants positions to the members it names; the rest stay keyed-only (56-array-of-files)', () => {
@@ -121,7 +125,7 @@ test('the ignore predicate skips matching children (e.g. node_modules at the roo
   const s = new Store(':memory:');
   // ignore anything named "isAdmin" — it should not appear as a node
   // the predicate receives OS-native absolute paths (walkDir builds them with path.join)
-  s.indexDocument(walkDir(join(examples, '51-object-in-dir'), { ignore: (abs) => abs.endsWith(sep + 'isAdmin') }));
+  s.indexDocument(walkDir(join(examples, '50-dir'), { ignore: (abs) => abs.endsWith(sep + 'isAdmin') }));
   assert.equal(s.node(':name')?.value, 'Alice');
   assert.equal(s.node(':isAdmin'), null); // filtered out
   s.close();
@@ -129,7 +133,9 @@ test('the ignore predicate skips matching children (e.g. node_modules at the roo
 
 test('meta.yo format attaches to body-overlay text entries', () => {
   // a minimal overlay pair (the shape the retired 59-all-formats-object sidecar had, until that
-  // sample is re-authored): body.yo carries the block scalars, meta.yo their formats
+  // sample is re-authored): body.yo carries the block scalars, meta.yo their formats.
+  // Deliberately the LEGACY `properties:` spelling — a read-forever pin (the authored corpus
+  // states `members:` since the concrete/format split; members.test.ts pins the new reader)
   const dir = mkdtempSync(join(tmpdir(), 'yamlover-meta-'));
   try {
     mkdirSync(join(dir, '.yo'));

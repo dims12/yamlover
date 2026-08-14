@@ -6,6 +6,8 @@ description: yaml-style short names, probably kebab-cased - TBD
   `omap`, `int` - and compound ones probably **kebab-cased**. The **type names are ruled**
   (2026-08-09): `str`, `int`, `float`, `bool`, `null`, `binary`, `leaf`; `map`, `seq`, `kseq`,
   `vmap`, `vseq`, `omni` ([the cube](*::meta:facets)) - the long JSON-Schema spellings read
-  forever as aliases. The remaining keyword spellings are TBD; until they land, the JSON Schema
-  spellings remain the working vocabulary, and the [equivalence table](*::meta:vs-json-schema)
-  tracks each keyword's fate.
+  forever as aliases. The **member clauses are ruled** (2026-08-14): the omni
+  [`members:`](*::meta:members) clause with its `others:` sweep replaces
+  `properties`/`items`/`prefixItems`/`additionalProperties` - legacy read forever. The remaining
+  keyword spellings (kebab-case for compounds, the quantifiers) are TBD, and the
+  [equivalence table](*::meta:vs-json-schema) tracks each keyword's fate.

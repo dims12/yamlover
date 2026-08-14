@@ -54,14 +54,15 @@ state:
   its filename, granted no position). The projection shows a named member's
   filename as a dimmed derived `&` anchor: `- &file1 value`.
 - **`meta.yo`** — the **metadata schema**: a JSON-Schema-equivalent written in
-  yamlover (`properties`, `type`, `format`, `prefixItems`, …) whose primary job
+  yamlover (the `members:` clause with its `others:` sweep, `concrete`, `type`,
+  `format`; legacy `properties`/`items` read forever) whose primary job
   is typing / decoding / presentation, with validation optional.
 - in the **project root** only, **`settings.yo`** — project configuration
   (defaults such as where new annotations are created).
 
 Either overlay is optional: a plain directory has neither and its files simply
-*are* the data; `examples/50-object-in-overlay` has only a body;
-`examples/55-scalar-as-binary` has only a meta (the data is the on-disk file,
+*are* the data; `examples/51-dir-yo` has only a body;
+`examples/55-meta` has only a meta (the data is the on-disk file,
 the meta says how to read its bytes).
 
 ## The core idea
@@ -79,8 +80,8 @@ are the **filesystem** view and the **document** view:
   `~` reverse), in any full-graph concrete.
 
 A directory can be *collapsed* into a single file, and a file *expanded* into a
-directory, without changing what the data means. `examples/51-object-in-dir`,
-`50-object-in-overlay`, and the tour files draw this triangle over one datum.
+directory, without changing what the data means. `examples/50-dir`,
+`51-dir-yo`, and the tour files draw this triangle over one datum.
 
 ## Equivalence rules
 
@@ -145,14 +146,17 @@ kept, so the anchors line up with the document's internal cross-references.
 
 `meta.yo` (or an inline `!!<…>` tag in a yamlover file) gives a node its
 `(type, format)`; the web viewer's renderer registry keys on that tuple. Format
-resolution order: the meta `format:` if present; else a recognized file extension
-(`.png`→`image/png`, `.md`→`text/markdown`, `.yo`→`yamlover`, …); else sniff. A
-chapter's prose chunks carry `text/marklower` by schema propagation; a string
-with no format at all is data, and shows in the data view. `type: binary` plus a
-codec format (`int32/le`) decodes raw bytes (`examples/55-scalar-as-binary`);
-`prefixItems` orders and types an array whose elements live in arbitrary files
-(`examples/56-array-of-files`); a `format` like `text/x-latex` or a per-chunk
-`!!<…>` tag picks a renderer (`examples/65`/`66`/`68`).
+resolution order: the meta `concrete:` if declared — it always wins; else a
+recognized file extension (`.png`→`image/png`, `.md`→`text/markdown`,
+`.yo`→yamlover, …); else sniff. A chapter's prose chunks carry `text/marklower`
+by schema propagation; a string with no format at all is data, and shows in the
+data view. A codec concrete (`binary/int32/le`) decodes raw bytes to a value
+(`examples/55-meta`; the old `format: int32/le` spelling reads
+forever); ordering an array whose elements live in arbitrary files is the
+`body.yo` pointer-array's job (`examples/56-array-of-files`), with the schema
+side covered by the members clause's keyless clauses (docs/meta/members); a
+`format` like `text/x-latex` or a per-chunk `!!<…>` tag picks a renderer
+(`examples/65`/`66`/`68`).
 
 References inside a schema use the same `*` pointers as instances (reusable
 fragments under `$defs`, e.g. `*yamlover/$defs/chapter`) — **not** JSON Schema's

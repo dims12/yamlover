@@ -1,34 +1,29 @@
-properties:
+# $defs/.yo/meta.yo — every definition file is a yamlover/meta document: the CONCRETE names
+# the decoding (parse the text as a schema doc); the parsed type follows from it (docs/meta —
+# the concrete/type/format split; the old spelling `type: string` + `format: yamlover/meta`
+# stays readable but is not authored anymore).
+members:
     chapter:
-        type: string
-        format: yamlover/meta
+        concrete: yamlover/meta
     chunk:
-        type: string
-        format: yamlover/meta
+        concrete: yamlover/meta
     tag:
-        type: string
-        format: yamlover/meta
+        concrete: yamlover/meta
     annotation:
-        type: string
-        format: yamlover/meta
+        concrete: yamlover/meta
     fragment:
-        type: string
-        format: yamlover/meta
+        concrete: yamlover/meta
     task:
-        type: string
-        format: yamlover/meta
+        concrete: yamlover/meta
     workflow:
-        type: string
-        format: yamlover/meta
+        concrete: yamlover/meta
     board:
-        type: string
-        format: yamlover/meta
+        concrete: yamlover/meta
     table:
-        type: string
-        format: yamlover/meta
+        concrete: yamlover/meta
     bullets:
-        type: string
-        format: yamlover/meta
+        concrete: yamlover/meta
     numbered:
-        type: string
-        format: yamlover/meta
+        concrete: yamlover/meta
+    config:
+        concrete: yamlover/meta

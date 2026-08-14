@@ -2,7 +2,7 @@
 # value — author `name: !!omni The description` when the tag also has fields, or a plain
 # `name: The description` for a leaf); an optional explicit `color` ("#rrggbb" — a "pure color
 # tag"; absent ⇒ the UI derives a stable hue from the name); every OTHER key is a sub-tag, so
-# the taxonomy recurses to any depth (`additionalProperties` → tag). The format `x-yamlover-tag`
+# the taxonomy recurses to any depth (`others:` → tag). The format `x-yamlover-tag`
 # makes the server render each one as a tag (a badge wired to its super/sub-tags). Attach to the
 # taxonomy root with the tag  !!<*yamlover/$defs/tag>  — it propagates down.
 type: variant
@@ -10,8 +10,8 @@ format: x-yamlover-tag
 value:
   type: string
   format: text/marklower
-properties:
+members:
   color:
     type: string
     description: An explicit display color ("#rrggbb"); absent ⇒ derived from the tag's name
-additionalProperties: *:: yamlover: $defs: tag
+others: *:: yamlover: $defs: tag

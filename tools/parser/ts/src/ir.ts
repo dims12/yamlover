@@ -116,15 +116,23 @@ export interface NodeMeta {
    *  line". Absent ⇒ block. Never set by the json5p reader: a json5p document is flow END TO END,
    *  which its language already says. Not part of IR identity — canon.ts ignores it. */
   style?: 'flow';
-  /** An INLINE CONCRETE SWITCH — the one the surface can express on its own: this container and its
-   *  subtree are written in **json5p**, which on the yamlover surface looks like a flow token that
-   *  SPANS LINES (K&R braces). docs/language/concretes/00-storage/00-inlined: a one-line `{k: v}` in a `.yo`
-   *  file is yamlover with the `yaml/flow` representation, while a multi-line one is a concrete
-   *  switch — the language changes, so the interior is json5p and re-emits through its serializer.
-   *  Set only by the yamlover reader (a `.yaml` file's multi-line flow is plain YAML flow, and there
-   *  is no json5p to switch to). Like {@link style} this is typography-adjacent authored provenance,
-   *  NOT part of IR identity — canon.ts ignores it. */
-  concrete?: 'json5p';
+  /** The node's DECLARED/OBSERVED decode concrete — the language/codec axis (docs/language/concretes).
+   *  Two producers today:
+   *   - the yamlover reader's INLINE CONCRETE SWITCH (`'json5p'`): this container and its subtree
+   *     are written in **json5p**, which on the yamlover surface looks like a flow token that
+   *     SPANS LINES (K&R braces). docs/language/concretes/00-storage/00-inlined: a one-line `{k: v}` in a `.yo`
+   *     file is yamlover with the `yaml/flow` representation, while a multi-line one is a concrete
+   *     switch — the language changes, so the interior is json5p and re-emits through its serializer.
+   *     Set only by the yamlover reader (a `.yaml` file's multi-line flow is plain YAML flow, and
+   *     there is no json5p to switch to).
+   *   - the directory walk, when `.yo/meta.yo` DECLARES a member's decode concrete
+   *     (`members: <name>: concrete: …` — a language like `yamlover/stream`, a codec like
+   *     `base64` / `binary/int32/le`, a charset text like `text/utf-8`): the stamp records how
+   *     the member's bytes were decoded, which is what a future mediated write needs to encode
+   *     back (or refuse).
+   *  Like {@link style} this is typography-adjacent authored provenance, NOT part of IR
+   *  identity — canon.ts ignores it. */
+  concrete?: string;
 }
 export interface Span { uri: string; start: number; end: number; }
 
@@ -167,6 +175,9 @@ export interface Scalar extends NodeBase {
 
 export interface Blob extends NodeBase {
   kind: 'blob';
+  /** The bytes' media type / named constraint (`image/png`, `application/pdf`) — what the value
+   *  MEANS, never how it decodes; decoding rides {@link NodeMeta.concrete} (the concrete/format
+   *  split, docs/meta). `application/octet-stream` = unknown. */
   format: string;
   /** Content hash (`xxh64:…`), or null when the bytes have not been hashed yet — a large
    *  blob's identity is (path, size, mtime); the engine's background hasher fills this in. */

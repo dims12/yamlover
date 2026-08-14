@@ -1,8 +1,9 @@
 # $defs/chunk — one renderable content block, a leaf of a chapter's positional body.
 #
-# A chunk is a typed value; its (type, format) selects the renderer. The default is
-# markdown prose; a chunk overrides type/format/concrete to be a diagram, image, LaTeX,
-# CSV, a file pointer, etc. `binary` covers image/pdf/… chunks (a `*` pointer to a file).
+# A chunk is a typed value; its (type, format) selects the renderer — the format CONSTRAINS
+# the value, and the concrete (declared in meta, docs/meta) says how its bytes decode. The
+# default is markdown prose; a chunk overrides them to be a diagram, image, LaTeX, CSV, a
+# file pointer, etc. `binary` covers image/pdf/… chunks (a `*` pointer to a file).
 # Spec: docs/documents/chapter.
 type: [string, binary]
 format: text/marklower

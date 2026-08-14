@@ -5,34 +5,42 @@ Yamlover meta
 description: the meta language - the replacement for JSON Schema: typing, description, presentation
 - >
   **Yamlover meta** is yamlover's schema language - and its **replacement for JSON Schema**. It keeps
-  the familiar vocabulary (`properties`, `type`, `format`, `prefixItems`, `items`) - the same or
-  close - but repurposes it: the primary purpose is **metadata** - typing, decoding, and
-  presentation - with validation a secondary, optional use
+  a familiar-looking vocabulary (`type`, `format`, and the [members clause](*:members) that fuses
+  `properties`/`items`/`prefixItems`) but repurposes it: the primary purpose is **metadata** -
+  typing, decoding, and presentation - with validation a secondary, optional use
   ([metadata first](*::language:principles:metadata-first)). Data lives in the instance; the meta only
   describes it. Schema-as-storage - pinning data with `const` so the schema *is* the instance - is
   the one old model that was dropped.
 - >
-  **What the metadata drives.** *Decoding*: a leaf's type and format say how to turn bytes into a
-  value - `type: binary` with `format: int32/le` decodes a four-byte file - and `format` also names a
-  sub-document encoding (`yamlover`, `json5p`, or a `.../meta` variant for a schema document).
-  *Rendering*: the viewer picks a renderer from the facets and the format. *Presentation*: `title` and
-  `description` annotate a node without living in its data. Format resolution order: the meta
-  `format:` if present; else a recognized file extension; else - no meta and no extension - a
-  sniff: textual bytes parse as yamlover, binary bytes stay an opaque blob
-  (`application/octet-stream`).
+  **The three-way split.** A **concrete** is a concrete representation *and* the language or codec
+  that translates it into the abstract value ([concretes](*::language:concretes)) - `yamlover/stream`
+  parses a file's text, `binary/int32/le` decodes four bytes into an integer, `base64` turns text
+  into bytes. A **type** is the kind of the abstract value - and it is usually *inferred by the
+  concrete's interpreter*; stating `type:` alone means "read whatever you have so this type comes
+  out" (`type: binary` keeps a file opaque). A **format** is a named **constraint** on the abstract
+  value - `image/png` on bytes, `text/markdown` on a string - and it **never selects decoding**.
+  (Before the split, `format` carried the decoding too - `format: int32/le`, `format: yamlover/meta`;
+  that spelling reads forever but is not authored anymore.)
+- >
+  **What the metadata drives.** *Decoding*: a member's `concrete:` says how to turn its
+  representation into a value. *Rendering*: the viewer picks a renderer from the facets and the
+  format. *Presentation*: `title` and `description` annotate a node without living in its data.
+  Concrete resolution order: the meta `concrete:` if stated - it always wins; else a recognized file
+  extension; else - no meta and no extension - a sniff: textual bytes parse as yamlover, binary
+  bytes stay an opaque blob (`application/octet-stream`).
 - >
   This chapter is the meta reference, shaped like the JSON Schema book: [attaching](*:attaching) a
   meta to an instance; the [three facets](*:facets) - the type system that replaces the `type`
-  keyword's boxes; the per-facet keyword chapters - [value](*:value), [keyed](*:keyed),
-  [ordinal](*:ordinal); [enumerated and constant values](*:enum-const); [annotations](*:annotations);
-  [formats](*:format); [composition](*:composition); [conditionals](*:conditionals);
-  [structuring](*:structuring) - `$defs`, pointers, hosted schemas; the [principles](*:principles)
-  behind the design; and the keyword-by-keyword [comparison with JSON Schema](*:vs-json-schema).
+  keyword's boxes; the per-facet keyword chapters - [value](*:value) and the
+  [members clause](*:members); [enumerated and constant values](*:enum-const);
+  [annotations](*:annotations); [formats](*:format); [composition](*:composition);
+  [conditionals](*:conditionals); [structuring](*:structuring) - `$defs`, pointers, hosted schemas;
+  the [principles](*:principles) behind the design; and the keyword-by-keyword
+  [comparison with JSON Schema](*:vs-json-schema).
 - *: attaching
 - *: facets
 - *: value
-- *: keyed
-- *: ordinal
+- *: members
 - *: enum-const
 - *: annotations
 - *: format

@@ -26,7 +26,7 @@ Working plan for the next build phase. Companion to `docs/language/pointers` (po
   `format`/decoding, `concrete`, presentation — the server renders by `(type,format)`),
   **validation secondary/optional**. What was dropped is schema-*as-storage* (`const`
   pinning). References use `*` pointers, not `$ref`; keep meta minimal (`concrete` is
-  inferable). Used now in `55-scalar-as-binary`.
+  inferable). Used now in `55-meta`.
 - **Deprecate `tools/walker` and `tools/collector`** (Python); the engine's walker
   supersedes them. **DONE 2026-06-07** — banners added; durable knowledge (concrete
   taxonomy, directory→node mapping, binary/ordering/depth, test-scenario checklist)
@@ -106,7 +106,7 @@ Working plan for the next build phase. Companion to `docs/language/pointers` (po
    **Remaining:** the *directory* concrete (graph → tree + `body.yo`);
    **inlined binary** — a blob must also be emittable INLINE in a text concrete
    (YAML-`!!binary`-style base64; docs/meta already has `type: binary` + codec
-   `format`, cf. `55-scalar-as-binary`) — the same node in a different concrete,
+   `format`, cf. `55-meta`) — the same node in a different concrete,
    file-on-disk vs inline scalar; needs a byte source (the IR carries only the hash —
    the engine's blob store/manifest resolves it), at which point the blob refusal
    becomes an emission *choice*; **per-node concrete / mid-tree switches** (added
@@ -116,7 +116,11 @@ Working plan for the next build phase. Companion to `docs/language/pointers` (po
    the switch (flow inside block) but the IR forgets it, so SeDe normalizes everything
    to one style. The work: record the authored concrete on the node
    (`NodeMeta.concrete`, aligning with docs/meta's `concrete` keyword — there it is
-   *prescribed*, here it is *observed*), have the serializers honor it on re-emission
+   *prescribed*, here it is *observed*; since 2026-08-14 the walk STAMPS it for
+   meta-declared member concretes — `yamlover/stream`, `base64`, `binary/int32/le`,
+   `text/<charset>` — and DECODES on read; encode-back on write is the open half:
+   a mediated write to a concrete-stamped node must re-encode or refuse), have the
+   serializers honor it on re-emission
    (a flow/json5p subtree re-emits as flow inside a block yamlover doc), and define
    the legal switch lattice (which concrete may nest in which — `json ⊂ json5 ⊂
    json5p` / `yaml ⊂ yamlover` constrains it); and span-preserving surgical edits
@@ -343,7 +347,7 @@ protocol (OpenAPI).
 **Reframed 2026-06-07 (see `docs/meta`):** the schema is **not** deferred — it returns as a
 **metadata layer** (`.yo/meta.yo`), a JSON-Schema-equivalent for yamlover whose
 job is typing / `format`-decoding / `concrete` / presentation (the engine & server consume
-it). It exists now (`55-scalar-as-binary`). Remaining spec work:
+it). It exists now (`55-meta`). Remaining spec work:
 - **`docs/meta` vocabulary** — pin `type` (+`binary`), `format`, `concrete` (inferable),
   `properties`/`prefixItems` nesting, `*`-refs (not `$ref`); meta-path → instance-path map.
 - **Built-in schemas live at the PROJECT ROOT, grafted as the self-import key

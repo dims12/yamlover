@@ -41,12 +41,13 @@ for (const name of entries) {
   });
 }
 
-// A directory whose ONLY content is a SCALAR `.yo/body.yo` (a bare `30`) IS that
-// scalar — the overlay supplies the node's value, not an (empty) set of children. Regression: the
-// scalar body was dropped (it has no `entries`), so the directory projected as an empty mapping.
-test('54-scalar-file-overlay: a scalar body.yo makes the directory that scalar (30)', () => {
+// A directory whose ONLY content is a SCALAR overlay (an in-place `index.yo` holding a bare
+// `30`) IS that scalar — the overlay supplies the node's value, not an (empty) set of children.
+// Regression: the scalar body was dropped (it has no `entries`), so the directory projected as
+// an empty mapping.
+test('54-dir-as-scalar: a scalar index.yo makes the directory that scalar (30)', () => {
   const s = new Store(':memory:');
-  s.indexDocument(load('54-scalar-file-overlay'));
+  s.indexDocument(load('54-dir-as-scalar'));
   const root = s.node(':');
   assert.equal(root?.type, 'scalar');
   assert.equal(root?.value, 30);

@@ -15,7 +15,9 @@ description: an extension of meta - conversions between yamlover shapes, typed a
   conversion and reshaping between the two.
 - >
   Several familiar names are reserved as **names of transforms**: `!!omap` and `!!pairs` (a mapping
-  reshaped into ordered `[key, value]` members and back), and `!!binary` (bytes decoded into a
-  value and encoded back). The frame is `!!yo`'s ([named metas](*::language:model:meta)): a
-  transform is a meta, so a bare `!!name` may equally name one, and the name is all the surface
-  ever shows.
+  reshaped into ordered `[key, value]` members and back), and `!!binary` - which is at once a
+  transform and the inline alias of a [concrete](*::language:concretes): `!!binary` on a scalar
+  means `concrete: base64` (read the base64 text, yield the bytes), inferring `type: binary` - a
+  tag that carries both a type and the decoding, the way a transform reads. The frame is `!!yo`'s
+  ([named metas](*::language:model:meta)): a transform is a meta, so a bare `!!name` may equally
+  name one, and the name is all the surface ever shows.

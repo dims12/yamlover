@@ -1,0 +1,43 @@
+# Tests - the abstract model's laws pinned by executable fixtures. Each subchapter mirrors
+# one fixture of the test-examples/ corpus (test-examples/README.md describes the anatomy);
+# the corpus stays the source of truth, these copies make it browsable as part of the book.
+Tests
+description: the model's laws witnessed by fixtures - an input, its canonical IR, a byte golden
+
+- >
+  *Status: an experiment - the first ten fixtures of `test-examples/` are mirrored here as
+  subchapters (copied 2026-08-13). The corpus remains the source of truth and the test harness
+  does not read this chapter yet.*
+
+- >
+  The chapters above state laws; a test is a law's **witness** - one concrete input and what the
+  model must make of it. Each subchapter below is one fixture: a directory of four members.
+
+- !!<*yamlover: $defs: table>
+  header:
+    - member
+    - role
+      width: 3
+  - - '`===`'
+    - the one-line title
+  - - '`in.yo`'
+    - the input document, byte-exact
+  - - '`ir.json`'
+    - the canonical IR the input must parse to
+  - - '`out.yo`'
+    - what the serializer must emit for that IR - byte-exact, and reparsing it must give the same IR
+
+- >
+  Three laws are pinned at once: the parse (`in.yo` → `ir.json`), the emission (`ir.json` →
+  `out.yo`), and the losslessness of the round-trip (`out.yo` reparses IR-equal).
+
+- *: '0000'
+- *: '0001'
+- *: '0002'
+- *: '0003'
+- *: '0004'
+- *: '0005'
+- *: '0006'
+- *: '0007'
+- *: '0008'
+- *: '0100'

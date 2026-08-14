@@ -8,17 +8,17 @@
 # machinery is reused. Every planning field is optional — defaults-never-constraints: an
 # untouched task is just a titled note. Attach with  !!<*yamlover:$defs:task>.  Spec: ../TICKETS.md.
 #
-# `allOf: [*chapter]` is the (provisional) JSON-Schema way to say "a task is a chapter plus
-# more". Because task ⊆ chapter, narrowing the body union to (task | chunk) below intersects
-# with chapter's (chapter | chunk) to exactly (task | chunk) — subtasks, not subchapters.
+# `allOf: [*chapter]` extends: a task is a chapter plus more. Because task ⊆ chapter, the OWN
+# `others:` below — run before the inherited one — narrows the body union to (task | chunk),
+# intersecting chapter's (chapter | chunk): subtasks, not subchapters.
 allOf:
   - *:: yamlover: $defs: chapter
 type: variant
-items:                             # the body — SUBTASKS (the recursion) and chunks, interleaved
+others:                            # the body — SUBTASKS (the recursion) and chunks, interleaved
   anyOf:
     - *:: yamlover: $defs: task      # a subtask — the task tree
     - *:: yamlover: $defs: chunk     # a content block
-properties:
+members:
   priority:                        # free ordinal: low | normal | high | urgent (advisory)
     type: string
   due:
@@ -28,6 +28,6 @@ properties:
     type: string
   depends:                         # "blocked-by" edges → other tasks (ref; the dependency DAG)
     type: array
-    items: *:: yamlover: $defs: task
+    others: *:: yamlover: $defs: task
   estimate:                        # free: "2h", "3pt"
     type: string

@@ -1,0 +1,2 @@
+# Mirror of test-examples/0004 - the title below is copied from its `===` member.
+strings that look like other types stay strings (re-emit quoted)

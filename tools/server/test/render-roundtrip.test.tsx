@@ -113,7 +113,7 @@ describe("faithful-render round-trip (render → reparse → same IR)", () => {
     expect(text).not.toMatch(/null/);
   });
 
-  it("a scalar-body directory IS that scalar (54-scalar-file-overlay: `.yo/body.yo` = 30)", async () => {
+  it("a scalar-body directory IS that scalar (`.yo/body.yo` = 30)", async () => {
     // Regression: the directory rendered EMPTY — the scalar body was dropped, leaving an empty
     // mapping. A directory whose body.yo is a bare scalar must render as that scalar. Use a
     // CHILD node (`:sub`), since the served root also carries the built-in `yamlover` taxonomy graft.

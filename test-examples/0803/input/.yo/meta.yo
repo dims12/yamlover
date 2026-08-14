@@ -1,3 +1,6 @@
+# Deliberately the LEGACY spelling (`properties:` + `type: binary`) — this fixture is the
+# corpus-level pin that the old vocabulary reads forever (docs/meta; the authored corpus
+# states `members:`/`concrete:` since the concrete/format split).
 properties:
   age:
     type: binary

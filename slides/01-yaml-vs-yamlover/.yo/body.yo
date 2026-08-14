@@ -122,7 +122,7 @@ description: You already know the syntax — here is where the meaning parts way
     ```
 - A folder is a node
   notes: |
-    Open examples/50-object-in-overlay, then 51-object-in-dir, then 52-scalar-as-file.
+    Open examples/50-dir, then 51-dir-yo, then 52-dir-index-yo.
     Same data, three shapes on disk.
 
     Say: this is the part that has no YAML equivalent at all. An instance materializes

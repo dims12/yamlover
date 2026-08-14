@@ -219,7 +219,7 @@ export async function walkTreeAsync(absDir: string, opts: AsyncWalkOptions = {})
 // into any served tree that has no `$defs/` of its own, so `*yamlover/tags/colors/…` resolves —
 // and color-tag annotations validate — in a PLAIN directory, not only a yamlover project. Mirrors
 // the on-disk taxonomy at the repo root; the palette hexes mirror COLOR_TAGS in annotate.tsx.
-const BUILTIN_TAG_SCHEMA = 'type: object\nformat: x-yamlover-tag\nproperties:\n  color:\n    type: string\nadditionalProperties: *:: yamlover: $defs: tag\n';
+const BUILTIN_TAG_SCHEMA = 'type: variant\nformat: x-yamlover-tag\nmembers:\n  color:\n    type: string\nothers: *:: yamlover: $defs: tag\n';
 // embedded fragments / annotations (docs/annotations) — minimal so the `!!<*::yamlover/$defs/…>`
 // tags resolve (and the nodes index as x-yamlover-fragment / -annotation) in a plain served tree.
 const BUILTIN_FRAGMENT_SCHEMA = 'type: object\nformat: x-yamlover-fragment\n';
@@ -696,17 +696,22 @@ function readTracked(ctx: Ctx, abs: string): Buffer {
   return bytes;
 }
 
-/** Per-child metadata from `.yo/meta.yo` `properties`:
- *  { name → {type, format, uniqueItems} }. */
-type Meta = Record<string, { type?: string; format?: string; uniqueItems?: boolean }>;
+/** Per-child metadata from `.yo/meta.yo` `members:` (legacy spelling `properties:` — read
+ *  forever): { name → {concrete, type, format, uniqueItems} }. `concrete` is the decode
+ *  axis (a language / codec / charset — docs/language/concretes); `type` the abstract kind;
+ *  `format` a named constraint on the value, never a decode selector (docs/meta). */
+type MetaEntry = { concrete?: string; type?: string; format?: string; uniqueItems?: boolean };
+type Meta = Record<string, MetaEntry>;
 
 function loadMeta(dir: string, ctx: Ctx): { props: Meta; error?: { file: string; message: string } } {
   const file = path.join(dir, YAMLOVER_DIR, 'meta.yo');
   if (!fs.existsSync(file)) return { props: {} };
   try {
     const plain = toPlain(parseYamlover(readTracked(ctx, file).toString('utf8'), file).root) as Record<string, unknown>;
-    const props = (plain?.properties ?? {}) as Meta;
-    return { props: props && typeof props === 'object' ? props : {} };
+    const clause = (v: unknown): Meta => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Meta) : {});
+    // `members` wins per key over the legacy `properties`; keyless member clauses have no
+    // meaning for directory children (every file has a name) and fall away in toPlain
+    return { props: { ...clause(plain?.properties), ...clause(plain?.members) } };
   } catch (e) {
     // there is no node yet to stamp — the error rides out to dirNode, which puts it on the
     // directory (the node whose children just lost their per-child metadata)
@@ -784,14 +789,21 @@ function* yamloverDirNode(absYamlover: string, ctx: Ctx): Generator<WalkProgress
   return { kind: 'mapping', entries, array: false, meta: { hidden: true } };
 }
 
-/** A single filesystem child (file or subdir) → a Node, honoring meta type/format overrides. */
-function* childNode(abs: string, m: { type?: string; format?: string } | undefined, ctx: Ctx): Generator<WalkProgress, Node, void> {
+/** A single filesystem child (file or subdir) → a Node, honoring meta concrete/type/format
+ *  overrides. An explicit `concrete:` decodes FIRST — it always wins
+ *  (docs/language/concretes/01-choosing); the legacy chain (format doubling as the decode
+ *  selector) stays below it, read forever. */
+function* childNode(abs: string, m: MetaEntry | undefined, ctx: Ctx): Generator<WalkProgress, Node, void> {
   const stat = fs.statSync(abs);
   if (stat.isDirectory()) return yield* dirNode(abs, ctx);
 
   const ext = path.extname(abs).toLowerCase();
   // format resolution order: meta `format:` → a recognized extension → (none → sniff/parse).
   const fmt = m?.format ?? EXT_FORMAT[ext] ?? null;
+  if (m?.concrete) {
+    const decoded = decodeConcrete(abs, m.concrete, m.format ?? null, stat, ctx);
+    if (decoded) return decoded; // an unrecognized id (e.g. a STORAGE concrete) stays inert
+  }
   if (m?.type === 'binary') return blob(abs, fmt ?? 'application/octet-stream', ctx);
   if (fmt && (DOC_FORMATS[fmt] || TEXT_FORMATS.has(fmt))) {
     // a format-matched doc/text file is slurped to parse — unless it is too big to slurp
@@ -804,8 +816,64 @@ function* childNode(abs: string, m: { type?: string; format?: string } | undefin
   return parsedScalar(abs, ext, ctx); // text, no format → parse by extension (json5p for .json*, else yamlover)
 }
 
-/** Apply `meta.yo` `properties.<key>.format` to the matching entries, so a body-overlay
- *  text entry (e.g. 59's `markdown:`) gets its (type, format) just like a file child does. A
+/** Decode a file per its DECLARED `concrete:` — the language/codec/charset axis. Returns null
+ *  for an id this dispatcher does not know (storage concretes like `file/binary` land here by
+ *  design — they state where bytes live, not how they translate), letting the legacy chain
+ *  decide. Every decoded node carries a `meta.concrete` stamp: the provenance a future
+ *  mediated write needs to encode back (or refuse — decoded members are READ-ONLY this round). */
+function decodeConcrete(abs: string, concrete: string, format: string | null, stat: fs.Stats, ctx: Ctx): Node | null {
+  const stamp = (n: Node): Node => ({ ...n, meta: { ...n.meta, concrete } });
+  const lang = DOC_CONCRETES[concrete];
+  if (lang) {
+    if (stat.size > MAX_DOC_BYTES) return stamp(blob(abs, format ?? 'application/octet-stream', ctx));
+    return stamp(parsedDoc(abs, lang, ctx));
+  }
+  if (concrete === 'base64') {
+    // text→bytes codec: the node is the DECODED value (type binary), but blob identity —
+    // hash/size — stays the FILE's bytes (decode-on-serve is the recorded follow-up), so
+    // the goldens and the background hasher see the same file they always did
+    return stamp(blob(abs, format ?? 'application/octet-stream', ctx));
+  }
+  const codec = /^binary\/int(8|16|32|64)\/(le|be)$/.exec(concrete);
+  if (codec) {
+    const bytes = readTracked(ctx, abs);
+    const width = Number(codec[1]) / 8;
+    const le = codec[2] === 'le';
+    const refuse = (why: string): Node =>
+      stamp({ ...blob(abs, format ?? 'application/octet-stream', ctx),
+        meta: { parseError: noteFileError(ctx, abs, new Error(`${concrete}: ${why}`)) } });
+    if (bytes.length !== width) return refuse(`expected ${width} bytes, found ${bytes.length}`);
+    const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.length);
+    const value = width === 1 ? dv.getInt8(0)
+      : width === 2 ? dv.getInt16(0, le)
+      : width === 4 ? dv.getInt32(0, le)
+      : Number(dv.getBigInt64(0, le));
+    if (!Number.isSafeInteger(value)) return refuse('value exceeds the safe integer range');
+    return stamp({ kind: 'scalar', value, raw: String(value),
+      ...(format ? { meta: { derivedFormat: format } } : {}) });
+  }
+  if (concrete.startsWith('text/')) {
+    // a charset text: decode bytes → string. An unknown charset returns null — the file
+    // stays bytes exactly as bare `text/plain` does today (the client picks the encoding).
+    let decoder: TextDecoder;
+    try {
+      decoder = new TextDecoder(concrete.slice('text/'.length), { fatal: false });
+    } catch {
+      return null;
+    }
+    if (stat.size > MAX_DOC_BYTES) return stamp(blob(abs, format ?? 'text/plain', ctx));
+    const text = decoder.decode(readTracked(ctx, abs));
+    // no span unless the decode is byte-transparent: for non-utf8 charsets value offsets are
+    // NOT file offsets, and mv.ts's surgical link rewriting must not be tempted to use them
+    const span = decoder.encoding === 'utf-8' ? { span: { uri: abs, start: 0, end: text.length } } : {};
+    return stamp({ kind: 'scalar', value: text, raw: text,
+      meta: { ...(format ? { derivedFormat: format } : {}), ...span } });
+  }
+  return null;
+}
+
+/** Apply `meta.yo` `members.<key>.format` (legacy `properties.…`) to the matching entries, so a
+ *  body-overlay text entry (e.g. 59's `markdown:`) gets its (type, format) just like a file child does. A
  *  Blob already carries its format; a node with a format already wins; binary stays a Blob.
  *  `uniqueItems: true` marks the child a SET (≡ the `!!set` tag — docs/meta): NodeMeta.set. */
 function applyMeta(node: Node, meta: Meta): Node {
@@ -881,10 +949,12 @@ function parsedDoc(abs: string, lang: 'yamlover' | 'json5p' | 'yaml', ctx: Ctx):
 
 // --------------------------------------------------------------------------- //
 // Schema application (the metadata layer): resolve a node's attached `!!<…>` schema and
-// propagate (type, format) DOWN the instance via the schema's `properties`/`items`. So a
-// chapter tagged only at its root makes its `children[*]` chapters and its `chunks[*]`
-// text/marklower — even though the subnodes carry no tag of their own. (METADATA-only; no
-// validation. Schema resolution was deferred — this is the first, targeted slice of it.)
+// propagate (type, format) DOWN the instance via the schema's member clauses — the ruled
+// `members:`/`others:` spelling, with the legacy `properties`/`items`/`additionalProperties`
+// read forever (docs/meta/members). So a chapter tagged only at its root makes its
+// `children[*]` chapters and its `chunks[*]` text/marklower — even though the subnodes carry
+// no tag of their own. (METADATA-only; no validation. Schema resolution was deferred — this
+// is the first, targeted slice of it.)
 // --------------------------------------------------------------------------- //
 
 /** The nearest ancestor of `dir` (incl. itself) that holds a `$defs/` subtree — the
@@ -947,6 +1017,7 @@ function applySchemas(root: Node, defsRoot: string, builtinDefs?: Map<string, No
   // facet (or extends one via `allOf`); else it is a LEAF (chunk-like scalar/binary). Used to
   // pick an `anyOf` element branch structurally — a mapping element ⇒ container, else ⇒ leaf.
   const isContainerSchema = (n: Node): boolean =>
+    !!field(n, 'members') || !!field(n, 'others') ||
     !!field(n, 'properties') || !!field(n, 'items') || !!field(n, 'allOf') ||
     ['object', 'variant', 'mixed', 'array'].includes(str(n, 'type') ?? '');
   // A mapping is a container; so is an omni scalar that carries BODY entries (a titled
@@ -963,27 +1034,31 @@ function applySchemas(root: Node, defsRoot: string, builtinDefs?: Map<string, No
     (el.meta as { dirBacked?: boolean } | undefined)?.dirBacked === true ||
     (el.entries ?? []).some((e) => e.key == null || !OVERLAY_KEYS.has(e.key));
 
-  // propagate an `items` schema to the POSITIONAL (keyless) elements of `inst`. `items` may be
-  // a single schema (pointer or literal) — applied to every element — or an `anyOf` union, where
-  // each element is routed to the branch whose shape matches it (container ↔ mapping element).
-  const applyItems = (inst: Node, items: Value, depth: number): void => {
-    const { node: itemsNode } = resolveSchema(items);
-    const anyOf = itemsNode ? field(itemsNode, 'anyOf') : null;
-    // An element that declares its OWN inline `!!<*…/$defs/X>` schema wins over the inherited
-    // `items` — its tag decides, not shape routing (a tagged table in a chapter body stays a
-    // table; docs/documents/chapter/schema). `walk()` applies the element's pointer separately.
-    // a `!!yo` element is PLAIN YAMLOVER — exempt from the enclosing schema by definition
-    // (the data-island semantics): never routed to a branch, never stamped with a format,
-    // so a chapter body's island does not become an x-yamlover-chapter in the TOC.
-    // ANCHORED members — position-granted by the body's pointer array (`meta.anchored`) —
-    // are the chapter's BODY exactly like inline keyless elements ("they count as ORDINAL,
-    // not keyed"): the items schema routes them too, so a bannerless member folds the same
-    // way in every projection instead of falling format-less between the faces.
+  // the ORDINAL members a sweep/clause can describe: keyless elements plus ANCHORED members —
+  // position-granted by the body's pointer array (`meta.anchored`) — which are the chapter's
+  // BODY exactly like inline keyless elements ("they count as ORDINAL, not keyed").
+  // An element that declares its OWN inline `!!<*…/$defs/X>` schema wins over anything
+  // inherited — its tag decides, not shape routing (a tagged table in a chapter body stays a
+  // table; docs/documents/chapter/schema). `walk()` applies the element's pointer separately.
+  // A `!!yo` element is PLAIN YAMLOVER — exempt from the enclosing schema by definition
+  // (the data-island semantics): never routed to a branch, never stamped with a format,
+  // so a chapter body's island does not become an x-yamlover-chapter in the TOC.
+  const ordinalElems = (inst: Node): Entry[] => {
     const anchoredKeys = new Set(((inst.meta as { anchored?: string[] } | undefined)?.anchored) ?? []);
-    const elems = (inst.entries ?? []).filter((e) =>
+    return (inst.entries ?? []).filter((e) =>
       (e.key == null || anchoredKeys.has(e.key)) && !isPointer(e.value) &&
       e.value.meta?.yo !== true &&
       !(e.value.meta?.schema && isPointer(e.value.meta.schema)));
+  };
+
+  // propagate a SWEEP schema (`others:`, legacy `items`) to the ordinal members of `inst`,
+  // skipping the first `skip` (those claimed by keyless member clauses). The sweep may be
+  // a single schema (pointer or literal) — applied to every element — or an `anyOf` union,
+  // where each element is routed to the branch whose shape matches it (container ↔ mapping).
+  const applyItems = (inst: Node, items: Value, depth: number, skip = 0): void => {
+    const { node: itemsNode } = resolveSchema(items);
+    const anyOf = itemsNode ? field(itemsNode, 'anyOf') : null;
+    const elems = ordinalElems(inst).slice(skip);
     if (anyOf && !isPointer(anyOf) && anyOf.entries) {
       const branches = anyOf.entries
         .map((e) => e.value)
@@ -1012,32 +1087,56 @@ function applySchemas(root: Node, defsRoot: string, builtinDefs?: Map<string, No
     // must survive for views/serialization; the derived typing rides its own meta slot
     if (fmt && !hasFormat(inst)) inst.meta = { ...inst.meta, derivedFormat: fmt };
     // recurse structurally — `variant`/`mixed` carry keyed fields exactly like `object`
-    // (docs/meta/facets: variant = !!var, mixed = !!mix), so `properties`/
-    // `additionalProperties` propagate through them too (e.g. a tag taxonomy whose tags
-    // hold their description as a BODY still tags every sub-tag). A `variant`/`mixed` node ALSO
-    // carries a positional body on the ordinal facet, so `items` propagates alongside them.
-    if (stype === 'object' || stype === 'variant' || stype === 'mixed' || stype === 'array' || field(s, 'items')) {
+    // (docs/meta/facets: variant = !!var, mixed = !!mix), so member clauses propagate through
+    // them too (e.g. a tag taxonomy whose tags hold their description as a BODY still tags
+    // every sub-tag). A `variant`/`mixed` node ALSO carries a positional body on the ordinal
+    // facet, so the sweep propagates alongside them.
+    //
+    // THE MEMBER CLAUSES (docs/meta/members), whichever spelling: the ruled `members:` — one
+    // omni clause; a KEYED clause describes the same-named member (legacy `properties`), the
+    // k-th KEYLESS clause the k-th ordinal member (JSON Schema's `prefixItems`, which the
+    // legacy reader never consumed) — with the sibling `others:` sweeping every member no
+    // clause matched (legacy `additionalProperties` for keyed + `items` for ordinal). Inside
+    // `members:` every entry is a clause — a member literally named "others" is stated there;
+    // the top-level `others:` is always the keyword.
+    const members = field(s, 'members');
+    const membersNode = members && !isPointer(members) ? members : null;
+    const others = field(s, 'others');
+    const keylessClauses = (membersNode?.entries ?? []).filter((e) => e.key == null).map((e) => e.value);
+    if (stype === 'object' || stype === 'variant' || stype === 'mixed' || stype === 'array' ||
+        membersNode || others || field(s, 'items')) {
       const props = field(s, 'properties');
-      const addl = field(s, 'additionalProperties'); // a schema for keys not in `properties`
+      const addl = field(s, 'additionalProperties'); // legacy sweep for keys not in `properties`
       for (const e of inst.entries ?? []) {
         if (e.key == null || isPointer(e.value)) continue;
         // A child that declares its OWN inline `!!<*…/$defs/X>` schema wins over an inherited
-        // `properties`/`additionalProperties` — `walk()` applies the child's pointer separately.
-        // (Without this, additionalProperties would clobber, e.g., a `$defs/workflow` node sitting
+        // clause — `walk()` applies the child's pointer separately.
+        // (Without this, the sweep would clobber, e.g., a `$defs/workflow` node sitting
         // in a tag taxonomy back down to `x-yamlover-tag`. `hasFormat` can't guard it — a pointer
         // schema carries no `format` field yet.)
         if (e.value.meta?.schema && isPointer(e.value.meta.schema)) continue;
         // a `!!yo` child is plain yamlover — exempt from the enclosing schema (the data island)
         if (e.value.meta?.yo === true) continue;
-        const declared = props && !isPointer(props) ? field(props, e.key) : null;
-        const sub = declared ?? addl; // a declared property wins, else additionalProperties
+        const declared = (membersNode ? field(membersNode, e.key) : null)
+          ?? (props && !isPointer(props) ? field(props, e.key) : null);
+        // a declared clause wins; else `others:` sweeps (never the annotation-overlay keys —
+        // a NEW keyword gets clean semantics); else the legacy additionalProperties, untouched
+        const sub = declared ?? (others && !OVERLAY_KEYS.has(e.key) ? others : null) ?? addl;
         if (sub) apply(e.value, sub, depth + 1);
       }
-      // the ordinal facet: propagate `items` (single or `anyOf` union) to the positional body.
-      // Run the node's OWN `items` before any inherited (`allOf`) `items` so a narrowing subtype
-      // (e.g. task's `task|chunk` body) wins over the inherited (`chapter|chunk`) body.
-      const items = field(s, 'items');
-      if (items) applyItems(inst, items, depth);
+      // the ordinal facet: the k-th keyless clause claims the k-th ordinal member; the sweep
+      // (`others:`, legacy `items`) covers the rest. Run the node's OWN clauses before any
+      // inherited (`allOf`) ones so a narrowing subtype (e.g. task's `task|chunk` body) wins
+      // over the inherited (`chapter|chunk`) body.
+      if (keylessClauses.length) {
+        const elems = ordinalElems(inst);
+        keylessClauses.forEach((cl, i) => {
+          const e = elems[i];
+          if (e) apply(e.value as Node, cl, depth + 1);
+        });
+      }
+      const sweep = others ?? field(s, 'items');
+      if (sweep) applyItems(inst, sweep, depth, keylessClauses.length);
     }
     // `allOf` extension (task IS-A chapter): apply each supertype branch too, so inherited
     // `properties`/`items` propagate. Own facets already ran, and format/format-bearing children
@@ -1255,11 +1354,23 @@ const EXT_FORMAT: Record<string, string> = {
 
 const TEXT_FORMATS = new Set(['text/markdown', 'text/asciidoc', 'text/x-plantuml', 'text/csv', 'text/tab-separated-values']);
 
-// A `format` naming a SUB-DOCUMENT ENCODING (docs/meta): the file's text parses into a node in
-// that surface language — `yamlover`/`yaml`/`json`/… for an instance, `…/meta` for a schema doc
-// (e.g. the extensionless `$defs/*` files). These must never fall into the opaque-Blob branch.
+// A `format` naming a SUB-DOCUMENT ENCODING — the LEGACY spelling of the decode axis, from
+// before the concrete/format split (docs/meta): read forever, but the authored corpus states
+// `concrete:` instead. These must never fall into the opaque-Blob branch.
 const DOC_FORMATS: Record<string, 'yamlover' | 'json5p' | 'yaml'> = {
   'yamlover': 'yamlover', 'yaml': 'yaml', 'yamlover/meta': 'yamlover', 'yaml/meta': 'yaml',
   'json': 'json5p', 'json5': 'json5p', 'json5p': 'json5p',
   'json/meta': 'json5p', 'json5p/meta': 'json5p', 'json/schema': 'json5p',
+};
+
+// The LANGUAGE decode concretes (docs/language/concretes): a declared `concrete:` naming a
+// surface language parses the file as a sub-document in it. `…/stream` is a whole file's
+// content, `…/code` a single document — one parser today (multi-document streams are
+// reserved); `…/meta` parses the same surface read as a schema document. This axis COMPOSES
+// with the pinned STORAGE concretes (`file/yamlover`, `dir/.yo`, …) — it renames nothing.
+const DOC_CONCRETES: Record<string, 'yamlover' | 'json5p' | 'yaml'> = {
+  'yamlover/stream': 'yamlover', 'yamlover/code': 'yamlover', 'yamlover/meta': 'yamlover',
+  'yaml/stream': 'yaml', 'yaml/code': 'yaml', 'yaml/meta': 'yaml',
+  'json/code': 'json5p', 'json5/code': 'json5p', 'json5p/code': 'json5p',
+  'json/meta': 'json5p', 'json5/meta': 'json5p', 'json5p/meta': 'json5p',
 };

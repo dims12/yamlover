@@ -1,12 +1,16 @@
 Binary files
-description: opaque bytes, read lazily, decoded by format
+description: opaque bytes, read lazily - meaning from the format, decoding from the concrete
 - >
   `file/binary` is opaque bytes - an image, a pdf, a djvu, an unknown or large blob: read
-  lazily, never parsed as yamlover data. What the bytes *mean* is the format's job:
-  `image/png` marks an image, `application/pdf` a document, `int32/le` a four-byte integer.
+  lazily, never parsed as yamlover data. What the bytes *mean* is the format's job -
+  `image/png` marks an image, `application/pdf` a document - and how they *decode* into a value
+  is the concrete's ([the split](*::meta)): `binary/int32/le` reads a four-byte file as an
+  integer, `base64` reads text as bytes (the `!!binary` tag is its inline alias).
 - >
-  So even a SCALAR may live as raw bytes: a `file/binary` member whose `.yo/meta.yo` entry
-  gives the decoding - `type: binary` with `format: int32/le` turns a four-byte file into an
-  integer; `image/png` keeps an image an image. The data is the on-disk file; the metadata says
-  how to read it - the instance and its description never trade places
-  ([metadata first](*::language:principles:metadata-first)).
+  So even a SCALAR may live as raw bytes: a member whose `.yo/meta.yo` clause gives the
+  decoding - `concrete: binary/int32/le` turns a four-byte file into an integer
+  (examples/55-meta); `type: binary` with `format: image/png` keeps an image an
+  image. The data is the on-disk file; the metadata says how to read it - the instance and its
+  description never trade places ([metadata first](*::language:principles:metadata-first)). The
+  old spelling of a codec as a format (`format: int32/le`) reads forever but is not authored
+  anymore.

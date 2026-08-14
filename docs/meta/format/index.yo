@@ -1,7 +1,17 @@
 Formats
-description: the open format keyword - MIME types, codecs, sub-document encodings
+description: the open format keyword - a named constraint on the abstract value, never a decoder
 - >
-  TBD - `format` is open: a MIME type, a codec (`int32/le`), or a yamlover-defined view - naming how
-  to decode, render, and edit a value. It also names a sub-document encoding (`yamlover`, `json5p`,
-  or a `.../meta` variant), and it replaces JSON Schema's `contentMediaType`/`contentEncoding`. A
-  format refines a facet; it is not a type ([terminology](*::language:model:terminology)).
+  `format` is open: a MIME type (`image/png`, `text/markdown`), a value format kept from JSON
+  Schema (`date-time`, `email`, `uri`), or a yamlover-defined view (`x-yamlover-chapter`) - a
+  named **constraint** on the abstract value, driving how it is rendered and edited. A format
+  refines a facet; it is not a type ([terminology](*::language:model:terminology)), and since the
+  concrete/format split it **never selects decoding**: how bytes or text become the value is the
+  [concrete](*::language:concretes)'s job (`concrete: yamlover/stream`, `binary/int32/le`,
+  `base64`, `text/utf-8`).
+- >
+  Against JSON Schema: `format` replaces `contentMediaType` (what the content *is*), and
+  `concrete` replaces `contentEncoding` (how it is *carried*). The pre-split spellings - a codec
+  or a sub-document encoding stated as `format:` (`format: int32/le`, `format: yamlover/meta`) -
+  read forever but are not authored anymore. The known formats are catalogued in the
+  [model's format chapter](*::language:model:format); resolution order is the
+  [meta charter](*::meta)'s subject.

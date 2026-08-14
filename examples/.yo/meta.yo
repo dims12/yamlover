@@ -1,7 +1,7 @@
 # examples/.yo/meta.yo — per-example descriptions (presentation metadata, docs/meta).
 # Ported from the retired root schema.yaml, re-keyed to the current corpus; the prose
 # counterpart lives in README.md. Types/formats are inferred — only descriptions here.
-properties:
+members:
   01-tour.json:
     description: strict JSON — the austere base of the lattice; no sharing
   02-tour.json5:
@@ -14,18 +14,16 @@ properties:
     description: yamlover — YAML plus the full pointer layer (`*`, `~`, `&`, bare-integer positions, links)
   07-omni.yo:
     description: the unified node (omni), tagless — a multi-line block-scalar self-value plus positional and keyed fields at once
-  50-object-in-overlay:
+  50-dir:
+    description: an object as one file per child (name/age/isAdmin) — a plain directory, no overlay; the files are the data
+  51-dir-yo:
     description: a directory whose `body.yo` overlay holds the whole object instance
-  51-object-in-dir:
-    description: an object as one file per child (name/age/isAdmin); an empty `.yo/` marker
-  52-scalar-as-file:
-    description: a bare scalar stored as a plain file
-  53-plain-dir:
-    description: a plain directory with no `.yo/` — the files are the data
-  54-scalar-file-overlay:
-    description: a scalar carried in `body.yo` (the scalar twin of 50)
-  55-scalar-as-binary:
-    description: a binary file decoded by `meta.yo` (`type binary`, `format int32/le`)
+  52-dir-index-yo:
+    description: the object in an in-place `index.yo` — the overlay as a plain file inside the directory, instead of under `.yo/`
+  54-dir-as-scalar:
+    description: a directory that IS a scalar — its in-place `index.yo` holds just `30` (the scalar twin of 52)
+  55-meta:
+    description: the meta showcase — identical `.yaml` twins mounted as a parsed subtree vs one string (`format: text/x-yaml`), four bytes decoded to an integer (`binary/int32/le`), a png as binary
   56-array-of-files:
     description: a sequence whose elements live in files — the body pointer-array orders the members it names; an unreferenced file stays a keyed-only member
   58-genealogy-dag:

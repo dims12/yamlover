@@ -6,10 +6,10 @@
 # Spec: ../TICKETS.md §3.
 type: object
 format: x-yamlover-board
-properties:
+members:
   workflow: *:: yamlover: $defs: tag    # ref → the workflow that SEEDS the default lanes
   lanes:                                # optional saved lanes (the explorer board view's config):
     type: array                         #   a sequence of lanes, each a list of tag refs — one tag
-    items:                              #   = a plain lane, several = per-tag SUBLANES stacked
+    others:                             #   = a plain lane, several = per-tag SUBLANES stacked
       type: array                       #   vertically. Edited via the lane headers, persisted by
-      items: *:: yamlover: $defs: tag   #   POST /api/board.
+      others: *:: yamlover: $defs: tag  #   POST /api/board.

@@ -1,16 +1,25 @@
 Concretes
 description: every way a node is physically stored and written
 - >
-  A **concrete** records *how and where* a node's value is physically stored. Every materialized
-  node carries exactly one, and it is orthogonal to the node's *type* and its *format*: a string
-  may live inline in a document, in its own file, or as bytes a format decodes - same value,
-  different concrete.
+  A **concrete** records *how and where* a node's value is physically stored - AND the language or
+  codec that translates that representation into the abstract value. Every materialized node
+  carries exactly one. The concrete usually *infers* the node's type (`binary/int32/le` yields an
+  int, `yamlover/stream` yields whatever the text says); the *format* then constrains the value it
+  yielded ([the split](*::meta)) - a string may live inline in a document, in its own file, or as
+  bytes a codec decodes - same value, different concrete.
 - >
   There are two independent axes. The **storage** axis answers *where, in what language*: a
   fragment of a text file, a whole file, opaque bytes, a directory. The **representation** axis
   answers *how it is written*: a string picks a style, a number picks a notation, a container
-  picks flow or block. This chapter opens with the general laws - the storage axis, the choosing
-  rules, the layout invariants - and then catalogs the languages, concrete by concrete:
+  picks flow or block. The decode side of the storage axis has names of its own, declarable per
+  member in `.yo/meta.yo` ([the members clause](*::meta:members)): the language concretes
+  (`yamlover/stream`, `yamlover/code`, `yaml/stream`, `yaml/code`, `json/code`, `json5p/code`, and
+  the `.../meta` variants for schema documents), the codecs (`base64`, `binary/int32/le` - the
+  family `binary/<width>/<endianness>`), and the charset texts (`text/utf-8`, `text/ibm866`, ...).
+  These COMPOSE with the storage ids (`file/yamlover`, `dir/.yo`, ...) - a declaration says how a
+  stored thing decodes, it renames nothing. This chapter opens with the general laws - the storage
+  axis, the choosing rules, the layout invariants - and then catalogs the languages, concrete by
+  concrete:
 - >
   Representations are **not different values** - the spellings decode identically - but the
   representation is worth keeping: it is what makes a string `"~"` distinguishable from a null

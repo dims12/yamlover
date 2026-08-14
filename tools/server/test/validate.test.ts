@@ -337,7 +337,8 @@ describe("enforcement", () => {
 
 describe("compileMeta — the reserved schema seam", () => {
   it("compiles to nothing yet, and an empty schema source changes no verdict", () => {
-    expect(compileMeta({ properties: { age: { type: "integer" } } }, ":a")).toEqual([]);
+    expect(compileMeta({ members: { age: { type: "integer" } } }, ":a")).toEqual([]);
+    expect(compileMeta({ properties: { age: { type: "integer" } } }, ":a")).toEqual([]); // legacy spelling, read forever
     expect(validateWrite(w({ writes: [] }), { schema: compileMeta({}, ":") })).toMatchObject({ allowed: true });
   });
 });

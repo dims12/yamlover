@@ -13,6 +13,6 @@ format: x-yamlover-workflow
 value:                                          # the workflow's description (its body)
   type: string
   format: text/marklower
-properties:
+members:
   initial: *:: yamlover: $defs: tag             # ref → the start state
-additionalProperties: *:: yamlover: $defs: tag  # every other key is a STATE (a plain tag)
+others: *:: yamlover: $defs: tag                # every other key is a STATE (a plain tag)

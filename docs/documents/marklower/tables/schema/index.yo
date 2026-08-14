@@ -6,22 +6,22 @@ description: $defs/table - an omni node with title, header, and positional rows
   precedent), which is what the renderer registry keys on:
 - !!<format: text/x-yamlover> |
   type: variant                      # omni: keyed title/header AND positional rows at once
-  properties:
+  members:
     title:                           # optional caption
       type: string
       format: text/marklower
     header:                          # the header row - same shape as a body row (the schema
       type: array                    #   loader follows only $defs pointers, so the row
-      items:                         #   schema is repeated literally rather than *: items)
+      others:                        #   schema is repeated literally rather than *: others)
         anyOf:
           - *:: yamlover: $defs: chunk
           - *:: yamlover: $defs: chapter
           - *:: yamlover: $defs: table
           - *:: yamlover: $defs: bullets
           - *:: yamlover: $defs: numbered
-  items:                             # a row
+  others:                            # a row - the sweep consumes exactly TWO nesting levels
     type: array
-    items:                           # a cell
+    others:                          # a cell
       anyOf:
         - *:: yamlover: $defs: chunk    # marklower prose (the default leaf)
         - *:: yamlover: $defs: chapter  # an UNTAGGED container cell IS a chapter (the first

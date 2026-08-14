@@ -8,21 +8,20 @@
 # tag  !!<*yamlover/$defs/chapter>.  Spec: docs/documents/chapter, docs/meta.
 #
 # `type: variant` is the omni node: a scalar self-value (the title, given as `value:`) AND
-# keyed fields (description) AND positional elements (the body) at once. The body element type
-# is a union — a chapter OR a chunk; the two are told apart structurally (a chapter is a
-# container, a chunk is a leaf). A BARE SCALAR body element is therefore both "a chunk" and
+# keyed fields (description) AND positional elements (the body) at once. ONE omni `members:`
+# clause describes the members (here: the keyed `description`); the sibling `others:` covers
+# every member no clause matched — the BODY, a union routed structurally (a container element
+# is a chapter, a leaf is a chunk). A BARE SCALAR body element is therefore both "a chunk" and
 # "a title-only subchapter" — the same thing, by design (docs/documents/chapter).
-# NOTE: `value` (scalar) + `properties` (keyed) + `items` (ordinal) is the JSON-Schema encoding
-# of an omni node's facets; docs/meta proposes a native `elements`/`additionalElements`.
 type: variant
 value:                             # the self-value — the chapter's TITLE
   type: string
   format: text/marklower
-properties:
+members:
   description:                     # optional subtitle / heading annotation — stays keyed
     type: string
     format: text/marklower
-items:                             # the body — a positional sequence, read top to bottom
+others:                            # the body — every unmatched member, read top to bottom
   anyOf:
     - *:: yamlover: $defs: chapter   # a nested subchapter (a container) — the recursion
     - *:: yamlover: $defs: table     # a table — enters only by its EXPLICIT tag (docs/documents/marklower)

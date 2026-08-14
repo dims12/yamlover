@@ -52,12 +52,11 @@ or scalar can take.
 
 | # | example | concrete / what it shows |
 |---|---------|--------------------------|
-| 50 | [`50-object-in-overlay`](50-object-in-overlay)     | a directory whose `body.yo` holds the whole object instance |
-| 51 | [`51-object-in-dir`](51-object-in-dir)             | the same object as one file per child (`name` / `age` / `isAdmin`), with an empty `.yo/` marker |
-| 52 | [`52-scalar-as-file`](52-scalar-as-file)           | a bare scalar stored as a single plain file |
-| 53 | [`53-plain-dir`](53-plain-dir)                     | a plain directory with **no** `.yo/` — the files themselves are the data |
-| 54 | [`54-scalar-file-overlay`](54-scalar-file-overlay) | a scalar carried in `body.yo` (the scalar twin of 50) |
-| 55 | [`55-scalar-as-binary`](55-scalar-as-binary)       | a binary file decoded by `meta.yo` (`type: binary`, `format: int32/le`) |
+| 50 | [`50-dir`](50-dir)                                 | an object as one file per child (`name` / `age` / `isAdmin`) — a plain directory, no overlay: the files themselves are the data |
+| 51 | [`51-dir-yo`](51-dir-yo)                           | the same object as a directory whose `body.yo` holds the whole instance |
+| 52 | [`52-dir-index-yo`](52-dir-index-yo)               | the same object again, in an in-place `index.yo` — the overlay as a plain file inside the directory it controls, instead of under `.yo/` |
+| 54 | [`54-dir-as-scalar`](54-dir-as-scalar)             | a directory that IS a scalar — its in-place `index.yo` holds just `30` (the scalar twin of 52) |
+| 55 | [`55-meta`](55-meta)       | the meta showcase — identical `.yaml` twins mounted as a parsed **subtree** vs one **string** (`format: text/x-yaml`), four bytes decoded to an integer (`binary/int32/le`), and a png mounted as **binary** |
 | 56 | [`56-array-of-files`](56-array-of-files)           | a sequence whose elements live in files — the `body.yo` pointer-array orders the members it names (shown `- &file value`, the derived anchor dimmed); the unreferenced `andany04.json` stays a keyed-only member |
 | 58 | [`58-genealogy-dag`](58-genealogy-dag)             | the canonical **directed graph**: containment is the paternal line, `*` a maternal cross-edge, `~` its reverse (one `body.yo`; acyclic here, but `*` / `~` cycles are allowed) |
 | 59 | [`59-all-formats-object`](59-all-formats-object)   | a catalogue of every renderable `(type, format)` — textual content inline in `body`, binary samples typed in `meta` |

@@ -48,13 +48,14 @@ description: the self-value's types - JSON Schema's set, binary added, its own s
     - '`~` · `null` · a bare `a:`'
   - - binary
     - '- (none)'
-    - 'Opaque bytes - the yamlover addition; JSON Schema has no bytes type. Refined by `format` (`image/png`, `int32/le`); usually stored as a file, and YAML''s `!!binary` (base64) is the same value.'
+    - 'Opaque bytes - the yamlover addition; JSON Schema has no bytes type. Refined by `format` (`image/png`); decoded from a representation by a `concrete` (`binary/int32/le`, `base64` - YAML''s `!!binary` is its inline alias); usually stored as a file.'
     - 'the bytes of `logo.png` · `!!binary R0lGODlh...`'
 - >
   A scalar may carry a **format** - JSON Schema's own (`date-time`, `email`, `uri`) and, beyond
-  them, `text/markdown`, `image/png`, `int32/le` - a named constraint refining how the value is
-  decoded, rendered, and edited; a bare string's default prose format is `text/marklower`. The
-  [format chapter](*::language:model:format) is its subject.
+  them, `text/markdown`, `image/png` - a named constraint refining how the value is rendered and
+  edited (how a representation *decodes* into the value is the
+  [concrete](*::language:concretes)'s job); a bare string's default prose format is
+  `text/marklower`. The [format chapter](*::language:model:format) is its subject.
 - 'In a file, the format rides the `!!<...>` tag:'
 - !!<format: text/x-yamlover> |
   adopted: !!<format: date-time> 2019-06-01
@@ -63,7 +64,7 @@ description: the self-value's types - JSON Schema's set, binary added, its own s
     Likes **laser pointers**.
 - 'In a directory, the `.yo/meta.yo` overlay states it for a member:'
 - !!<format: text/x-yamlover> |
-  properties:
+  members:
     avatar:               # avatar - a raw-bytes file member
       type: binary
       format: image/png

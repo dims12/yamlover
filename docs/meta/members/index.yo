@@ -1,0 +1,55 @@
+# The members clause - ONE omni keyword fusing JSON Schema's properties/items/prefixItems,
+# with the sibling `others:` sweeping the unmatched. Absorbed the former keyed/ordinal stub
+# chapters (the merge DOCSMIGRATION.md anticipated); ruled 2026-08-14, renaming the 2026-08-09
+# round's working name `entries:`.
+The members clause
+description: one omni clause for a node's members - keyed, keyless, and the others sweep
+- >
+  A node's members are ONE ordered stream - keyed and keyless entries mixed
+  ([members](*::language:model:members)) - so the schema describes them with ONE omni clause:
+  `members:`. Each entry of the clause is itself keyed or keyless, and that is the whole
+  dispatch rule:
+- !!<*yamlover: $defs: table>
+  header:
+    - clause
+    - describes
+      width: 2
+    - JSON Schema
+  - ['a KEYED clause `name: <sub-meta>`', 'the same-named member', '`properties`']
+  - ['the k-th KEYLESS clause `- <sub-meta>`', 'the k-th keyless member - a positional prefix', '`prefixItems`']
+  - ['the sibling keyword `others: <sub-meta>`', 'every member no clause matched - keyed or keyless', '`additionalProperties` + the uniform `items`']
+- >
+  A member's sub-meta carries anything a meta can: `concrete:` (how the member's bytes decode -
+  [concretes](*::language:concretes)), `type:`, `format:`, `uniqueItems`, `description`, and nested
+  `members:`/`others:` clauses of its own. In a directory's `.yo/meta.yo` the clause names the
+  directory's file members - this is where a file's decoding is declared:
+- !!<format: text/x-yamlover> |
+  members:
+    notes.txt:
+      concrete: yamlover/stream      # parse the text as yamlover - the extension would keep bytes
+    age:
+      concrete: binary/int32/le      # a four-byte file decodes to an integer (examples/55-meta)
+    readme:
+      concrete: text/utf-8           # a charset text - decode bytes to a string
+      format: text/markdown          # ... and CONSTRAIN the string: it is markdown
+- >
+  **`others:` is a keyword, never a member.** Inside `members:` every entry is a clause - a member
+  literally named `others` is stated there like any other; the top-level `others:` beside the
+  clause is always the sweep. The sweep covers keyed and keyless members alike: a heterogeneous
+  body is an `others: anyOf: [...]` union, routed structurally (a container element takes the
+  container branch, a leaf the leaf branch - [chapter schema](*::documents:chapter:schema)).
+- >
+  The legacy JSON-Schema spellings - `properties`, `items`, `additionalProperties`, `prefixItems` -
+  read forever; the authored corpus states `members:`/`others:`. (One asymmetry repaid: the legacy
+  reader never consumed `prefixItems` - keyless clauses are the first spelling of a positional
+  prefix that actually works.)
+- >
+  *Status: design - the clauses below are specified but not implemented yet (the 2026-08-09
+  `entries:` round, renamed):*
+- >
+  **Selector clauses** *(design)*: a clause may select by pattern or range instead of one name -
+  a key regex, an index range - sweeping a family of members with one sub-meta. **`at:`**
+  *(design)*: a clause position keyword restarting the ordinal count from N (`~` = floating), so a
+  prefix can be stated away from position zero. **Per-clause `min`/`max`** *(design)*: each clause
+  carries its own occurrence bounds, subsuming JSON Schema's `required` (a keyed clause with
+  `min: 1`) and `contains` (a selector clause with `min: 1`).

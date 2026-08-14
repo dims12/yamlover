@@ -125,7 +125,7 @@ describe("renderer registry (facet predicates)", () => {
     ]);
     // a data SCALAR (a .json holding `30`) gets NO icon tabs (they would be empty)
     expect(renderersFor(node({ concrete: "file/json", type: "integer", valueType: "integer", value: 30 }))).toEqual([]);
-    // a scalar-bodied DIRECTORY (54-scalar-file-overlay) likewise — and defaults to yamlover, not the explorer
+    // a scalar-bodied DIRECTORY (54-dir-as-scalar) likewise — and defaults to yamlover, not the explorer
     expect(renderersFor(node({ concrete: "dir/.yo", type: "integer", valueType: "integer", value: 30 }))).toEqual([]);
     expect(rendererName(node({ concrete: "dir/.yo", type: "integer", value: 30 }), "dir/.yo")).toBeNull();
   });

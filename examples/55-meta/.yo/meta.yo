@@ -1,0 +1,14 @@
+# 55-meta — one directory, four meta-declared mounts (docs/meta/members). The two .yaml
+# files hold IDENTICAL text; the meta alone decides what each one IS: parsed subtree vs one
+# string. The concrete DECODES, the type states the value's kind, the format CONSTRAINS.
+members:
+  age:
+    concrete: binary/int32/le      # four bytes decode to the integer 30
+  as-tree.yaml:
+    concrete: yaml/stream          # parse the text — the member IS the subtree
+  as-text.yaml:
+    concrete: text/utf-8           # decode the bytes to ONE string — unparsed
+    format: text/x-yaml            # …and constrain it: quoted yaml code
+  sample.png:
+    type: binary                   # the bytes ARE the value — no translation
+    format: image/png              # what the bytes mean
