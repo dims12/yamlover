@@ -41,11 +41,11 @@ export function TreeRow({ node, depth, selected, match, highlighted, merged, fra
       {node.value != null && <span className="tree-value">{node.value}</span>}
     </>
   );
-  // a label the sidebar clips grows a hover twin across the splitter after a beat — sooner
-  // than the native path tooltip above, which still fires on the browser's own delay
+  // a label the sidebar clips grows a hover twin across the splitter instantly; the native
+  // path tooltip above still fires on the browser's own delay
   const labelPeek = useHoverPeek({
     side: "extend-right",
-    delayMs: 300,
+    delayMs: 0,
     className: "hover-peek peek-toc",
     content: labelChildren,
     // headroom: the full sidebar plus half the content pane; past that, ellipsis
