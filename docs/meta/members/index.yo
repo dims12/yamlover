@@ -44,12 +44,30 @@ description: one omni clause for a node's members - keyed, keyless, and the othe
   reader never consumed `prefixItems` - keyless clauses are the first spelling of a positional
   prefix that actually works.)
 - >
-  *Status: design - the clauses below are specified but not implemented yet (the 2026-08-09
-  `entries:` round, renamed):*
+  **Pattern clauses.** A clause key is always a PLAIN STRING - never syntax-special - so a
+  clause that selects by pattern says so with a keyword: `pattern: true` reads the key as a
+  regexp over member names, with JSON Schema's patternProperties semantics (the regexp
+  SEARCHES the name - anchor with `^…$` to mean the whole of it). An exact clause always
+  beats a pattern; pattern clauses try in author order and the FIRST match supplies the whole
+  sub-meta (they do not merge). An unparsable regexp drops its clause and stamps the
+  directory with the error. In a directory meta the clause's nested `members:` reaches each
+  MATCHING subdirectory's own members - and the subdirectory's own `.yo/meta.yo` is closer
+  to the data, so any clause it states wins over the inherited one:
+- !!<format: text/x-yamlover> |
+  members:
+    '^\d{4}$':
+      pattern: true                  # the key is a regexp, not a member name
+      members:                       # …and this types each matching SUBDIRECTORY's files
+        in.yo:
+          concrete: text/utf-8       # mount the .yo file as ONE string of code
+          format: text/x-yamlover    # (docs/language/model/tests/cases does exactly this)
 - >
-  **Selector clauses** *(design)*: a clause may select by pattern or range instead of one name -
-  a key regex, an index range - sweeping a family of members with one sub-meta. **`at:`**
-  *(design)*: a clause position keyword restarting the ordinal count from N (`~` = floating), so a
-  prefix can be stated away from position zero. **Per-clause `min`/`max`** *(design)*: each clause
-  carries its own occurrence bounds, subsuming JSON Schema's `required` (a keyed clause with
-  `min: 1`) and `contains` (a selector clause with `min: 1`).
+  *Status: pattern clauses ship for directory metas (2026-08-14); in a document schema the
+  flag is not consumed yet. Still design (the 2026-08-09 `entries:` round, renamed):*
+- >
+  **Range selectors** *(design)*: a clause may select an index range, sweeping a positional
+  family with one sub-meta. **`at:`** *(design)*: a clause position keyword restarting the
+  ordinal count from N (`~` = floating), so a prefix can be stated away from position zero.
+  **Per-clause `min`/`max`** *(design)*: each clause carries its own occurrence bounds,
+  subsuming JSON Schema's `required` (a keyed clause with `min: 1`) and `contains` (a
+  selector clause with `min: 1`).

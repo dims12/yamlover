@@ -1,0 +1,11 @@
+# A `pattern: true` clause matches member NAMES by its key read as a regexp (JSON Schema
+# patternProperties: unanchored search, so authors anchor themselves). Its nested `members:`
+# describes each MATCHING subdirectory's own members — here mounting a .yo file as ONE
+# string of yamlover code instead of parsing it (docs/meta/members).
+members:
+  '^\d{4}$':
+    pattern: true
+    members:
+      in.yo:
+        concrete: text/utf-8
+        format: text/x-yamlover

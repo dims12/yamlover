@@ -697,31 +697,76 @@ function readTracked(ctx: Ctx, abs: string): Buffer {
 }
 
 /** Per-child metadata from `.yo/meta.yo` `members:` (legacy spelling `properties:` — read
- *  forever): { name → {concrete, type, format, uniqueItems} }. `concrete` is the decode
- *  axis (a language / codec / charset — docs/language/concretes); `type` the abstract kind;
- *  `format` a named constraint on the value, never a decode selector (docs/meta). */
-type MetaEntry = { concrete?: string; type?: string; format?: string; uniqueItems?: boolean };
-type Meta = Record<string, MetaEntry>;
+ *  forever). `concrete` is the decode axis (a language / codec / charset —
+ *  docs/language/concretes); `type` the abstract kind; `format` a named constraint on the
+ *  value, never a decode selector (docs/meta). A clause with `pattern: true` matches member
+ *  NAMES by its key read as a regexp — JSON Schema patternProperties semantics, so the
+ *  regexp SEARCHES the name (authors anchor with `^…$` themselves). A clause's own nested
+ *  `members:` describes a directory child's members in turn (docs/meta/members). */
+type MetaEntry = {
+  concrete?: string; type?: string; format?: string; uniqueItems?: boolean;
+  pattern?: boolean; members?: unknown; properties?: unknown;
+};
+type Meta = {
+  exact: Record<string, MetaEntry>;
+  patterns: Array<{ re: RegExp; entry: MetaEntry }>;
+};
+
+/** Split a meta-shaped object into clauses: literal names vs `pattern: true` selectors.
+ *  `members` wins per key over the legacy `properties`; keyless member clauses have no
+ *  meaning for directory children (every file has a name) and fall away in toPlain. */
+function parseClauses(plain: unknown): { meta: Meta; badPattern?: string } {
+  const meta: Meta = { exact: {}, patterns: [] };
+  let badPattern: string | undefined;
+  const clause = (v: unknown): Record<string, MetaEntry> =>
+    v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, MetaEntry>) : {};
+  const p = plain as Record<string, unknown> | null | undefined;
+  for (const src of [clause(p?.properties), clause(p?.members)]) {
+    for (const [key, entry] of Object.entries(src)) {
+      if (entry && typeof entry === 'object' && entry.pattern) {
+        try {
+          meta.patterns.push({ re: new RegExp(key), entry });
+        } catch {
+          badPattern ??= key; // an unparsable regexp: the clause is dropped, the author told
+        }
+      } else {
+        meta.exact[key] = entry;
+      }
+    }
+  }
+  return { meta, badPattern };
+}
+
+/** The clause for a member name: an exact clause always wins; otherwise pattern clauses try
+ *  in author order and the FIRST match supplies the whole entry (sub-metas do not merge). */
+function metaFor(meta: Meta | undefined, name: string): MetaEntry | undefined {
+  if (!meta) return undefined;
+  if (Object.prototype.hasOwnProperty.call(meta.exact, name)) return meta.exact[name];
+  return meta.patterns.find((p) => p.re.test(name))?.entry;
+}
 
 function loadMeta(dir: string, ctx: Ctx): { props: Meta; error?: { file: string; message: string } } {
   const file = path.join(dir, YAMLOVER_DIR, 'meta.yo');
-  if (!fs.existsSync(file)) return { props: {} };
+  if (!fs.existsSync(file)) return { props: { exact: {}, patterns: [] } };
   try {
     const plain = toPlain(parseYamlover(readTracked(ctx, file).toString('utf8'), file).root) as Record<string, unknown>;
-    const clause = (v: unknown): Meta => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Meta) : {});
-    // `members` wins per key over the legacy `properties`; keyless member clauses have no
-    // meaning for directory children (every file has a name) and fall away in toPlain
-    return { props: { ...clause(plain?.properties), ...clause(plain?.members) } };
+    const { meta, badPattern } = parseClauses(plain);
+    if (badPattern !== undefined)
+      return { props: meta, error: noteFileError(ctx, file, new Error(`pattern clause is not a valid regexp: ${badPattern}`)) };
+    return { props: meta };
   } catch (e) {
     // there is no node yet to stamp — the error rides out to dirNode, which puts it on the
     // directory (the node whose children just lost their per-child metadata)
-    return { props: {}, error: noteFileError(ctx, file, e) };
+    return { props: { exact: {}, patterns: [] }, error: noteFileError(ctx, file, e) };
   }
 }
 
 /** A directory → a Mapping node: one entry per file/subdir, then the instance overlay.
+ *  `inherited` is the nested `members:` clause an ANCESTOR meta declared for this directory —
+ *  the directory's own `.yo/meta.yo` is closer to the data and wins per member (any own
+ *  clause, exact or pattern, beats any inherited one).
  *  A generator: yields one progress tick per child processed (subtree ticks ride through). */
-function* dirNode(dir: string, ctx: Ctx): Generator<WalkProgress, Node, void> {
+function* dirNode(dir: string, ctx: Ctx, inherited?: Meta): Generator<WalkProgress, Node, void> {
   const { props: meta, error: metaError } = loadMeta(dir, ctx);
   const overlay = overlayFile(dir);
   const consumesIndex = overlay !== null && path.basename(overlay) === INDEX_FILE;
@@ -746,14 +791,14 @@ function* dirNode(dir: string, ctx: Ctx): Generator<WalkProgress, Node, void> {
       }
       continue;
     }
-    const child = yield* childNode(abs, meta[name], ctx);
+    const child = yield* childNode(abs, metaFor(meta, name) ?? metaFor(inherited, name), ctx);
     entries.push({ key: name, edge: 'contain', value: child });
     yield { done: ++ctx.count, path: rel(ctx, abs) };
   }
   ctx.open?.pop();
 
   const node: Mapping = { kind: 'mapping', entries, array: false };
-  const merged = applyMeta(applyBody(overlay, node, ctx), meta); // attach meta `format` to entries (incl. body-overlay ones)
+  const merged = applyMeta(applyBody(overlay, node, ctx), meta, inherited); // attach meta `format` to entries (incl. body-overlay ones)
   // a broken meta.yo surfaces on the directory too, but the BODY's error wins the single
   // slot — the body is what a mediated write would re-serialize
   return metaError && !merged.meta?.parseError ? { ...merged, meta: { ...merged.meta, parseError: metaError } } : merged;
@@ -795,7 +840,13 @@ function* yamloverDirNode(absYamlover: string, ctx: Ctx): Generator<WalkProgress
  *  selector) stays below it, read forever. */
 function* childNode(abs: string, m: MetaEntry | undefined, ctx: Ctx): Generator<WalkProgress, Node, void> {
   const stat = fs.statSync(abs);
-  if (stat.isDirectory()) return yield* dirNode(abs, ctx);
+  if (stat.isDirectory()) {
+    // the clause's own nested `members:` describes THIS subdirectory's members — hand it
+    // down (a bad nested pattern just drops its clause; only a meta.yo's own top level
+    // gets the error slot)
+    const nested = m && (m.members ?? m.properties) != null ? parseClauses(m).meta : undefined;
+    return yield* dirNode(abs, ctx, nested);
+  }
 
   const ext = path.extname(abs).toLowerCase();
   // format resolution order: meta `format:` → a recognized extension → (none → sniff/parse).
@@ -876,10 +927,10 @@ function decodeConcrete(abs: string, concrete: string, format: string | null, st
  *  body-overlay text entry (e.g. 59's `markdown:`) gets its (type, format) just like a file child does. A
  *  Blob already carries its format; a node with a format already wins; binary stays a Blob.
  *  `uniqueItems: true` marks the child a SET (≡ the `!!set` tag — docs/meta): NodeMeta.set. */
-function applyMeta(node: Node, meta: Meta): Node {
+function applyMeta(node: Node, meta: Meta, inherited?: Meta): Node {
   for (const e of node.entries ?? []) {
     if (e.key == null || isPointer(e.value)) continue;
-    const m = meta[e.key];
+    const m = metaFor(meta, e.key) ?? metaFor(inherited, e.key);
     if (!m) continue;
     if (m.uniqueItems) e.value = { ...e.value, meta: { ...e.value.meta, set: true } };
     if (e.value.kind === 'blob') continue;

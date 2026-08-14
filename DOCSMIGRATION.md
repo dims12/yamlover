@@ -443,10 +443,15 @@ chapters, the `entries:` keyword) deliberately run AHEAD of the code. The rules:
       matched (`additionalProperties`/`unevaluated*` + the uniform `items`). SHIPPED: the
       engine reads members/others alongside the legacy clauses (walk.ts applySchemas +
       loadMeta), all 12 $defs + every meta.yo respelled, meta/members chapter written
-      (absorbing the keyed/ordinal stubs), vs-json-schema rows flipped. Design-ahead (docs
-      only, unchecked): selector clauses (key regex / index ranges), the `at:` clause
-      position keyword (restart the ordinal count from N, `~` = floating), per-clause
-      `min`/`max` subsuming `required`/`contains`.
+      (absorbing the keyed/ordinal stubs), vs-json-schema rows flipped. PATTERN clauses
+      shipped 2026-08-14 for directory metas (`pattern: true` reads the plain-string clause
+      key as a regexp - patternProperties semantics; exact beats pattern, author order,
+      first match; nested `members:` reach a subdirectory's files, the subdirectory's own
+      meta wins; SCHEMA_VERSION 13; fixture 0812; docs/language/model/tests/cases is the
+      first meta-typed chapter). Design-ahead (docs only, unchecked): schema-side pattern
+      clauses, index-range selectors, the `at:` clause position keyword (restart the ordinal
+      count from N, `~` = floating), per-clause `min`/`max` subsuming
+      `required`/`contains`.
 - [x] The CONCRETE/TYPE/FORMAT split (2026-08-14): a `concrete` is the representation AND its
       translation to the abstract value (usually inferring the type); `format` is a pure
       CONSTRAINT and never selects decoding. Meta declares a member's decode concrete

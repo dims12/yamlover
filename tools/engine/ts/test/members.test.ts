@@ -218,6 +218,126 @@ test('schema members:/others: — keyed clause, keyless prefix clauses, and the 
   }
 });
 
+test('pattern: true — the clause key is a regexp over member names; an exact clause beats it', () => {
+  const root = tmpTree({
+    '.yo/meta.yo': [
+      'members:',
+      "  '^\\d{4}$':",
+      '    pattern: true',
+      '    concrete: text/utf-8',
+      '    format: text/x-yamlover',
+      "  '0001': { concrete: yamlover/stream }", // exact wins over the matching pattern (digit-only names are quoted — bare would be a position)
+    ].join('\n'),
+    '0000': 'name: Alice\n', // extensionless: pattern says text — ONE string, not a subtree
+    '0001': 'name: Alice\n',
+    'other': 'name: Alice\n', // no clause: the legacy chain parses it
+  });
+  try {
+    const s = indexed(root);
+    // digit-only names are QUOTED in paths — a bare `:0000` would be position 0 (docs/language/pointers)
+    assert.equal(s.node(":'0000'")?.value, 'name: Alice\n');
+    assert.equal(s.node(":'0000'")?.format, 'text/x-yamlover');
+    assert.equal(s.node(":'0001':name")?.value, 'Alice'); // the exact clause parsed it
+    assert.equal(s.node(':other:name')?.value, 'Alice');
+    s.close();
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('pattern matching SEARCHES the name (JSON Schema patternProperties); author order, first match wins', () => {
+  const root = tmpTree({
+    '.yo/meta.yo': [
+      'members:',
+      "  '\\d{4}':", // unanchored: matches anywhere in the name
+      '    pattern: true',
+      '    format: text/markdown',
+      "  'case':", // ALSO matches case0000.note — but it is stated second
+      '    pattern: true',
+      '    format: text/csv',
+    ].join('\n'),
+    '.yo/body.yo': 'case0000.note: |\n  prose\nplain.note: |\n  prose\n',
+  });
+  try {
+    const s = indexed(root);
+    assert.equal(s.node(':case0000.note')?.format, 'text/markdown'); // first matching clause supplies ALL of it
+    assert.ok(s.node(':plain.note')?.format == null); // no digits anywhere → unmatched
+    s.close();
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('a clause\'s nested members: reaches the SUBDIRECTORY\'s files', () => {
+  const root = tmpTree({
+    '.yo/meta.yo': [
+      'members:',
+      "  '^\\d{4}$':",
+      '    pattern: true',
+      '    members:', // describes each matching subdirectory's own members
+      '      in.yo: { concrete: text/utf-8, format: text/x-yamlover }',
+      '      ir.json: { concrete: text/utf-8, format: text/x-json }',
+    ].join('\n'),
+    '0000/in.yo': 'name: Alice\n', // .yo would parse — the inherited clause mounts it as TEXT
+    '0000/ir.json': '{"kind": "scalar"}\n',
+    '0000/notes.yo': 'still: parsed\n', // no nested clause → untouched
+  });
+  try {
+    const s = indexed(root);
+    assert.equal(s.node(":'0000':in.yo")?.value, 'name: Alice\n');
+    assert.equal(s.node(":'0000':in.yo")?.format, 'text/x-yamlover');
+    assert.equal(s.node(":'0000':ir.json")?.value, '{"kind": "scalar"}\n');
+    assert.equal(s.node(":'0000':notes.yo:still")?.value, 'parsed');
+    s.close();
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('a subdirectory\'s OWN meta.yo beats the inherited clause — the closest declaration wins', () => {
+  const root = tmpTree({
+    '.yo/meta.yo': [
+      'members:',
+      "  '^\\d{4}$':",
+      '    pattern: true',
+      '    members:',
+      '      in.yo: { concrete: text/utf-8, format: text/x-yamlover }',
+    ].join('\n'),
+    '0000/in.yo': 'name: Alice\n',
+    '0001/.yo/meta.yo': 'members:\n  in.yo: { concrete: yamlover/stream }\n', // overrides the inherited text mount
+    '0001/in.yo': 'name: Alice\n',
+  });
+  try {
+    const s = indexed(root);
+    assert.equal(s.node(":'0000':in.yo")?.value, 'name: Alice\n'); // inherited: text
+    assert.equal(s.node(":'0001':in.yo:name")?.value, 'Alice'); // own meta: parsed
+    s.close();
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('an unparsable pattern regexp drops its clause and stamps the directory, never the walk', () => {
+  const root = tmpTree({
+    '.yo/meta.yo': [
+      'members:',
+      "  '([':", // not a regexp
+      '    pattern: true',
+      '    format: text/markdown',
+      '  age: { concrete: binary/int32/le }', // the well-formed clause still applies
+    ].join('\n'),
+    'age': Buffer.from([30, 0, 0, 0]),
+  });
+  try {
+    const doc = walkDir(root);
+    assert.ok(doc.root.meta?.parseError, 'the bad pattern is told, not swallowed');
+    const age = (doc.root.entries ?? []).find((e) => e.key === 'age');
+    assert.equal((age?.value as { value?: unknown }).value, 30);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('others: routes an anyOf union structurally, like the legacy items sweep', () => {
   const root = tmpTree({
     '$defs/chap': [

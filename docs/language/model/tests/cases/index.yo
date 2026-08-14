@@ -1,0 +1,22 @@
+# Cases - the mirrored fixtures themselves, one subchapter per test-examples/ dir. This
+# directory's OWN .yo/meta.yo types the cases: one pattern clause selects every 4-digit
+# member and mounts its fixture files as TEXT (docs/meta/members) - the first meta-typed
+# chapter in the book.
+Cases
+description: the mirrored fixtures - each file shown as the code it is, byte-exact
+- >
+  Every case below is typed by ONE clause in this directory's `.yo/meta.yo`: a
+  `pattern: true` selector matches the 4-digit names, and its nested `members:` mounts
+  `in.yo` and `out.yo` as yamlover CODE and `ir.json` as json code - text, not parsed
+  subtrees, because a fixture's files are byte goldens
+  ([the members clause](*::meta:members)).
+- *: '0000'
+- *: '0001'
+- *: '0002'
+- *: '0003'
+- *: '0004'
+- *: '0005'
+- *: '0006'
+- *: '0007'
+- *: '0008'
+- *: '0100'

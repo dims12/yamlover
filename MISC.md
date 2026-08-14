@@ -54,9 +54,11 @@ state:
   its filename, granted no position). The projection shows a named member's
   filename as a dimmed derived `&` anchor: `- &file1 value`.
 - **`meta.yo`** — the **metadata schema**: a JSON-Schema-equivalent written in
-  yamlover (the `members:` clause with its `others:` sweep, `concrete`, `type`,
-  `format`; legacy `properties`/`items` read forever) whose primary job
-  is typing / decoding / presentation, with validation optional.
+  yamlover (the `members:` clause with its `others:` sweep and `pattern: true`
+  selectors, `concrete`, `type`, `format`; legacy `properties`/`items` read
+  forever) whose primary job is typing / decoding / presentation, with
+  validation optional. A clause's nested `members:` reaches a subdirectory's
+  own files (docs/language/model/tests/cases).
 - in the **project root** only, **`settings.yo`** — project configuration
   (defaults such as where new annotations are created).
 

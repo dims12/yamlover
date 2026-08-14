@@ -1,0 +1,19 @@
+# Cases - ONE pattern clause types every mirrored fixture (docs/meta/members). The key is a
+# regexp (`pattern: true` - JSON Schema patternProperties semantics), and the nested
+# `members:` reaches each matching subdirectory's files: the goldens mount as TEXT - the
+# concrete decodes bytes to ONE string, the format names the code it holds - so the book
+# shows them byte-exact instead of parsing them. Each case's index.yo stays the consumed
+# overlay carrying the title; it needs no clause.
+members:
+  '^\d{4}$':
+    pattern: true
+    members:
+      in.yo:
+        concrete: text/utf-8
+        format: text/x-yamlover      # the input document, shown as yamlover code
+      ir.json:
+        concrete: text/utf-8
+        format: text/x-json          # the canonical IR golden, shown as json code
+      out.yo:
+        concrete: text/utf-8
+        format: text/x-yamlover      # the serializer golden, shown as yamlover code

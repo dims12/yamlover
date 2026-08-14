@@ -1,0 +1,1 @@
+meta pattern: true reads the clause key as a regexp; nested members: reach the subdirectory (a .yo file mounts as TEXT)
