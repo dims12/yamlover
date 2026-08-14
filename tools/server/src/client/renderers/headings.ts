@@ -1,4 +1,5 @@
 import { useEffect, useRef, type RefObject } from "react";
+import { clearLanding, noteLandingAttempt, noteLandingDone } from "../landing-progress";
 import { publishCurrentFragment } from "../toc-presence";
 
 /**
@@ -77,11 +78,12 @@ export function anchorizeHeadings(html: string): string {
 export function useHashScroll(dep: unknown, opts?: { once?: boolean }): void {
   const restore = useRef<string | null | undefined>(undefined); // the hash this mount OPENED with
   const done = useRef<string | null>(null); // the hash already revealed once (for `once`)
+  useEffect(() => () => clearLanding(), []); // page unmounted — a pending landing chip is moot
   useEffect(() => {
     if (restore.current === undefined) restore.current = decodeURIComponent(window.location.hash.slice(1)) || null;
     const reveal = () => {
       const id = decodeURIComponent(window.location.hash.slice(1));
-      if (!id) return;
+      if (!id) { clearLanding(); return; }
       const fresh = restore.current === id; // the mount's own hash — restored even when spy-written
       if (!fresh && id === spyHash) return; // reader-following hash: never scroll back to it
       if (opts?.once && done.current === id) return; // landed once — later dep runs stay put
@@ -91,7 +93,10 @@ export function useHashScroll(dep: unknown, opts?: { once?: boolean }): void {
       // every lazy load yanked the page back to the hash mid-scroll (the aperiodic-interruption
       // report). `lastRevealed` is module-level so click navigations (navigateToFragment) count.
       if (lastRevealed === id && userScrolledAt > hashScrolledAt) return;
-      if (!scrollToId(id)) return; // absent in jsdom, or no such anchor yet (value still loading)
+      // absent in jsdom, or no such anchor yet (value still loading) — the landing chip in the
+      // topbar's TaskStrip tracks how deep the unfold has reached until the anchor exists
+      if (!scrollToId(id)) { noteLandingAttempt(id); return; }
+      noteLandingDone(id);
       done.current = id;
       if (fresh) { restore.current = null; if (spyHash === id) spyHash = null; } // consumed
     };
