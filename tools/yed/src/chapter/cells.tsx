@@ -33,6 +33,7 @@ import type { ChapterIntent, ChapterKey } from "./dispatch";
 import type { ChapterEdges } from "./site";
 import { chunkModeOf, explicitFormatOf, hasSelfValue, metaOf, type ChunkMode } from "./format";
 import { bodyLabel, entryRole, titleSlot } from "./roles";
+import { CrumbSpan } from "./crumb";
 import {
   applyCaret, caretAtEnd, caretAtStart, caretOnFirstLine, caretOnLastLine, caretVisibleOffset,
   placeCaretVisible, type ColumnMemory,
@@ -341,7 +342,7 @@ function DescendHeading({ path, title, level }: { path: string; title: string; l
  *  The read view's ChunkGutter rule, mirrored. */
 function chunkCrumbs(labels: readonly (number | string)[]): ReactNode {
   return labels.map((n, i) => (
-    <span key={i} className="chunk-crumb" style={{ "--lvl": labels.length - 1 - i } as React.CSSProperties}>{n}</span>
+    <CrumbSpan key={i} label={n} lvl={labels.length - 1 - i} />
   ));
 }
 

@@ -2435,6 +2435,19 @@ textarea.chapter-latex-src {
 .tagtip-value {
   opacity: 0.92;
 }
+/* The hover-peek TWIN (yed/src/hover-peek.tsx): a body-portal copy of a CLIPPED label — a TOC
+   title cut by the splitter (.peek-toc), a gutter crumb cut by the pane edge (.peek-crumb) —
+   laid exactly over the original so only the extension reads as new. Position, font, padding
+   and the masking background are snapped inline from the original at show time; the class
+   carries just the frame. Above the splitter chevron (5) and the tagtip (1100), below modals. */
+.hover-peek {
+  position: fixed;
+  z-index: 1200;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
 /* a region annotation drawn over a PDF page (the image overlay uses a Leaflet rectangle) */
 .pdf-page {
   position: relative;

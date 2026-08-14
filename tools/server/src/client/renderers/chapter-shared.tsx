@@ -9,6 +9,7 @@
 // the body is absent). Depth changes toggle links, never typography.
 
 import { useEffect, useRef, useState } from "react";
+import { CrumbSpan } from "../../../../yed/src/chapter/crumb";
 import { rendererFor, type Chunk } from "./registry";
 import { focusEnd } from "./caret";
 import { asLink, asMixed, scalarValue } from "../render";
@@ -26,7 +27,7 @@ import { navigateToFragment } from "./headings";
 export function ChunkGutter({ index, anchor }: { index: number | string | readonly (number | string)[]; anchor: string | null }) {
   const chain = Array.isArray(index) ? (index as readonly (number | string)[]) : [index as number | string];
   const crumbs = chain.map((n, i) => (
-    <span key={i} className="chunk-crumb" style={{ "--lvl": chain.length - 1 - i } as React.CSSProperties}>{n}</span>
+    <CrumbSpan key={i} label={n} lvl={chain.length - 1 - i} />
   ));
   return anchor ? (
     // through navigateToFragment, never the native jump: a SAME-hash click fires no hashchange

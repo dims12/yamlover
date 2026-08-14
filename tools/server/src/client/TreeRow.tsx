@@ -3,6 +3,7 @@
 // the chevron toggle, the (type, format, concrete) icon glyph, and the clickable label.
 
 import { DragEvent, MouseEvent, Ref, useState } from "react";
+import { useHoverPeek } from "../../../yed/src/hover-peek";
 import { TreeNode } from "./api";
 import { dragHasNode, endNodeDrag } from "./dnd";
 import { typeIcon } from "./icons";
@@ -32,6 +33,27 @@ export interface TreeRowProps {
 export function TreeRow({ node, depth, selected, match, highlighted, merged, fragCurrent, chevron = "none", detail, onSelect, onContext, drag, drop, rowRef }: TreeRowProps) {
   const [over, setOver] = useState(false);
   const ti = typeIcon(node.type, node.format, node.concrete);
+  const labelChildren = (
+    <>
+      {node.label}
+      {/* the scalar self-value, dim after the label — the `large-icons` grid's `key: value`
+          convention (explorer.tsx), so a list of plain values reads without opening each row */}
+      {node.value != null && <span className="tree-value">{node.value}</span>}
+    </>
+  );
+  // a label the sidebar clips grows a hover twin across the splitter after a beat — sooner
+  // than the native path tooltip above, which still fires on the browser's own delay
+  const labelPeek = useHoverPeek({
+    side: "extend-right",
+    delayMs: 300,
+    className: "hover-peek peek-toc",
+    content: labelChildren,
+    // headroom: the full sidebar plus half the content pane; past that, ellipsis
+    maxWidthPx: (anchor, clip) => {
+      const main = document.querySelector("main.pane.right")?.getBoundingClientRect().width ?? 0;
+      return clip.right + main / 2 - anchor.left;
+    },
+  });
   const open = typeof chevron === "object" && chevron.open;
   // a folder (plain `dir` concrete) shows open vs closed like a normal file manager
   const glyph = open && ti.glyph === "📁" ? "📂" : ti.glyph;
@@ -78,11 +100,9 @@ export function TreeRow({ node, depth, selected, match, highlighted, merged, fra
         <span className="toggle leaf" />
       ) : null}
       <span className={"icon " + ti.cls} title={ti.title}>{glyph}</span>
-      <span className="tree-label" onClick={onSelect} title={`${displayPath(node.path)} (${node.type})`}>
-        {node.label}
-        {/* the scalar self-value, dim after the label — the `large-icons` grid's `key: value`
-            convention (explorer.tsx), so a list of plain values reads without opening each row */}
-        {node.value != null && <span className="tree-value">{node.value}</span>}
+      <span className="tree-label" onClick={onSelect} title={`${displayPath(node.path)} (${node.type})`} {...labelPeek.hoverProps}>
+        {labelChildren}
+        {labelPeek.overlay}
       </span>
       {detail && <span className="tree-row-detail">{detail}</span>}
     </div>
