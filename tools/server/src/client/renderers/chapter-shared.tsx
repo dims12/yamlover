@@ -8,7 +8,7 @@
 // rank; crossing the depth budget only turns the title text into a `descend` hyperlink (and
 // the body is absent). Depth changes toggle links, never typography.
 
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { CrumbSpan } from "../../../../yed/src/chapter/crumb";
 import { rendererFor, type Chunk } from "./registry";
 import { focusEnd } from "./caret";
@@ -101,6 +101,23 @@ export function SectionAnchor({ id }: { id: string }) {
  *  lazy subtrees land), the link becomes a `#fragment` jump instead of a navigation, and the note
  *  shows the direction — ↑ when the target sits above this heading, ↓ below. The heading's OWN
  *  element is excluded: a collapsed subchapter carries the very id its body would have. */
+/** ONE `[id]` document scan per commit, shared by every heading: a commit's effects flush
+ *  synchronously, so a microtask-cleared cache lets N headings pay for one scan instead of N
+ *  full-document walks (the docs/ scroll profile: seconds of querySelectorAll). Document
+ *  order within each id list is preserved. */
+let idScanCache: Map<string, Element[]> | null = null;
+function idOccurrences(id: string): readonly Element[] {
+  if (!idScanCache) {
+    idScanCache = new Map();
+    for (const e of document.querySelectorAll("[id]")) {
+      const bucket = idScanCache.get(e.id);
+      if (bucket) bucket.push(e); else idScanCache.set(e.id, [e]);
+    }
+    queueMicrotask(() => { idScanCache = null; });
+  }
+  return idScanCache.get(id) ?? [];
+}
+
 export function SubchapterHeading({
   path, title, level = 1, id, note, linked = true, targetFragment, onNavigate,
 }: {
@@ -130,8 +147,8 @@ export function SubchapterHeading({
       // #fragment resolves) — and engines disagree on which duplicate getElementById returns.
       // Only a REAL rendering upgrades the link: a link-face heading sits ALONE in its section,
       // an inlined chapter's heading has its body beside it.
-      for (const e of document.querySelectorAll("[id]")) {
-        if (e.id !== targetFragment || e === own) continue;
+      for (const e of idOccurrences(targetFragment)) {
+        if (e === own) continue;
         if ((e.parentElement?.childElementCount ?? 0) <= 1) continue;
         next = own.compareDocumentPosition(e) & Node.DOCUMENT_POSITION_PRECEDING ? "up" : "down";
         break;
@@ -380,16 +397,7 @@ export function ChapterBody({
   return <section className="chapter-sub" data-chapter-path={nodePath}>{body}</section>;
 }
 
-/** One numbered chunk rendered read-only, by the renderer for its (type, format). */
-export function ReadChunk({
-  index,
-  item,
-  anchorBase,
-  slot,
-  documentPath,
-  path,
-  onNavigate,
-}: {
+type ReadChunkProps = {
   index: number | string | readonly (number | string)[];
   item: unknown;
   anchorBase: string;
@@ -399,7 +407,28 @@ export function ReadChunk({
    *  carries no `$yamloverLink`) — the frame a relative link scope resolves against. */
   path?: string;
   onNavigate: (path: string) => void;
-}) {
+};
+
+/** The `index` chain compares by VALUE — the caller builds it fresh every render. */
+const sameIndex = (a: ReadChunkProps["index"], b: ReadChunkProps["index"]): boolean => {
+  if (a === b) return true;
+  if (!Array.isArray(a) || !Array.isArray(b)) return false;
+  return a.length === b.length && a.every((x, i) => x === b[i]);
+};
+
+/** One numbered chunk rendered read-only, by the renderer for its (type, format).
+ *  MEMOIZED on its data: a chapter page re-renders wholesale on every lazy subchapter landing
+ *  (`noteLoad`), and re-parsing every already-rendered marklower chunk each time froze the page
+ *  on large trees (the docs/ scroll profile) — an unchanged chunk must cost nothing. */
+export const ReadChunk = memo(function ReadChunk({
+  index,
+  item,
+  anchorBase,
+  slot,
+  documentPath,
+  path,
+  onNavigate,
+}: ReadChunkProps) {
   const chunk = chunkOf(item, documentPath, path);
   // its path continuation from the page root when it lives under it, else its render slot — an
   // inlined subchapter's chunks are addressed one way on a root page and the other on a subpage
@@ -409,7 +438,10 @@ export function ReadChunk({
       {renderChunkBody(chunk, onNavigate)}
     </ChunkShell>
   );
-}
+}, (a, b) =>
+  a.item === b.item && a.anchorBase === b.anchorBase && a.slot === b.slot &&
+  a.documentPath === b.documentPath && a.path === b.path && a.onNavigate === b.onNavigate &&
+  sameIndex(a.index, b.index));
 
 /** Build a {@link Chunk} (for a renderer's `renderChunk`) from a chapter chunk value/link marker.
  *

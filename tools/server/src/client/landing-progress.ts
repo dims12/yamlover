@@ -77,3 +77,59 @@ export function useLandingProgress(): TaskInfo | null {
     () => null,
   );
 }
+
+// ---------------------------------------------------------------------------- //
+// THE UNFOLD CHIP — a chapter page inlining its subchapters (one fetch per node, level by
+// level) shows the same task-strip visibility even WITHOUT a deep link: an in-flight counter
+// around every InlineSubchapter fetch. Counts, not totals — the tree's size is unknown until
+// the unfold finishes, so the bar sweeps indeterminate while the count ticks up.
+// ---------------------------------------------------------------------------- //
+
+let unfoldState: TaskInfo | null = null;
+let unfoldPending = 0;
+let unfoldDone = 0;
+let unfoldClearTimer: ReturnType<typeof setTimeout> | undefined;
+const unfoldListeners = new Set<() => void>();
+
+function emitUnfold(next: TaskInfo | null): void {
+  unfoldState = next;
+  unfoldListeners.forEach((l) => l());
+}
+
+export function noteUnfoldStart(): void {
+  unfoldPending++;
+  clearTimeout(unfoldClearTimer);
+  emitUnfold({
+    id: "client:unfold",
+    label: "unfolding",
+    state: "running",
+    progress: { done: unfoldDone },
+    startedAt: unfoldState?.state === "running" ? unfoldState.startedAt : Date.now(),
+  });
+}
+
+export function noteUnfoldFinish(): void {
+  unfoldPending = Math.max(0, unfoldPending - 1);
+  unfoldDone++;
+  if (unfoldPending > 0) {
+    emitUnfold(unfoldState === null ? null : { ...unfoldState, progress: { done: unfoldDone } });
+    return;
+  }
+  // drained — show the final count briefly, then drop and reset
+  emitUnfold(unfoldState === null ? null : {
+    ...unfoldState,
+    state: "done",
+    progress: { done: unfoldDone, total: unfoldDone },
+    finishedAt: Date.now(),
+  });
+  clearTimeout(unfoldClearTimer);
+  unfoldClearTimer = setTimeout(() => { unfoldDone = 0; emitUnfold(null); }, 2000);
+}
+
+export function useUnfoldProgress(): TaskInfo | null {
+  return useSyncExternalStore(
+    (l) => { unfoldListeners.add(l); return () => unfoldListeners.delete(l); },
+    () => unfoldState,
+    () => null,
+  );
+}

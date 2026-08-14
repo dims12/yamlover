@@ -18,7 +18,7 @@ const formatTravelsTo = (f: Format, concrete?: string | null) =>
   isStandardFormat(f) && (f !== "json5p" || isJsonConcrete(concrete));
 import { canonPath, formatFromUrl, isAncestorPath, pathFromUrl, segsToStr, strToSegs, writeUrl } from "./paths";
 import { navigateToFragment } from "./renderers/headings";
-import { useLandingProgress } from "./landing-progress";
+import { useLandingProgress, useUnfoldProgress } from "./landing-progress";
 import { getTocPresence, useTocCurrentPath } from "./toc-presence";
 import { findNode, loadedDepth, mergeAt, replaceChildren } from "./tree-model";
 import { TocFilterCtx, useTocFilterSession } from "./toc-filter-session";
@@ -174,9 +174,11 @@ export function App() {
       setTimeout(() => setTasks((prev) => prev.filter((x) => x.id !== t.id)), 3000);
     }
   }, []);
-  // …and the CLIENT's own deep-link landing chip (a `#/…` anchor still unfolding) rides the
-  // same strip, published by useHashScroll through the landing bus.
+  // …and the CLIENT's own chips ride the same strip: the deep-link landing (a `#/…` anchor
+  // still unfolding, via useHashScroll) and the chapter unfold (in-flight subchapter fetches).
   const landing = useLandingProgress();
+  const unfolding = useUnfoldProgress();
+  const clientTasks = [...(unfolding ? [unfolding] : []), ...(landing ? [landing] : [])];
 
   // Whether the initial URL pinned a representation; if not, a landing node that
   // has a renderer opens in its rendered view (decided once the TOC loads).
@@ -613,7 +615,7 @@ export function App() {
         {/* the right group is pinned to the topbar's right edge (via `.topbar-right`), so the
             task strip always hugs the RHS pane. */}
         <div className="topbar-right">
-          <TaskStrip tasks={landing ? [...tasks, landing] : tasks} />
+          <TaskStrip tasks={clientTasks.length ? [...tasks, ...clientTasks] : tasks} />
         </div>
       </header>
 

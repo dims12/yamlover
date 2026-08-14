@@ -27,6 +27,7 @@
 
 import { useEffect, useState } from "react";
 import { fetchNode, NodeJson } from "../api";
+import { noteUnfoldFinish, noteUnfoldStart } from "../landing-progress";
 import { ParseErrorBanner } from "../ParseErrorBanner";
 import { asLink, asRef } from "../render";
 import { canonPath, strToSegs } from "../paths";
@@ -129,9 +130,11 @@ export function InlineSubchapter({
     let cancelled = false;
     // depth 1 — the shape the chapter body renderer is written against (its own chunks as link
     // markers, its subchapters inlined by the next level of this component)
+    noteUnfoldStart(); // the task-strip "unfolding" chip counts the in-flight landings
     fetchNode(target!, 1)
       .then((n) => { if (!cancelled) { setNode(n); onLoaded?.(); } })
-      .catch((e) => { if (!cancelled) setError((e as Error).message); });
+      .catch((e) => { if (!cancelled) setError((e as Error).message); })
+      .finally(noteUnfoldFinish);
     return () => { cancelled = true; };
     // `onLoaded` is a stable page-level notifier — listing it would refetch on every render
     // eslint-disable-next-line react-hooks/exhaustive-deps
