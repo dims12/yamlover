@@ -60,15 +60,15 @@ export function displayKind(s: Store, p: string, row: NodeRow): Kind {
   return ents.some((e) => e.label === null) ? "mix" : "object";
 }
 
-// Internal kind → the JSON-Schema-style `type:` name shown in the header/TOC and the schema view.
-// The YAML-tag shapes `!!mix`/`!!var` get full-word schema names (cf. !!seq→array, !!map→object):
-// `mix` → "mixed", `omni` → "variant". Scalars resolve to their JSON-ish primitive type.
+// Internal kind → the `type:` name shown in the header/TOC and the schema view — the ruled
+// yamlover spellings (docs/meta/facets): `mix` → "kseq", `omni` → "omni"; the long JSON-Schema
+// aliases ("mixed", "variant") read forever on input but are no longer emitted. Scalars
+// resolve to their JSON-ish primitive type.
 export function typeName(s: Store, p: string, row: NodeRow): string {
   const k = displayKind(s, p, row);
   if (k === "scalar") return scalarType(row.value);
-  if (k === "mix") return "mixed";
-  if (k === "omni") return "variant";
-  return k; // object | array | binary
+  if (k === "mix") return "kseq";
+  return k; // object | array | binary | omni
 }
 
 export function scalarType(v: unknown): string {

@@ -222,8 +222,10 @@ describe("annotating a node never changes how it reads", () => {
     // both matchers demand a `scalar` ROW (query.ts) — so the row kept its type and gained a child
     const q = (m: string): string[] => call(h, "/api/query", { q: `...:!!<type: ${m}>`, path: ":" }).json.results;
     expect(q("string")).toContain(":chap.yo:title");
-    expect(q("variant")).toContain(":chap.yo:title"); // scalar + own child = variant
+    expect(q("variant")).toContain(":chap.yo:title"); // scalar + own child = omni (long alias reads forever)
     expect(q("variant")).not.toContain(":chap.yo:other"); // an unannotated sibling is not
+    expect(q("omni")).toContain(":chap.yo:title"); // the ruled short spelling matches the same rows
+    expect(q("omni")).not.toContain(":chap.yo:other");
   });
 
   it("a chapter keeps its title after the title itself is annotated", async () => {

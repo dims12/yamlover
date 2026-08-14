@@ -23,7 +23,7 @@ const ref = (path: string | null, text = "→") => ({ $yamloverRef: { text, path
 
 const tableNode = (value: unknown): NodeJson => ({
   path: ":t",
-  type: "variant",
+  type: "omni",
   format: "x-yamlover-table",
   concrete: null,
   title: null,

@@ -392,7 +392,7 @@ function metaOk(s: Store, p: string, t: Portion & { kind: 'meta' }): boolean {
       case 'integer': return row.type === 'scalar' && typeof row.value === 'number' && Number.isInteger(row.value as number);
       case 'number': return row.type === 'scalar' && typeof row.value === 'number';
       case 'boolean': return row.type === 'scalar' && typeof row.value === 'boolean';
-      case 'variant': return row.type === 'scalar' && hasOwnChild(s, p);
+      case 'variant': case 'omni': return row.type === 'scalar' && hasOwnChild(s, p);
       default: return false;
     }
   }

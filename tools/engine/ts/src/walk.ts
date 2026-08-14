@@ -1070,7 +1070,7 @@ function applySchemas(root: Node, defsRoot: string, builtinDefs?: Map<string, No
   const isContainerSchema = (n: Node): boolean =>
     !!field(n, 'members') || !!field(n, 'others') ||
     !!field(n, 'properties') || !!field(n, 'items') || !!field(n, 'allOf') ||
-    ['object', 'variant', 'mixed', 'array'].includes(str(n, 'type') ?? '');
+    ['object', 'variant', 'omni', 'mixed', 'kseq', 'array'].includes(str(n, 'type') ?? '');
   // A mapping is a container; so is an omni scalar that carries BODY entries (a titled
   // subchapter: its self-value is the title, its entries the body) — and so is a DIRECTORY-
   // backed document whatever its body momentarily holds: storage is shape, and a directory
@@ -1132,13 +1132,14 @@ function applySchemas(root: Node, defsRoot: string, builtinDefs?: Map<string, No
     // attach this node's derived (type, format): an explicit schema `format`, else an object /
     // variant / mixed schema hosted as `$defs/<name>` → `x-yamlover-<name>` (chapter, task, tag, …).
     const stype = str(s, 'type');
-    const named = name && (stype === 'object' || stype === 'variant' || stype === 'mixed' || !!field(s, 'allOf'));
+    const named = name && (stype === 'object' || stype === 'variant' || stype === 'omni' ||
+      stype === 'mixed' || stype === 'kseq' || !!field(s, 'allOf'));
     const fmt = str(s, 'format') ?? (named ? `x-yamlover-${name}` : null);
     // record the derived format WITHOUT touching `schema` — the authored `!!<…>` tag (a pointer)
     // must survive for views/serialization; the derived typing rides its own meta slot
     if (fmt && !hasFormat(inst)) inst.meta = { ...inst.meta, derivedFormat: fmt };
-    // recurse structurally — `variant`/`mixed` carry keyed fields exactly like `object`
-    // (docs/meta/facets: variant = !!var, mixed = !!mix), so member clauses propagate through
+    // recurse structurally — `omni`/`kseq` (long aliases `variant`/`mixed`) carry keyed fields
+    // exactly like `object` (docs/meta/facets), so member clauses propagate through
     // them too (e.g. a tag taxonomy whose tags hold their description as a BODY still tags
     // every sub-tag). A `variant`/`mixed` node ALSO carries a positional body on the ordinal
     // facet, so the sweep propagates alongside them.
@@ -1154,7 +1155,8 @@ function applySchemas(root: Node, defsRoot: string, builtinDefs?: Map<string, No
     const membersNode = members && !isPointer(members) ? members : null;
     const others = field(s, 'others');
     const keylessClauses = (membersNode?.entries ?? []).filter((e) => e.key == null).map((e) => e.value);
-    if (stype === 'object' || stype === 'variant' || stype === 'mixed' || stype === 'array' ||
+    if (stype === 'object' || stype === 'variant' || stype === 'omni' ||
+        stype === 'mixed' || stype === 'kseq' || stype === 'array' ||
         membersNode || others || field(s, 'items')) {
       const props = field(s, 'properties');
       const addl = field(s, 'additionalProperties'); // legacy sweep for keys not in `properties`

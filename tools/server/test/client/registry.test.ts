@@ -277,14 +277,14 @@ describe("renderer registry (facet predicates)", () => {
   it("a chapter's TOC view surfaces the subchapter-format body elements and hides prose chunks", () => {
     const chapter = tnode({
       path: ":",
-      type: "variant",
+      type: "omni",
       format: "x-yamlover-chapter",
       hasChildren: true,
       children: [
         // body elements are DIRECT children now: prose chunks + subchapters, interleaved
         tnode({ path: ":[1]", type: "string", format: "text/marklower" }),
-        tnode({ path: ":[2]", label: "Dogs", type: "variant", format: "x-yamlover-chapter", hasChildren: true }),
-        tnode({ path: ":[3]", label: "Cats", type: "variant", format: "x-yamlover-chapter", hasChildren: true }),
+        tnode({ path: ":[2]", label: "Dogs", type: "omni", format: "x-yamlover-chapter", hasChildren: true }),
+        tnode({ path: ":[3]", label: "Cats", type: "omni", format: "x-yamlover-chapter", hasChildren: true }),
       ],
     });
     const view = tocView(chapter);
@@ -298,7 +298,7 @@ describe("renderer registry (facet predicates)", () => {
     const chapter = tnode({
       path: ":[2]",
       label: "Fish",
-      type: "variant",
+      type: "omni",
       format: "x-yamlover-chapter",
       hasChildren: true,
       children: [tnode({ path: ":[2][1]", type: "string", format: "text/marklower" })], // loaded, but no subchapters
@@ -310,7 +310,7 @@ describe("renderer registry (facet predicates)", () => {
 
   it("a chapter whose subchapters aren't loaded yet is expandable but not loaded", () => {
     const chapter = tnode({
-      type: "variant",
+      type: "omni",
       format: "x-yamlover-chapter",
       hasChildren: true,
       children: [], // not loaded yet

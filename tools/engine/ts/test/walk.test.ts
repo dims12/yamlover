@@ -305,6 +305,40 @@ test('schema propagation: `items: {anyOf:[chapter, chunk]}` routes container→c
   rmSync(root, { recursive: true, force: true });
 });
 
+test('alias acceptance: schemas authored `type: omni` / `type: kseq` derive formats like variant/mixed', () => {
+  // The ruled short spellings (docs/meta/facets: omni was variant, kseq was mixed) must drive
+  // the same $defs naming and recursion as the long aliases they replace.
+  const root = mkdtempSync(join(tmpdir(), 'yo-alias-'));
+  mkdirSync(join(root, '$defs'), { recursive: true });
+  writeFileSync(join(root, '$defs', 'chapter'),
+    'type: omni\nvalue:\n  type: string\nitems:\n  anyOf:\n    - *:: yamlover: $defs: chapter\n    - *:: yamlover: $defs: chunk\n');
+  writeFileSync(join(root, '$defs', 'chunk'), 'type: [string, binary]\nformat: text/marklower\n');
+  writeFileSync(join(root, '$defs', 'kthing'), 'type: kseq\n');
+  writeFileSync(join(root, 'doc.yo'), [
+    '!!<*yamlover: $defs: chapter>',
+    'T',
+    '- a leaf chunk',
+    '- Sub',
+    '  - deep chunk',
+    '',
+  ].join('\n'));
+  writeFileSync(join(root, 'k.yo'), [
+    '!!<*yamlover: $defs: kthing>',
+    'head',
+    '- keyless',
+    '',
+  ].join('\n'));
+  const s = new Store(':memory:');
+  s.indexDocument(walkDir(root));
+  assert.equal(s.node(':doc.yo')?.format, 'x-yamlover-chapter'); // omni names the def like variant did
+  assert.equal(s.node(':doc.yo:0')?.format, 'text/marklower'); // leaf → chunk branch
+  assert.equal(s.node(':doc.yo:1')?.format, 'x-yamlover-chapter'); // titled subchapter → chapter branch
+  assert.equal(s.node(':doc.yo:1:0')?.format, 'text/marklower'); // recursion continues through omni
+  assert.equal(s.node(':k.yo')?.format, 'x-yamlover-kthing'); // kseq names the def like mixed did
+  s.close();
+  rmSync(root, { recursive: true, force: true });
+});
+
 test('table cells: leaf→chunk, untagged container→CHAPTER, a TAGGED table cell→table (docs/documents/marklower/tables/cells)', () => {
   // The cell union is anyOf:[chunk, chapter, table] with chapter the FIRST container branch — the
   // table schema consumes exactly TWO nesting levels (rows, cells), so an untagged container cell

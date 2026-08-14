@@ -1,7 +1,7 @@
 {
   ":": {
     "path": ":",
-    "type": "variant",
+    "type": "omni",
     "format": "x-yamlover-chapter",
     "valueType": "string",
     "hasKeyed": true,
@@ -556,7 +556,7 @@
   },
   ":appendix": {
     "path": ":appendix",
-    "type": "mixed",
+    "type": "kseq",
     "format": "x-yamlover-chapter",
     "valueType": null,
     "hasKeyed": true,
@@ -666,7 +666,7 @@
   },
   ":part-one": {
     "path": ":part-one",
-    "type": "variant",
+    "type": "omni",
     "format": "x-yamlover-chapter",
     "valueType": "string",
     "hasKeyed": true,
@@ -879,7 +879,7 @@
   },
   ":part-one:01-deep": {
     "path": ":part-one:01-deep",
-    "type": "variant",
+    "type": "omni",
     "format": "x-yamlover-chapter",
     "valueType": "string",
     "hasKeyed": false,
@@ -991,7 +991,7 @@
   },
   ":part-one:01-deep:item01": {
     "path": ":part-one:01-deep:item01",
-    "type": "variant",
+    "type": "omni",
     "format": "x-yamlover-chapter",
     "valueType": "string",
     "hasKeyed": false,
@@ -1069,7 +1069,7 @@
   },
   ":part-one:item01": {
     "path": ":part-one:item01",
-    "type": "variant",
+    "type": "omni",
     "format": "x-yamlover-chapter",
     "valueType": "string",
     "hasKeyed": false,
@@ -1214,7 +1214,7 @@
   },
   ":part-one:stray": {
     "path": ":part-one:stray",
-    "type": "variant",
+    "type": "omni",
     "format": null,
     "valueType": "string",
     "hasKeyed": false,
@@ -1269,7 +1269,7 @@
   },
   ":part-two": {
     "path": ":part-two",
-    "type": "variant",
+    "type": "omni",
     "format": "x-yamlover-chapter",
     "valueType": "string",
     "hasKeyed": true,
@@ -1463,7 +1463,7 @@
   },
   ":part-two:1": {
     "path": ":part-two:1",
-    "type": "mixed",
+    "type": "kseq",
     "format": null,
     "valueType": null,
     "hasKeyed": true,
@@ -1897,7 +1897,7 @@
   },
   ":part-two:3": {
     "path": ":part-two:3",
-    "type": "variant",
+    "type": "omni",
     "format": "text/marklower",
     "valueType": "string",
     "hasKeyed": true,

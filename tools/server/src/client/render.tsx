@@ -493,8 +493,8 @@ function linkLabel(link: Link): string {
   const n = link.count ?? 0;
   if (link.kind === "array") return `[ array with ${n} ${n === 1 ? "item" : "items"} ]`;
   if (link.kind === "binary") return `< binary of ${link.size ?? 0} bytes >`;
-  if (link.kind === "mix") return `{ mixed with ${n} ${n === 1 ? "entry" : "entries"} }`;
-  if (link.kind === "omni") return `{ variant ${scalarLabel(link.value, "yaml")} + ${n} ${n === 1 ? "field" : "fields"} }`;
+  if (link.kind === "mix") return `{ kseq with ${n} ${n === 1 ? "entry" : "entries"} }`;
+  if (link.kind === "omni") return `{ omni ${scalarLabel(link.value, "yaml")} + ${n} ${n === 1 ? "field" : "fields"} }`;
   return `{ object with ${n} ${n === 1 ? "property" : "properties"} }`;
 }
 
@@ -532,8 +532,8 @@ function foldSummary(value: unknown): string {
   const mixed = asMixed(value);
   if (mixed) {
     const n = mixed.entries.length;
-    if (mixed.kind === "omni") return `{ variant ${scalarLabel(mixed.value, "yaml")} + ${n} ${n === 1 ? "field" : "fields"} }`;
-    return `{ mixed with ${n} ${n === 1 ? "entry" : "entries"} }`;
+    if (mixed.kind === "omni") return `{ omni ${scalarLabel(mixed.value, "yaml")} + ${n} ${n === 1 ? "field" : "fields"} }`;
+    return `{ kseq with ${n} ${n === 1 ? "entry" : "entries"} }`;
   }
   if (Array.isArray(value)) {
     const n = value.length;

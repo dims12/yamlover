@@ -16,7 +16,7 @@ const ref = (path: string | null, text = "*x") => ({ $yamloverRef: { text, path 
 
 const graphNode = (value: unknown, comments?: NodeJson["comments"]): NodeJson => ({
   path: ":g",
-  type: "variant",
+  type: "omni",
   format: "x-yamlover-xyflow",
   concrete: null,
   documentPath: ":g", // a standalone tagged document: its root IS the graph

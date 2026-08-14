@@ -38,7 +38,7 @@ const chunk = (i: number, value: string) => ({
 function chapterNode(chunks: string[], title = "My Title", description = "My subtitle"): NodeJson {
   return {
     path: ":doc",
-    type: "variant",
+    type: "omni",
     format: "x-yamlover-chapter",
     concrete: "yamlover",
     documentPath: ":doc",

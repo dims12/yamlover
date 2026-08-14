@@ -89,7 +89,7 @@ function kindOf(node: Node, own: Own[]): Kind {
 }
 
 const typeNameOf = (k: Kind, self: unknown): string =>
-  k === "scalar" ? scalarType(self) : k === "mix" ? "mixed" : k === "omni" ? "variant" : k;
+  k === "scalar" ? scalarType(self) : k === "mix" ? "kseq" : k;
 
 function facetsOf(node: Node, own: Own[]): { valueType: string | null; hasKeyed: boolean; hasOrdinal: boolean } {
   const ordinal = (o: Own): boolean => o.e.key === null || o.bucket.anchorKey !== undefined; // null label = keyless (the store's rule)

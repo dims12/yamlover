@@ -129,7 +129,7 @@ describe("NodeView", () => {
       // (3) a chapter gets its own depth 1 (its body elements are direct children), not the setting 6.
       // A FILE-backed chapter's settle fetch is unlimited, so it refetches at exactly 1.
       mNode.mockReset();
-      mNode.mockResolvedValue({ path: ":c", type: "variant", format: "x-yamlover-chapter", concrete: "file/yamlover",
+      mNode.mockResolvedValue({ path: ":c", type: "omni", format: "x-yamlover-chapter", concrete: "file/yamlover",
         title: null, description: null, value: { $yamloverMixed: { kind: "mix", entries: [] } } });
       render(<NodeView path=":c" format="chapter" onFormat={() => {}} onNavigate={() => {}} />);
       await waitFor(() => expect(mNode).toHaveBeenCalledWith(":c", 1));
@@ -174,7 +174,7 @@ describe("NodeView", () => {
     // markers and a multiline chunk rendered as invalid inline multiline text. No `?depth=` → default `.inf`.
     window.history.replaceState({}, "", "/");
     mNode.mockReset();
-    mNode.mockResolvedValue({ path: ":66", type: "variant", format: "x-yamlover-chapter", concrete: "dir/.yo",
+    mNode.mockResolvedValue({ path: ":66", type: "omni", format: "x-yamlover-chapter", concrete: "dir/.yo",
       title: null, description: null, value: { $yamloverMixed: { kind: "mix", entries: [] } } });
     render(<NodeView path=":66" format="yamlover" onFormat={() => {}} onNavigate={() => {}} />);
     await waitFor(() => expect(mNode).toHaveBeenCalledWith(":66", null)); // .inf refetch past the depth-1 settle
@@ -307,7 +307,7 @@ describe("NodeView", () => {
   });
 
   it("an editable (chapter) page shows a captioned Edit toggle leading the buttons (after the chips) that unlocks on click", async () => {
-    mNode.mockResolvedValue({ path: ":c", type: "variant", format: "x-yamlover-chapter", concrete: "file/yamlover",
+    mNode.mockResolvedValue({ path: ":c", type: "omni", format: "x-yamlover-chapter", concrete: "file/yamlover",
       title: "Doc", description: null, value: { $yamloverMixed: { kind: "mix", entries: [{ key: "title", value: "Doc" }] } } });
     render(<NodeView path=":c" format="chapter" onFormat={() => {}} onNavigate={() => {}} />);
 
@@ -406,7 +406,7 @@ describe("NodeView", () => {
     // the 56-array-of-files shape: three members named by the body (anchor: true), one file on
     // disk the body never referenced — a keyed-only tail, never granted a position
     mNode.mockResolvedValue({
-      path: ":d", type: "mixed", concrete: "dir", hasKeyed: true, hasOrdinal: true,
+      path: ":d", type: "kseq", concrete: "dir", hasKeyed: true, hasOrdinal: true,
       title: null, description: null,
       value: {
         $yamloverMixed: {
@@ -437,7 +437,7 @@ describe("chapter media drop — targets the ENCLOSING chapter section", () => {
   const chapterPage = () => {
     const sub = mixed({ kind: "omni", value: "Dogs", selfAt: 0, entries: [{ key: null, value: "woof" }] });
     mNode.mockResolvedValue({
-      path: ":doc", type: "mixed", format: "x-yamlover-chapter", concrete: "dir/.yo", documentPath: ":doc",
+      path: ":doc", type: "kseq", format: "x-yamlover-chapter", concrete: "dir/.yo", documentPath: ":doc",
       title: "Book", description: null,
       value: mixed({
         kind: "omni", value: "Book", selfAt: 0, format: "x-yamlover-chapter",

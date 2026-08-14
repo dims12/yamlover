@@ -42,7 +42,7 @@ test('67-pdf-tags: an embedded-tagged PDF is an omni-blob (binary value + owned 
     const ents = s.entries(p);
     assert.ok(ents.some((e) => e.kind === 'contain' && e.label === 'yamlover-annotations'), `${file}: owns yamlover-annotations`);
     assert.equal(displayKind(s, p, row!), 'omni', `${file} displayKind`);
-    assert.equal(typeName(s, p, row!), 'variant', `${file} type`);
+    assert.equal(typeName(s, p, row!), 'omni', `${file} type`);
   }
   s.close();
 });
@@ -69,13 +69,13 @@ test('a blob with ONLY reverse members stays binary — reverse members never pr
   s.close();
 });
 
-test('a node that OWNS fields is a variant (omni) — 07-omni.yo', () => {
+test('a node that OWNS fields is an omni — 07-omni.yo', () => {
   const s = new Store(':memory:');
   s.indexDocument(parseYamlover(readFileSync(join(examples, '07-omni.yo'), 'utf8'), '07-omni.yo'));
   const row = s.node(':');
   assert.ok(row);
   assert.ok(s.entries(':').some((e) => e.kind !== 'back'), 'owns at least one forward/contain entry');
   assert.equal(displayKind(s, ':', row!), 'omni');
-  assert.equal(typeName(s, ':', row!), 'variant');
+  assert.equal(typeName(s, ':', row!), 'omni');
   s.close();
 });

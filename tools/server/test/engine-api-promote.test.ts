@@ -52,7 +52,7 @@ describe("scalar-first, grow-by-one → directories (the EmptyYamlover shape)", 
     // the root, whose body is now EMPTY (world moved out), must NOT read as a spurious null-valued
     // omni — an empty body.yo is an empty overlay, not a self-value (walk.ts applyBody)
     const rootJson = (await nodeJson(h as never, { path: ":" })).json as { type: string; value: unknown };
-    expect(rootJson.type).toBe("object"); // a plain mapping, not "variant" (omni)
+    expect(rootJson.type).toBe("object"); // a plain mapping, not "omni"
     expect((rootJson.value as { $yamloverMixed?: { value: unknown } }).$yamloverMixed?.value).toBeUndefined();
 
     // the whole tree reads back correctly through the resolver (leaves by direct path)

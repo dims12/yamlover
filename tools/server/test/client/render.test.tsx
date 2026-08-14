@@ -363,7 +363,7 @@ describe("Render", () => {
     expect(screen.getByText("tag")).toBeTruthy(); // its field renders
     // folding it shows the omni summary
     fireEvent.click(document.querySelector("button.fold-gutter") as HTMLButtonElement);
-    expect(screen.getByText("{ variant null + 1 field }")).toBeTruthy();
+    expect(screen.getByText("{ omni null + 1 field }")).toBeTruthy();
   });
 
   it("renders an omni self-value at its authored position (selfAt) among the entries — order preserved", () => {

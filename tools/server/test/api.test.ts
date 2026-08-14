@@ -122,10 +122,10 @@ describe("api endpoints (engine-backed)", () => {
     }), { gitignore: false });
     await h.ready;
     const { json } = (await nodeJson(h, { path: ":pic.png", binary: "1" }));
-    // the png owns embedded overlay entries (fragments), so it reads as `variant` — but its
+    // the png owns embedded overlay entries (fragments), so it reads as `omni` — but its
     // binary VALUE facet is intact, so ?binary=1 still streams the bytes. The omni projection is
     // KEPT: the bytes fill the mixed marker's self-value slot, alongside the overlay entries.
-    expect(json.type).toBe("variant");
+    expect(json.type).toBe("omni");
     const mixed = json.value.$yamloverMixed;
     expect(mixed.value.$yamloverBinary.format).toBe("image/png");
     expect(Buffer.from(mixed.value.$yamloverBinary.base64, "base64").toString()).toBe("pretend-png-bytes");

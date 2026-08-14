@@ -77,7 +77,7 @@ describe("/api/json — positional prefix (dir-backed pointer-array body)", () =
   it("facets report the prefix as ordinal and only the remainder as keyed", async () => {
     const h = await handlers(TREE_56);
     const json = (await nodeJson(h, { path: ":d" })).json;
-    expect(json.type).toBe("mixed");
+    expect(json.type).toBe("kseq");
     expect(json.hasOrdinal ?? json.facets?.hasOrdinal).not.toBe(false);
   });
 });

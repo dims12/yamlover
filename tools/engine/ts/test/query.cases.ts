@@ -155,6 +155,8 @@ export const CASES: QueryCase[] = [
     note: 'the user’s combo: an omni node with value 5 AND key scale; walk continues' },
   { q: ': rating: !!<type: variant>', fixture: '06-tour', expect: [':rating'],
     note: 'META’s name for value-plus-fields' },
+  { q: ': rating: !!<type: omni>', fixture: '06-tour', expect: [':rating'],
+    note: 'the ruled short spelling; `variant` reads forever as its alias' },
   { q: 'chief', fixture: '06-tour', expect: [':boss'],
     note: 'the &: chief anchor grafts boss as a ROOT key — plain lookup finds it' },
   { q: '?', fixture: '06-tour', from: ':team', expect: [':boss'],

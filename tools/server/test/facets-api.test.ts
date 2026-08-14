@@ -31,7 +31,7 @@ describe("type facets in /api/json", () => {
     expect((await callBody(h, "POST", "/api/annotate", { target: ":note.yo", tag: TAG })).status).toBe(201);
 
     const j = (await nodeJson(h, { path: ":note.yo" })).json;
-    expect(j.type).toBe("variant"); // the KIND flipped to omni…
+    expect(j.type).toBe("omni"); // the KIND flipped to omni…
     expect(j.format).toBe("text/markdown"); // …but the value facet's format SURVIVES
     expect(j.valueType).toBe("string"); // and its value type
     expect(j.hasKeyed).toBe(true); // it now owns the yamlover-annotations element

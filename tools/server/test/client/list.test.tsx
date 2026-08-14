@@ -16,7 +16,7 @@ const marker = (entries: { key: string | null; value: unknown }[], format?: stri
 
 const listNode = (format: string, value: unknown): NodeJson => ({
   path: ":l",
-  type: "variant",
+  type: "omni",
   format,
   concrete: null,
   title: null,

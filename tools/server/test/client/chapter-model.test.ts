@@ -12,7 +12,7 @@ const linkedImage = (targetPath: string) => ({
 });
 /** A subchapter body element — a nested chapter, surfaced as a read-only navigable link. */
 const subchapter = (base: string, i: number, title: string) => ({
-  $yamloverLink: { kind: "mix", type: "variant", path: `${base}:${i}`, format: "x-yamlover-chapter", title },
+  $yamloverLink: { kind: "mix", type: "omni", path: `${base}:${i}`, format: "x-yamlover-chapter", title },
 });
 
 /** A titled chapter is FULLY OMNI (docs/documents/chapter): the title is the marker's `value` (the node's
@@ -298,7 +298,7 @@ describe("diffChapter", () => {
   it("flowText peels an annotation overlay off a title", () => {
     const omni = { $yamloverMixed: { kind: "omni", entries: [{ key: "yamlover-annotations", value: [] }], value: "The Title" } };
     expect(flowText(omni)).toBe("The Title");
-    const omniLink = { $yamloverLink: { kind: "omni", type: "variant", path: ":doc:title", concrete: "yamlover", value: "The Title" } };
+    const omniLink = { $yamloverLink: { kind: "omni", type: "omni", path: ":doc:title", concrete: "yamlover", value: "The Title" } };
     expect(flowText(omniLink)).toBe("The Title");
   });
 });
@@ -335,10 +335,10 @@ describe("bodyKindOf — inlined containers", () => {
   it("an UNTAGGED container LINK (depth boundary of a not-yet-stamped chapter) is a subchapter too", () => {
     // exactly what the server sends for a nested container in a tagless document: an omni link
     // with ordinal entries and NO format — the structural rule must hold at the boundary as well
-    const untaggedOmni = { $yamloverLink: { kind: "omni", type: "variant", hasKeyed: false, hasOrdinal: true, path: "[4]", concrete: "yamlover", count: 4, value: "Подчасть" } };
+    const untaggedOmni = { $yamloverLink: { kind: "omni", type: "omni", hasKeyed: false, hasOrdinal: true, path: "[4]", concrete: "yamlover", count: 4, value: "Подчасть" } };
     expect(bodyKindOf(untaggedOmni)).toBe("subchapter");
     // …while an untagged link with only KEYED entries (an annotated scalar's overlays) stays a chunk
-    const annotatedLink = { $yamloverLink: { kind: "omni", type: "variant", hasKeyed: true, hasOrdinal: false, path: "[2]", concrete: "yamlover", value: "prose" } };
+    const annotatedLink = { $yamloverLink: { kind: "omni", type: "omni", hasKeyed: true, hasOrdinal: false, path: "[2]", concrete: "yamlover", value: "prose" } };
     expect(bodyKindOf(annotatedLink)).toBe("chunk");
   });
 
@@ -368,7 +368,7 @@ describe("bodyKindOf — inlined containers", () => {
 
   it("a `!!yo` mark trumps everything — a DATA island at both depths, whatever the shape", () => {
     // the depth-boundary link marker (the normal chapter fetch)
-    const yoLink = { $yamloverLink: { kind: "omni", type: "variant", hasKeyed: true, hasOrdinal: true, path: "[3]", concrete: "yamlover", yo: true, value: 5 } };
+    const yoLink = { $yamloverLink: { kind: "omni", type: "omni", hasKeyed: true, hasOrdinal: true, path: "[3]", concrete: "yamlover", yo: true, value: 5 } };
     expect(bodyKindOf(yoLink)).toBe("data");
     // an inlined marker (a deeper fetch) — yo wins over format AND over the structural rule
     const yoMixed = { $yamloverMixed: { kind: "omni", value: 5, format: "x-yamlover-chapter", yo: true, entries: [{ key: null, value: "solid" }] } };
