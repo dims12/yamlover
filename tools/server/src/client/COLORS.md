@@ -35,7 +35,7 @@ and read washed-out on our darker blue-tinted `--bg` (`#1E1E2E`).
 | `null` / `~` | `.null` | `--jb-keyword` | `#E6914D` | `#CC7832` | `#0033B3` | as `true`/`false` |
 | Structural punctuation `:` `{}` `[]` | `.punct` | `--jb-punct` | `#A9B7C6` | `#A9B7C6` | `#4C4F69` | default text |
 | Comment / `!!binary` note | `.c` | `--jb-comment` | `#808080` | `#808080` | `#8C8C8C` | gray |
-| YAML list dash `-` | `.yaml-dash` | `--jb-dash` | `#808080` | `#808080` | `#8C8C8C` | gray — matches the fold chevron |
+| YAML list dash `-` | `.yaml-dash` | `--jb-punct` | `#A9B7C6` | `#A9B7C6` | `#4C4F69` | plain punctuation (via `.punct`) |
 
 Reference values from the Darcula editor scheme (not currently overridden, kept for context):
 

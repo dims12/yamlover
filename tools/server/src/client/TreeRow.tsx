@@ -3,6 +3,7 @@
 // the chevron toggle, the (type, format, concrete) icon glyph, and the clickable label.
 
 import { DragEvent, MouseEvent, Ref, useState } from "react";
+import { Chevron } from "./chevron";
 import { useHoverPeek } from "../../../yed/src/hover-peek";
 import { TreeNode } from "./api";
 import { dragHasNode, endNodeDrag } from "./dnd";
@@ -94,7 +95,7 @@ export function TreeRow({ node, depth, selected, match, highlighted, merged, fra
           onMouseDown={(e) => e.preventDefault()}
           aria-label={chevron.open ? "collapse" : "expand"}
         >
-          <span className="chevron">›</span>
+          <Chevron />
         </button>
       ) : chevron === "leaf" ? (
         <span className="toggle leaf" />

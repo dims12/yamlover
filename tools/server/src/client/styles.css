@@ -51,7 +51,6 @@
   --jb-keyword: #e6914d; /* true / false / null (orange; Darcula #cc7832) */
   --jb-comment: #808080; /* comments + the `!!binary` note (gray) */
   --jb-punct: #a9b7c6; /* structural punctuation `: { } [ ]` (default text) */
-  --jb-dash: #808080; /* the YAML list dash — gray, like the fold chevron */
 
   /* fragment (region) icon — a handled selection box + centre plus, used as a CSS mask (see
      `.frag-icon`). Black shapes = the opaque alpha the mask reveals the icon color through. */
@@ -103,7 +102,6 @@
   --jb-keyword: #0033b3; /* true / false / null (navy keyword) */
   --jb-comment: #8c8c8c; /* comments */
   --jb-punct: #000000; /* structural punctuation — the light fg */
-  --jb-dash: #8c8c8c; /* the YAML list dash */
 }
 
 * {
@@ -680,16 +678,19 @@ body {
   height: 20px;
   background: none;
   border: none;
-  color: var(--dim);
+  color: var(--fg); /* the mark reads like the text beside it, not dimmed */
   cursor: pointer;
   padding: 0;
   flex: 0 0 auto;
 }
+/* the chevron mark (chevron.tsx — a 2px vector stroke, not a text glyph: the `›` glyph
+   antialiased into fuzz beside ClearType text and rasterized mid-rotation) */
 .toggle .chevron {
-  font-size: 20px;
-  font-weight: 700;
-  line-height: 1;
+  display: block;
   transition: transform 0.12s ease;
+}
+.toggle .chevron svg {
+  display: block;
 }
 .toggle.open .chevron {
   transform: rotate(90deg);
@@ -916,11 +917,7 @@ button.tab:last-of-type {
   position: relative;
   padding-left: 22px;
   margin-left: -14px;
-  /* `overflow-x: auto` makes the computed overflow-y `auto` too, and a TRANSFORMED descendant's
-     bounds count toward the scrollable overflow — a `.yaml-dash` (scale 1.55) on the LAST line
-     overhangs its line box by ~6px, which drew a second, pane-length vertical scrollbar inside
-     the pane's own. The padding swallows the overhang: one scrollbar again. */
-  padding-bottom: 10px;
+  padding-bottom: 10px; /* breathing room under the last line */
 }
 /* a `!!yo` DATA ISLAND in a chapter body: the generic data view framed as deliberate raw
    yamlover — a bordered panel so the mode switch reads as intended, not as a rendering bug */
@@ -1026,15 +1023,15 @@ pre.code.chapter-data {
   color: var(--dim);
   cursor: default;
 }
-/* the YAML array marker, enlarged + bolded so it reads clearly beside the 20px fold chevron. Scaled
-   with a transform (NOT font-size) so its layout cell is unchanged → the monospace columns still
-   line up; brighter than ordinary punctuation. */
+/* the YAML array marker — the punctuation hyphen (`.punct` colors it), stretched LENGTHWISE
+   only: scaleX lengthens the dash to read beside the fold chevron while the stroke keeps its
+   native letter thickness and crisp horizontal edges (the old both-axes scale() thickened AND
+   blurred it; a drawn bar read heavier than the text; the bare glyph was too short). A
+   transform never moves layout: the one-cell column still lines up. */
 .yaml-dash {
   display: inline-block;
-  transform: scale(1.55);
+  transform: scaleX(1.6);
   transform-origin: left center;
-  font-weight: 700; /* same visual weight as the fold chevron */
-  color: var(--jb-dash); /* gray, like the chevron — not bold white */
 }
 /* divider between the relations panel and the value — the SAME hairline as the global header /
    node-bar rules (`var(--line)`, 1px). Negative left margin cancels the code's gutter padding so it

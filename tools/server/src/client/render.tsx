@@ -1,4 +1,5 @@
 import { ReactNode, useState, Fragment } from "react";
+import { Chevron } from "./chevron";
 import { fragmentOf, isAncestorPath, ROOT_FRAGMENT } from "./paths";
 import { segToken } from "../../../parser/ts/src/pathseg.ts";
 import type { CommentBucket, CommentMap } from "./api";
@@ -543,16 +544,17 @@ function foldSummary(value: unknown): string {
   return `{ ${n} ${n === 1 ? "property" : "properties"} }`;
 }
 
-/** The fold chevron for an inline container — the SAME chevron the TOC uses (`›`, rotated 90° when
- *  open). It is a ZERO-WIDTH anchor placed at the START of the container's opening line; its chevron
- *  is absolutely positioned into the left gutter (see `.fold`/`.code` in styles.css), so it sits in
- *  one fixed column at the correct line regardless of nesting depth. */
+/** The fold chevron for an inline container — the SAME chevron the TOC uses (the shared
+ *  {@link Chevron} mark, rotated 90° when open). It is a ZERO-WIDTH anchor placed at the START of
+ *  the container's opening line; its chevron is absolutely positioned into the left gutter (see
+ *  `.fold`/`.code` in styles.css), so it sits in one fixed column at the correct line regardless
+ *  of nesting depth. */
 function FoldToggle({ open, onToggle }: { open: boolean; onToggle: () => void }) {
-  // reuse the TOC's `.toggle`/`.chevron` (so the chevron is IDENTICAL — same `›`, size, weight,
+  // reuse the TOC's `.toggle`/`.chevron` (so the chevron is IDENTICAL — same mark, size,
   // rotation); `.fold-gutter` only repositions it into the code's left gutter (see styles.css)
   return (
     <button type="button" className={"toggle fold-gutter" + (open ? " open" : "")} aria-label={open ? "collapse" : "expand"} onClick={onToggle}>
-      <span className="chevron">›</span>
+      <Chevron />
     </button>
   );
 }
