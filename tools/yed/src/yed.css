@@ -91,7 +91,7 @@
    it), stretched LENGTHWISE only — scaleX lengthens the dash while the stroke keeps its native
    letter thickness and crisp edges (both-axes scale() thickened and blurred it; the bare glyph
    was too short) */
-.y2-dash { display: inline-block; transform: scaleX(1.6); transform-origin: left center; }
+.y2-dash { display: inline-block; font-weight: 700; transform: scaleX(1.6); transform-origin: left center; }
 .y2-gapslot { font: inherit; color: var(--dim, #8c959f); background: transparent; border: none; padding: 0 1px; cursor: text; user-select: none; }
 .y2-cell.y2-gap.y2-active .y2-gapslot { color: var(--accent, #0969da); animation: y2blink 1s step-end infinite; }
 @keyframes y2blink { 50% { opacity: .2; } }

@@ -1030,6 +1030,8 @@ pre.code.chapter-data {
    transform never moves layout: the one-cell column still lines up. */
 .yaml-dash {
   display: inline-block;
+  font-weight: 700; /* the marker sits a step heavier than the letters — but NATIVE bold, which
+                       rasterizes crisp; only the two-axis scale() ever blurred it */
   transform: scaleX(1.6);
   transform-origin: left center;
 }
