@@ -17,6 +17,7 @@ export interface TreeRowProps {
   match?: boolean; // a query-filter MATCH row (accented label)
   highlighted?: boolean; // the dropdown's keyboard/hover highlight
   merged?: boolean; // the node is VISIBLY rendered on the content pane (toc-presence)
+  inView?: boolean; // …and its anchor sits inside the pane's viewport right now (the band)
   fragCurrent?: boolean; // …and is the one the URL #fragment names (the reading line)
   /** The expand control: a live chevron, a leaf spacer, or nothing (dropdown rows). */
   chevron?: { open: boolean; loading: boolean; onToggle: () => void } | "leaf" | "none";
@@ -31,7 +32,7 @@ export interface TreeRowProps {
   rowRef?: Ref<HTMLDivElement>;
 }
 
-export function TreeRow({ node, depth, selected, match, highlighted, merged, fragCurrent, chevron = "none", detail, onSelect, onContext, drag, drop, rowRef }: TreeRowProps) {
+export function TreeRow({ node, depth, selected, match, highlighted, merged, inView, fragCurrent, chevron = "none", detail, onSelect, onContext, drag, drop, rowRef }: TreeRowProps) {
   const [over, setOver] = useState(false);
   const ti = typeIcon(node.type, node.format, node.concrete);
   const labelChildren = (
@@ -61,7 +62,7 @@ export function TreeRow({ node, depth, selected, match, highlighted, merged, fra
   return (
     <div
       ref={rowRef}
-      className={"tree-row" + (merged ? " merged" : "") + (selected ? " selected" : "") + (fragCurrent ? " frag-current" : "") + (match ? " match" : "") + (highlighted ? " hi" : "") + (over ? " drop-target" : "")}
+      className={"tree-row" + (merged ? " merged" : "") + (inView ? " in-view" : "") + (selected ? " selected" : "") + (fragCurrent ? " frag-current" : "") + (match ? " match" : "") + (highlighted ? " hi" : "") + (over ? " drop-target" : "")}
       style={{ paddingLeft: depth * 14 + 4 }}
       onContextMenu={onContext ? (e) => { e.preventDefault(); onContext(e.clientX, e.clientY); } : undefined}
       draggable={!!drag}

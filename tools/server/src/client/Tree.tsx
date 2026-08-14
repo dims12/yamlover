@@ -65,10 +65,14 @@ export const Tree = memo(function Tree({ node, current, onSelect, onLoadChildren
   const presence = useTocPresence();
   const key = canonPath(node.path);
   const merged = presence.base !== null && (presence.anchors.has(key) || presence.base === key);
+  const inView = presence.visible.has(key); // the on-screen band (yellowish)
   const cur = presence.currentPath;
   const onFragPath = cur !== null && isAncestorPath(node.path, cur);
   const deeperShown = cur !== null && open && kids.some((c) => c.path === cur || isAncestorPath(c.path, cur));
-  const fragCurrent = cur !== null && (cur === key || (onFragPath && !deeperShown));
+  // The BASE row never carries the hand-me-down shade: a row-less node directly under the page
+  // root (a pointer member, a top-level chunk) would flash the shade to the top of the TOC on
+  // every crossing — the on-screen band already says where the reading is.
+  const fragCurrent = cur !== null && (cur === key || (onFragPath && !deeperShown && presence.base !== key));
 
   // Reveal the selection: keep its ancestors open, and scroll it into view.
   useEffect(() => {
@@ -96,9 +100,51 @@ export const Tree = memo(function Tree({ node, current, onSelect, onLoadChildren
     prevFilterMode.current = !!filterMode;
     setOpen(filterMode ? kids.length > 0 : (initialOpen ?? depth === 0) || onPath);
   }, [filterMode, kids.length, initialOpen, depth, onPath]);
+  // selection navigation reveals its row; the READING-LINE row is the band follower's job
+  // below — a per-row `nearest` scroll here would drag the pane back to put that one row at
+  // the very edge, fighting the whole-band alignment
   useEffect(() => {
-    if (selected || fragCurrent) rowRef.current?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
-  }, [selected, fragCurrent]);
+    if (selected) rowRef.current?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+  }, [selected]);
+  // FOLLOW THE BAND: when the on-screen band moves, scroll the TOC minimally so the WHOLE band
+  // is visible — not just its first row peeking over the pane's bottom edge. A band taller than
+  // the pane pins its top. One follower for the whole tree (the root branch); it runs after the
+  // per-row effects above (React runs effects children-first), so it has the last word. Manual
+  // TOC scrolling is untouched — the band only moves when the CONTENT pane scrolls or reflows.
+  const visKey = depth === 0 ? [...presence.visible].sort().join("|") : "";
+  const bandMovedAt = useRef(0); // root only: when the band SET last changed
+  useEffect(() => {
+    if (depth !== 0) return;
+    const align = (): void => {
+      const scroller = rowRef.current?.closest?.(".left-content") as HTMLElement | null;
+      if (!scroller) return;
+      const rows = scroller.querySelectorAll<HTMLElement>(".tree-row.in-view");
+      if (rows.length < 2) return; // a lone row: leave the pane where the reader put it
+      const first = rows[0].getBoundingClientRect();
+      const last = rows[rows.length - 1].getBoundingClientRect();
+      const sc = scroller.getBoundingClientRect();
+      if (first.height === 0 && last.height === 0) return; // no layout (jsdom)
+      const margin = 6;
+      let delta = 0;
+      if (last.bottom > sc.bottom - margin) delta = last.bottom - (sc.bottom - margin); // reveal the tail
+      if (first.top - delta < sc.top + margin) delta = first.top - (sc.top + margin); // …but never lose the head
+      if (delta !== 0) scroller.scrollTop += delta;
+    };
+    if (visKey) { bandMovedAt.current = Date.now(); align(); }
+    // rows for band paths often MATERIALIZE moments later (the fragPath loader inserts TOC
+    // levels) — the band set does not change, so only a DOM observer sees it. Gate re-aligns
+    // to a short window after the band's last move, so manual TOC browsing is never fought.
+    const scroller = rowRef.current?.closest?.(".left-content") as HTMLElement | null;
+    if (!scroller) return;
+    let t: ReturnType<typeof setTimeout> | undefined;
+    const mo = new MutationObserver(() => {
+      if (Date.now() - bandMovedAt.current > 2500) return;
+      clearTimeout(t);
+      t = setTimeout(align, 60);
+    });
+    mo.observe(scroller, { childList: true, subtree: true });
+    return () => { mo.disconnect(); clearTimeout(t); };
+  }, [visKey, depth]);
 
   const toggle = async () => {
     if (!open && expandable && !loaded) {
@@ -122,6 +168,7 @@ export const Tree = memo(function Tree({ node, current, onSelect, onLoadChildren
         match={filterMode && !!node.match}
         merged={merged}
         fragCurrent={fragCurrent}
+        inView={inView}
         chevron={expandable ? { open, loading, onToggle: toggle } : "leaf"}
         onSelect={(e) => onSelect(node.path, e)}
         onContext={onContext ? (x, y) => onContext(node, x, y) : undefined}

@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup, within, act } from "@testing-library/react";
 import { Tree } from "../../src/client/Tree";
-import { clearPresence, publishCurrentFragment, publishPresence } from "../../src/client/toc-presence";
+import { clearPresence, publishCurrentFragment, publishPresence, publishVisibleIds } from "../../src/client/toc-presence";
 import type { TreeNode } from "../../src/client/api";
 
 afterEach(() => {
@@ -136,5 +136,35 @@ describe("Tree", () => {
     });
     expect(screen.getByText("c").closest(".tree-row")?.className).toContain("frag-current");
     expect(screen.getByText("root").closest(".tree-row")?.className).not.toContain("frag-current");
+  });
+
+  it("the hand-me-down shade never lands on the BASE row (a row-less pointer member)", () => {
+    render(<Tree node={tree} current=":" onSelect={() => {}} onLoadChildren={noop} />);
+    act(() => {
+      // `:topDog` has an anchor (a pointer row on the page) but no TOC row — before the guard
+      // its shade fell to the root row, the yellow jumping to the top on every crossing
+      publishPresence(":", new Map([[":a", "/a"], [":topDog", "/topDog"]]));
+      publishCurrentFragment("/topDog");
+    });
+    expect(screen.getByText("root").closest(".tree-row")?.className).not.toContain("frag-current");
+    expect(screen.getByText("a").closest(".tree-row")?.className).not.toContain("frag-current");
+  });
+
+  it("the on-screen band shades LITERALLY the rows whose own line is in the viewport", () => {
+    render(<Tree node={tree} current=":" onSelect={() => {}} onLoadChildren={noop} />);
+    act(() => {
+      publishPresence(":", new Map([[":a", "/a"], [":a:b", "/a/b"], [":c", "/c"]]));
+      publishVisibleIds(["/a/b", "/nonexistent"]); // only b's anchor is inside the viewport
+    });
+    act(() => { fireEvent.click(screen.getAllByRole("button", { name: "expand" })[0]); });
+    // b alone: NOT its ancestors — shading an off-screen ancestor above unshaded siblings is
+    // the "split yellow" report; the band stays one contiguous run of literally-visible rows
+    expect(screen.getByText("b").closest(".tree-row")?.className).toContain("in-view");
+    expect(screen.getByText("a").closest(".tree-row")?.className).not.toContain("in-view");
+    expect(screen.getByText("root").closest(".tree-row")?.className).not.toContain("in-view");
+    expect(screen.getByText("c").closest(".tree-row")?.className).not.toContain("in-view");
+    act(() => publishVisibleIds(["/c"])); // the band moves with the scroll
+    expect(screen.getByText("b").closest(".tree-row")?.className).not.toContain("in-view");
+    expect(screen.getByText("c").closest(".tree-row")?.className).toContain("in-view");
   });
 });

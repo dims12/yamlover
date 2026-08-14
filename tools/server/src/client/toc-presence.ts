@@ -20,9 +20,12 @@ export interface TocPresence {
   anchors: ReadonlyMap<string, string>;
   /** canonPath of the node the URL #fragment currently names (scroll spy / hash), or null. */
   currentPath: string | null;
+  /** canonPaths of the nodes whose anchors are inside the pane's VIEWPORT right now — the
+   *  on-screen band the TOC shades yellowish, updated on scroll settle. */
+  visible: ReadonlySet<string>;
 }
 
-const EMPTY: TocPresence = { base: null, anchors: new Map(), currentPath: null };
+const EMPTY: TocPresence = { base: null, anchors: new Map(), currentPath: null, visible: new Set() };
 let state: TocPresence = EMPTY;
 let byId = new Map<string, string>(); // anchor id → canonPath (the reverse of `anchors`)
 let currentFragId: string | null = null; // the last published fragment id, pre-resolution
@@ -49,7 +52,22 @@ export function publishPresence(base: string, anchors: Map<string, string>): voi
     state.anchors.size === anchors.size &&
     [...anchors].every(([p, id]) => state.anchors.get(p) === id);
   if (same) return;
-  emit({ base, anchors, currentPath });
+  emit({ base, anchors, currentPath, visible: state.visible });
+}
+
+/** The on-screen band: anchor IDS currently inside the pane's viewport, resolved to paths —
+ *  LITERALLY the entries whose own line is on screen. Deliberately NOT closed over ancestors:
+ *  shading an ancestor whose heading has scrolled off puts yellow above a run of unshaded
+ *  siblings — the "split yellow" report. Literal visibility keeps the band one contiguous run
+ *  (TOC order is document order). Swaps the snapshot only when the set actually changed. */
+export function publishVisibleIds(ids: readonly string[]): void {
+  const visible = new Set<string>();
+  for (const id of ids) {
+    const p = byId.get(id);
+    if (p !== undefined) visible.add(p);
+  }
+  if (visible.size === state.visible.size && [...visible].every((p) => state.visible.has(p))) return;
+  emit({ ...state, visible });
 }
 
 /** The content pane clears the store on unmount — every TOC row goes plain. */
@@ -133,18 +151,45 @@ export function useTocPresencePublisher(root: RefObject<HTMLElement | null>, bas
       }
       publishPresence(canonPath(base), map);
     };
+    // The ON-SCREEN BAND: which anchors sit inside the pane's viewport right now. Same walk
+    // the scroll spy does; ids the presence map doesn't know (chunk shells' duplicates, SVG
+    // internals) simply don't resolve. Runs after every scan and on scroll settle.
+    const visScan = (): void => {
+      const paneRect = (el.closest(".pane") ?? document.documentElement).getBoundingClientRect();
+      const ids: string[] = [];
+      for (const a of el.querySelectorAll<HTMLElement>("[id]")) {
+        if (a.closest("svg")) continue;
+        const r = a.getBoundingClientRect();
+        if (r.bottom >= paneRect.top && r.top <= paneRect.bottom && (r.height > 0 || r.width > 0)) ids.push(a.id);
+      }
+      publishVisibleIds(ids);
+    };
     scan(); // effects run post-commit: synchronously-rendered content is already in the DOM
+    visScan();
     publishCurrentFragment(hashFragment()); // a deep link's fragment shades from the start
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const rescan = (): void => { clearTimeout(timer); timer = setTimeout(scan, 200); };
+    const rescan = (): void => { clearTimeout(timer); timer = setTimeout(() => { scan(); visScan(); }, 200); };
     const mo = new MutationObserver(rescan); // our scan never mutates the DOM — no feedback
     mo.observe(el, { childList: true, subtree: true });
+    let visTimer: ReturnType<typeof setTimeout> | undefined;
+    const onScroll = (): void => { clearTimeout(visTimer); visTimer = setTimeout(visScan, 180); };
+    window.addEventListener("scroll", onScroll, true); // capture: the scrolling box is a .pane
+    window.addEventListener("resize", onScroll);
+    // a PURE layout shift — content above the viewport growing or collapsing with no scroll
+    // event and no childList change — still moves what's on screen; the content root's size
+    // is the one signal that always accompanies it
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(onScroll) : null;
+    ro?.observe(el);
     const onHash = (): void => publishCurrentFragment(hashFragment());
     window.addEventListener("hashchange", onHash);
     window.addEventListener("popstate", onHash);
     return () => {
       mo.disconnect();
+      ro?.disconnect();
       clearTimeout(timer);
+      clearTimeout(visTimer);
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onScroll);
       window.removeEventListener("hashchange", onHash);
       window.removeEventListener("popstate", onHash);
       clearPresence();

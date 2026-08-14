@@ -17,6 +17,7 @@
      DARKER than the pane (--panel) — "already on screen" reads as recessed — while the
      fragment-CURRENT row (the reading line) pops YELLOWISH (a --warn-family tint). */
   --toc-merged: #1c1f2e;
+  --toc-inview: #3b3828; /* the on-screen band — a dimmer step of --toc-current */
   --toc-current: #5c5433;
   --font: ui-monospace, "SF Mono", "JetBrains Mono", "Fira Code", Menlo, Consolas, monospace;
 
@@ -78,6 +79,7 @@
   --null: #d20f39;
   --sel: #ccd0da;
   --toc-merged: #cfd4df; /* clearly darker than the pane (--panel #dce0e8), a step above --sel */
+  --toc-inview: #f4ead0; /* the on-screen band — a paler step of --toc-current */
   --toc-current: #f2e0a4; /* yellowish (the light --warn family) — the reading-line row */
 
   --danger: #d20f39;
@@ -588,10 +590,13 @@ body {
   padding: 1px 8px 1px 0;
   white-space: nowrap;
 }
-/* TOC presence (toc-presence.ts): merged < selected < frag-current — source order carries
-   the precedence at equal specificity, so the reading-line shade always wins its row */
+/* TOC presence (toc-presence.ts): merged < in-view < selected < frag-current — source order
+   carries the precedence at equal specificity, so the reading-line shade always wins its row */
 .tree-row.merged {
   background: var(--toc-merged);
+}
+.tree-row.in-view {
+  background: var(--toc-inview);
 }
 .tree-row.selected {
   background: var(--sel);
