@@ -186,6 +186,10 @@ let userScrolledAt = 0;
  * scrolling SETTLES (profiled: mid-scroll per-frame URL writes are what lags a long page; a
  * scroll event itself only re-arms a timer). Scrolling above the first anchor clears the
  * fragment.
+ *
+ * A WIDTH change of the content root (pane splitter, window resize) is a RESHAPE, not reading:
+ * the spy stands down for the episode and, once the reflow settles, the element the URL names
+ * is scrolled back to the pane offset it held before — the location survives the reshape.
  */
 export function useFragmentScrollSpy(root: RefObject<HTMLElement | null>, dep: unknown): void {
   useEffect(() => {
@@ -195,32 +199,60 @@ export function useFragmentScrollSpy(root: RefObject<HTMLElement | null>, dep: u
     };
     const inputs = ["wheel", "touchmove", "keydown", "mousedown", "mousemove"] as const;
     for (const t of inputs) window.addEventListener(t, noteUser, { capture: true, passive: true });
+    const paneOf = (el: HTMLElement): HTMLElement => (el.closest(".pane") ?? document.documentElement) as HTMLElement;
+    // THE RESHAPE ANCHOR — a WIDTH change (the pane splitter, the window itself) re-wraps the
+    // page while the pane keeps its old pixel scrollTop, so the content under the viewport
+    // becomes a random place; a reshape is NOT reading. `anchorRec` remembers, from the last
+    // settled layout, where the element the URL names sat in the pane; `restore` scrolls it
+    // back there once the reflow settles, and the spy stands down for the whole episode so the
+    // reflow's scroll events can never rewrite the reader's fragment (the width-change report:
+    // URL cleared to root, position random, TOC shading stale).
+    let reshaping = false;
+    let anchorRec: { id: string; top: number } | null = null;
+    const findAnchor = (el: HTMLElement, id: string): HTMLElement | null => {
+      // scan in DOCUMENT ORDER, never getElementById — ids are deliberately duplicated on a
+      // chapter page (the ID LAW, chapter-shared.tsx) and hash resolution takes the first bearer
+      for (const a of el.querySelectorAll<HTMLElement>("[id]")) {
+        if (a.id === id && !a.closest("svg")) return a;
+      }
+      return null;
+    };
+    const record = () => {
+      const el = root.current;
+      const id = decodeURIComponent(window.location.hash.slice(1));
+      const t = el && id ? findAnchor(el, id) : null;
+      anchorRec = t ? { id, top: t.getBoundingClientRect().top - paneOf(el!).getBoundingClientRect().top } : null;
+    };
     let timer: number | null = null;
     const settle = () => {
       timer = null;
-      // act only on READER scrolling: the reader must have touched a scroll input since our last
-      // programmatic reveal — layout shifts and the reveal's own scroll never rewrite the hash
-      if (userScrolledAt <= hashScrolledAt) return;
+      if (reshaping) return; // mid-reshape scrolls are the reflow's, not the reader's
       const el = root.current;
       if (!el || !el.isConnected) return;
-      const pane = (el.closest(".pane") ?? document.documentElement) as HTMLElement;
-      const paneRect = pane.getBoundingClientRect();
-      const line = paneRect.top + Math.min(pane.clientHeight * 0.3, 240); // the reading line
-      let current: string | null = null;
-      for (const a of el.querySelectorAll<HTMLElement>("[id]")) {
-        // an embedded diagram's internal ids (xyflow arrow markers, SVG defs) are not reading
-        // anchors — following one would write garbage like `#1__color=var(--fg)…` into the URL
-        if (a.closest("svg")) continue;
-        if (a.getBoundingClientRect().top <= line) current = a.id; // document order — the last one above the line
-        else break;
+      // act only on READER scrolling: the reader must have touched a scroll input since our last
+      // programmatic reveal — layout shifts and the reveal's own scroll never rewrite the hash
+      if (userScrolledAt > hashScrolledAt) {
+        const pane = paneOf(el);
+        const paneRect = pane.getBoundingClientRect();
+        const line = paneRect.top + Math.min(pane.clientHeight * 0.3, 240); // the reading line
+        let current: string | null = null;
+        for (const a of el.querySelectorAll<HTMLElement>("[id]")) {
+          // an embedded diagram's internal ids (xyflow arrow markers, SVG defs) are not reading
+          // anchors — following one would write garbage like `#1__color=var(--fg)…` into the URL
+          if (a.closest("svg")) continue;
+          if (a.getBoundingClientRect().top <= line) current = a.id; // document order — the last one above the line
+          else break;
+        }
+        const now = decodeURIComponent(window.location.hash.slice(1));
+        if (current !== (now || null)) {
+          spyHash = current; // ours, reader-following — the reveal must never scroll back to it
+          publishCurrentFragment(current); // the TOC's current shade follows the reading line
+          history.replaceState(null, "", current !== null
+            ? "#" + current
+            : window.location.pathname + window.location.search);
+        }
       }
-      const now = decodeURIComponent(window.location.hash.slice(1));
-      if (current === (now || null)) return;
-      spyHash = current; // ours, reader-following — the reveal must never scroll back to it
-      publishCurrentFragment(current); // the TOC's current shade follows the reading line
-      history.replaceState(null, "", current !== null
-        ? "#" + current
-        : window.location.pathname + window.location.search);
+      record(); // the layout is settled — remember where the URL's element sits in the pane
     };
     const onScroll = () => {
       if (timer !== null) window.clearTimeout(timer);
@@ -229,8 +261,40 @@ export function useFragmentScrollSpy(root: RefObject<HTMLElement | null>, dep: u
       timer = window.setTimeout(settle, 450);
     };
     window.addEventListener("scroll", onScroll, true); // capture: the scrolling box is a .pane, not the window
+    let reshapeTimer: number | null = null;
+    const restore = () => {
+      reshapeTimer = null;
+      const el = root.current;
+      if (el && el.isConnected && anchorRec) {
+        const t = findAnchor(el, anchorRec.id);
+        if (t) {
+          const pane = paneOf(el);
+          const delta = t.getBoundingClientRect().top - pane.getBoundingClientRect().top - anchorRec.top;
+          if (delta !== 0) pane.scrollTop += delta;
+        }
+      }
+      hashScrolledAt = Date.now(); // the restore's scroll is ours — the spy has nothing to follow
+      reshaping = false;
+      record(); // fresh layout, same reading place — the next reshape restores against this
+    };
+    let lastWidth = -1; // the observer's first callback reports the size AT observe — the baseline
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver((entries) => {
+      const w = entries[entries.length - 1]?.contentRect.width ?? lastWidth;
+      if (w === lastWidth) return; // height-only growth is a lazy landing, not a reshape
+      const first = lastWidth === -1;
+      lastWidth = w;
+      if (first) return;
+      reshaping = true;
+      hashScrolledAt = Date.now(); // stand the spy down from the first width tick
+      if (reshapeTimer !== null) window.clearTimeout(reshapeTimer);
+      reshapeTimer = window.setTimeout(restore, 250);
+    }) : null;
+    if (root.current) ro?.observe(root.current);
+    record(); // the mount's own layout (the deep-link reveal ran first — effect order)
     return () => {
       if (timer !== null) window.clearTimeout(timer);
+      if (reshapeTimer !== null) window.clearTimeout(reshapeTimer);
+      ro?.disconnect();
       window.removeEventListener("scroll", onScroll, true);
       for (const t of inputs) window.removeEventListener(t, noteUser, { capture: true } as EventListenerOptions);
     };
