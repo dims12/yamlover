@@ -23,6 +23,14 @@ describe("marklower editor round-trip (domToMarklower ∘ marklowerToEditableHtm
     expect(roundTrip("see [the intro](/chunks[0]) please")).toBe("see [the intro](/chunks[0]) please");
   });
 
+  it("keeps emphasis wrapping an atomic token editable AND lossless (**`code`**)", () => {
+    const holder = document.createElement("div");
+    holder.innerHTML = marklowerToEditableHtml("the **`yamlover-fragments`** key");
+    const strong = holder.querySelector("strong");
+    expect(strong?.querySelector("code.mlw-atom")?.getAttribute("data-src")).toBe("`yamlover-fragments`");
+    expect(domToMarklower(holder)).toBe("the **`yamlover-fragments`** key");
+  });
+
   it("maps <br> and <div> line wrappers to newlines", () => {
     const a = document.createElement("div");
     a.innerHTML = "line one<br>line two";

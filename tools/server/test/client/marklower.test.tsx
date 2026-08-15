@@ -93,6 +93,32 @@ describe("marklower (the default format for bare strings)", () => {
     expect(container.querySelector("strong")).toBeNull();
   });
 
+  it("lets **bold** wrap a `code` span (the emphasis-over-tokens law)", () => {
+    const { container } = render(<MarklowerChunk chunk={chunk("the **`yamlover-fragments`** key")} onNavigate={noop} />);
+    const strong = container.querySelector("strong");
+    expect(strong?.querySelector("code")?.textContent).toBe("yamlover-fragments");
+    expect(container.textContent).toBe("the yamlover-fragments key"); // no stray asterisks
+  });
+
+  it("lets *italic* span across a token with text on both sides", () => {
+    const { container } = render(<MarklowerChunk chunk={chunk("*see `x` too*")} onNavigate={noop} />);
+    const em = container.querySelector("em");
+    expect(em?.textContent).toBe("see x too");
+    expect(em?.querySelector("code")?.textContent).toBe("x");
+  });
+
+  it("never pairs a marker inside a code span with one outside", () => {
+    const { container } = render(<MarklowerChunk chunk={chunk("a `*x` b *c*")} onNavigate={noop} />);
+    expect(container.querySelector("code")?.textContent).toBe("*x"); // stays literal
+    expect(container.querySelector("em")?.textContent).toBe("c"); // only the real pair styles
+  });
+
+  it("keeps a link as an emphasis boundary (labels style themselves instead)", () => {
+    const { container } = render(<MarklowerChunk chunk={chunk("**[a](*:b)** t")} onNavigate={noop} />);
+    expect(container.querySelector("strong")).toBeNull(); // the pair spans a link — literal
+    expect(container.textContent).toBe("**a** t");
+  });
+
   it("resolves a `/path` link relative to the chunk's document", () => {
     const onNavigate = vi.fn();
     const { container } = render(

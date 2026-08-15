@@ -33,8 +33,10 @@ import { EmbedFigure } from "./embed";
  *     sigiled pointer (`*:: a: b`, `*: child`, `*..: sib`, `*name`), with the bare colon
  *     form read forever (docs/documents/marklower/link-targets). Resolved and made
  *     clickable through the shared {@link NavLink};
- *   - **text styling** on the plain runs between those: `**bold**`/`__bold__`,
- *     `*italic*`/`_italic_`, and `~~strikethrough~~`.
+ *   - **text styling**: `**bold**`/`__bold__`, `*italic*`/`_italic_`, and
+ *     `~~strikethrough~~`. Emphasis may WRAP an atomic token (`` **`code`** ``,
+ *     `*$$x$$*`) — see the emphasis-over-tokens law at {@link SpanBuf} — but a link
+ *     is an emphasis boundary; a link's label styles itself (`[**bold**](t)`).
  *
  * Anything else is passed through verbatim. `parse` is the single seam every entry
  * point goes through, so there is one place to teach the grammar.
@@ -49,21 +51,47 @@ function escapeHtml(s: string): string {
     .replace(/>/g, "&gt;");
 }
 
-/** Style a plain-text run (one of the stretches between the atomic tokens): escape
- *  it, then apply emphasis. Bold (`**`/`__`) runs before italic (`*`/`_`) so a
- *  double marker isn't mistaken for two single ones; non-greedy so neighbours don't
- *  merge. The markers (`* _ ~`) survive `escapeHtml`, so styling the escaped text
- *  is safe. An INTRA-WORD `_` is a literal character, not a marker (Markdown's rule,
- *  kept for the same reason): technical prose is full of `snake_case_ids`, and
- *  `unquoted_scalar_appending` must not italicize its middle. `*` keeps intra-word
- *  emphasis - identifiers don't use it. */
-function styleText(text: string): string {
-  return escapeHtml(text)
+/** Apply emphasis to an ALREADY-ESCAPED run. Bold (`**`/`__`) runs before italic
+ *  (`*`/`_`) so a double marker isn't mistaken for two single ones; non-greedy so
+ *  neighbours don't merge. The markers (`* _ ~`) survive `escapeHtml`, so styling
+ *  the escaped text is safe. An INTRA-WORD `_` is a literal character, not a marker
+ *  (Markdown's rule, kept for the same reason): technical prose is full of
+ *  `snake_case_ids`, and `unquoted_scalar_appending` must not italicize its middle.
+ *  `*` keeps intra-word emphasis - identifiers don't use it. */
+function emphasize(escaped: string): string {
+  return escaped
     .replace(/~~(.+?)~~/g, "<del>$1</del>")
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     .replace(/(?<![A-Za-z0-9])__(.+?)__(?![A-Za-z0-9])/g, "<strong>$1</strong>")
     .replace(/\*(.+?)\*/g, "<em>$1</em>")
     .replace(/(?<![A-Za-z0-9])_(.+?)_(?![A-Za-z0-9])/g, "<em>$1</em>");
+}
+
+/** Style a plain-text run: escape it, then apply emphasis. */
+function styleText(text: string): string {
+  return emphasize(escapeHtml(text));
+}
+
+/**
+ * THE EMPHASIS-OVER-TOKENS LAW: emphasis is applied to the whole run between links, with
+ * each atomic token (code, math, a fence) collapsed to an opaque PLACEHOLDER while the
+ * emphasis regexes run — so `` **`code`** `` bolds the code span the way Markdown would,
+ * while a `*` INSIDE a token's contents can still never open or close emphasis (the
+ * contents were swapped out of the text the regexes see). A LINK stays an emphasis
+ * boundary on both faces: its label styles itself (`[**bold**](t)`).
+ *
+ * `text` accumulates escaped plain runs and placeholders; `render` styles the whole and
+ * swaps the atoms back in.
+ */
+class SpanBuf {
+  text = "";
+  private atoms: string[] = [];
+  addAtom(html: string): void {
+    this.text += "\uE000" + (this.atoms.push(html) - 1) + "\uE001";
+  }
+  render(): string {
+    return emphasize(this.text).replace(/\uE000(\d+)\uE001/g, (_, i) => this.atoms[Number(i)]);
+  }
 }
 
 /** Parse marklower into React nodes. Most syntax renders to an HTML string (math,
@@ -79,12 +107,13 @@ function parse(
 ): ReactNode[] {
   const src = String(value ?? "");
   const nodes: ReactNode[] = [];
-  let html = ""; // buffer of HTML-rendered runs between links
+  let buf = new SpanBuf(); // the run since the last link, atoms as placeholders
   let key = 0;
   const flush = () => {
+    const html = buf.render();
+    buf = new SpanBuf();
     if (!html) return;
     nodes.push(<span key={key++} dangerouslySetInnerHTML={{ __html: html }} />);
-    html = "";
   };
   const link = (label: string, target: string) => (
     <NavLink key={key++} target={target} documentPath={documentPath} holderPath={holderPath} onNavigate={onNavigate}>
@@ -99,25 +128,25 @@ function parse(
   let joinLead = false;
   const plain = (text: string) => {
     if (joinLead) text = text.replace(/^\n(?!\n)/, " ");
-    return styleText(text.replace(/(?<=[^\n])\n(?=[^\n])/g, " "));
+    return escapeHtml(text.replace(/(?<=[^\n])\n(?=[^\n])/g, " ")); // emphasis waits for the flush
   };
   const joinTrail = () => {
-    html = html.replace(/(?<=[^\n])\n[ \t]*$/, " ");
+    buf.text = buf.text.replace(/(?<=[^\n])\n[ \t]*$/, " ");
   };
   for (const m of src.matchAll(TOKEN)) {
-    html += plain(src.slice(last, m.index)); // plain run before this token
+    buf.text += plain(src.slice(last, m.index)); // plain run before this token
     joinLead = true; // every token is inline
     if (m[1] !== undefined) {
       // a ``` fence — not marklower syntax, but ATOMIC all the same: passed through verbatim
       // so its odd backtick count can never desync the inline code arm behind it
-      html += escapeHtml(m[0]);
+      buf.addAtom(escapeHtml(m[0]));
       joinLead = false;
     } else if (m[2] !== undefined) {
       joinTrail();
-      html += renderMath(m[2], false); // $$ inline math $$
+      buf.addAtom(renderMath(m[2], false)); // $$ inline math $$
     } else if (m[3] !== undefined) {
       joinTrail();
-      html += `<code>${escapeHtml(m[3])}</code>`; // `code` — contents literal
+      buf.addAtom(`<code>${escapeHtml(m[3])}</code>`); // `code` — contents literal
     } else {
       // [label](target) — a real anchor so it navigates in JSON instance space; the
       // label keeps its own inline styling.
@@ -127,7 +156,7 @@ function parse(
     }
     last = m.index + m[0].length;
   }
-  html += plain(src.slice(last));
+  buf.text += plain(src.slice(last));
   flush();
   return nodes;
 }
@@ -179,21 +208,30 @@ function escapeAttr(s: string): string {
 export function marklowerToEditableHtml(value: unknown): string {
   const src = String(value ?? "");
   let html = "";
+  let buf = new SpanBuf(); // emphasis spans atoms here too (the emphasis-over-tokens law) …
+  const cut = () => {
+    html += buf.render();
+    buf = new SpanBuf();
+  };
   let last = 0;
   for (const m of src.matchAll(TOKEN)) {
-    html += styleText(src.slice(last, m.index));
+    buf.text += escapeHtml(src.slice(last, m.index));
     if (m[1] !== undefined) {
       // a ``` fence rides as one atom, its whole text the data-src — never re-tokenized
-      html += `<code class="mlw-atom" contenteditable="false" data-src="${escapeAttr(m[0])}">${escapeHtml(m[0])}</code>`;
+      buf.addAtom(`<code class="mlw-atom" contenteditable="false" data-src="${escapeAttr(m[0])}">${escapeHtml(m[0])}</code>`);
     } else if (m[2] !== undefined) {
-      html += `<span class="mlw-atom" contenteditable="false" data-src="${escapeAttr("$$" + m[2] + "$$")}">${renderMath(m[2], false)}</span>`;
+      buf.addAtom(`<span class="mlw-atom" contenteditable="false" data-src="${escapeAttr("$$" + m[2] + "$$")}">${renderMath(m[2], false)}</span>`);
     } else if (m[3] !== undefined) {
-      html += `<code class="mlw-atom" contenteditable="false" data-src="${escapeAttr("`" + m[3] + "`")}">${escapeHtml(m[3])}</code>`;
+      buf.addAtom(`<code class="mlw-atom" contenteditable="false" data-src="${escapeAttr("`" + m[3] + "`")}">${escapeHtml(m[3])}</code>`);
     } else {
+      // … but a LINK stays an emphasis boundary, exactly as in the read renderer's `parse`
+      // (there it must — a link is a real React element — and the two faces must agree).
+      cut();
       html += `<a class="mlw-atom mlw-link" contenteditable="false" data-src="${escapeAttr("[" + m[4] + "](" + m[5] + ")")}">${styleText(m[4])}</a>`;
     }
     last = m.index + m[0].length;
   }
-  html += styleText(src.slice(last));
+  buf.text += escapeHtml(src.slice(last));
+  cut();
   return html;
 }

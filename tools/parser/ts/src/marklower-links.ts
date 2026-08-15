@@ -33,8 +33,9 @@ export const LABEL = String.raw`(?:[^\[\]]|\[[^\]]*\])*?`;
  *   3. `` `code` `` (group 3);
  *   4. `[label](target)` — a link (groups 4 = label, 5 = target).
  *
- * There is no embed arm: a leading `*` before a link is plain emphasis/text now, so
- * `*[a](b)*` is an italic link and a bare `*[a](b)` is a literal `*` followed by a link.
+ * There is no embed arm: a leading `*` before a link is plain text now — a link is an
+ * emphasis BOUNDARY (labels style themselves: `[*a*](b)`), so `*[a](b)*` is a literal
+ * asterisk pair around a link and a bare `*[a](b)` is a literal `*` followed by a link.
  */
 export const TOKEN = new RegExp(
   '(`{3,})[\\s\\S]*?\\1|' + // 1: fenced block — atomic, never re-interpreted

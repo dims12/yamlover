@@ -16,8 +16,10 @@ description: five constructs, atomic tokens, soft breaks
 - >
   **Atomic** means the contents are never re-interpreted as markup: a `*` inside `` `code` `` or
   `$$...$$` is a literal asterisk, not emphasis. Bold is matched before italic, so `**x**` is one
-  strong run rather than two emphases. Emphasis does not span a token - `*a `b` c*` leaves its
-  markers as literal text.
+  strong run rather than two emphases. Emphasis **may wrap an atomic token** - `` **`code`** `` is
+  a bold code span, `*a `b` c*` an italic run with a code span inside - while a marker *inside*
+  the token still can never open or close emphasis. A **link** is an emphasis **boundary**: a
+  marker pair spanning one stays literal text; a link styles its own label (`[*a*](b)`).
 - >
   An **intra-word `_` is a literal character**, never an emphasis marker - Markdown's rule, kept
   for the same reason: technical prose is full of `snake_case_ids`, and an unbackticked
@@ -26,8 +28,9 @@ description: five constructs, atomic tokens, soft breaks
 - >
   There is **no embed syntax** - marklower delegates structure to yamlover, and embedding *is*
   structure: a chapter body element (see [embeds](*::documents:marklower:embeds)). A `*` before a
-  link's bracket is plain text: `*[a](b)*` is an *italic link*, a bare `*[a](b)` a literal
-  asterisk followed by a link. The `*` that matters lives INSIDE the parens, as the target's
+  link's bracket is plain text: `*[a](b)*` is a literal asterisk pair around a link (a link is an
+  emphasis boundary - italicize the label instead), a bare `*[a](b)` a literal asterisk followed
+  by a link. The `*` that matters lives INSIDE the parens, as the target's
   pointer sigil ([link targets](*::documents:marklower:link-targets)).
 - >
   Marklower is **not a Markdown subset**, and does not try to be. `![](...)` is not image syntax
