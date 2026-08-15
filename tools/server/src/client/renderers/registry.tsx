@@ -451,7 +451,7 @@ const REGISTRY: Renderer[] = [
     icon: "🎬",
     accepts: byFormat("video/mp4", "video/webm", "video/ogg", "video/quicktime", "audio/mpeg", "audio/ogg", "audio/wav", "audio/flac", "audio/mp4", "audio/aac"),
     specificity: 2,
-    render: (node) => <MediaChunk chunk={{ value: null, path: node.path, type: node.type, format: node.format, valueType: node.valueType ?? null, hasKeyed: false, hasOrdinal: false, documentPath: node.documentPath }} />,
+    render: (node) => <MediaChunk chunk={{ value: null, path: node.path, type: node.type, format: node.format ?? null, valueType: node.valueType ?? null, hasKeyed: false, hasOrdinal: false, documentPath: node.documentPath }} />,
     renderChunk: (chunk) => <MediaChunk chunk={chunk} />,
   },
   {

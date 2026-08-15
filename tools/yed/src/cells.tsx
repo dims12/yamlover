@@ -9,7 +9,7 @@
 // through `ctx.onText`, every click through `ctx.onFocus` (the cursor moves to the clicked
 // position). What you see is `state`, all of it.
 
-import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type MutableRefObject, type ReactNode } from "react";
 import type { Cursor, Document, Entry, Node, Path, Value } from "./state";
 import { anchorDecorations, blockRawOf, bracketOf, isFlow, isSpread, schemaTextOf } from "./state";
 import { isPointer, type Comment, type Pointer } from "../../parser/ts/src/ir.ts";
@@ -241,7 +241,7 @@ function CellInput({ value, ctx, autoFocus, caret, select }: { value: string; ct
       value={value}
       size={Math.max(1, value.length)}
       ref={(el) => {
-        ref.current = el;
+        (ref as MutableRefObject<HTMLInputElement | null>).current = el;
         if (el && autoFocus && ctx.plantCaret !== false && document.activeElement !== el) {
           el.focus();
           if (caret !== undefined && select === undefined) {

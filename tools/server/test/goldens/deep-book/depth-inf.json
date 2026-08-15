@@ -877,7 +877,7 @@
   },
   ":part-one:01-deep": {
     "path": ":part-one:01-deep",
-    "type": "omni",
+    "type": "vseq",
     "format": "x-yamlover-chapter",
     "valueType": "string",
     "hasKeyed": false,
@@ -989,7 +989,7 @@
   },
   ":part-one:01-deep:item01": {
     "path": ":part-one:01-deep:item01",
-    "type": "omni",
+    "type": "vseq",
     "format": "x-yamlover-chapter",
     "valueType": "string",
     "hasKeyed": false,
@@ -1067,7 +1067,7 @@
   },
   ":part-one:item01": {
     "path": ":part-one:item01",
-    "type": "omni",
+    "type": "vseq",
     "format": "x-yamlover-chapter",
     "valueType": "string",
     "hasKeyed": false,
@@ -1212,7 +1212,7 @@
   },
   ":part-one:stray": {
     "path": ":part-one:stray",
-    "type": "omni",
+    "type": "vseq",
     "format": null,
     "valueType": "string",
     "hasKeyed": false,
@@ -1634,7 +1634,7 @@
   },
   ":part-two:1:flow": {
     "path": ":part-two:1:flow",
-    "type": "array",
+    "type": "seq",
     "format": null,
     "valueType": null,
     "hasKeyed": false,
@@ -1757,7 +1757,7 @@
   },
   ":part-two:1:knr": {
     "path": ":part-two:1:knr",
-    "type": "object",
+    "type": "map",
     "format": null,
     "valueType": null,
     "hasKeyed": true,
@@ -1852,7 +1852,7 @@
   },
   ":part-two:2": {
     "path": ":part-two:2",
-    "type": "array",
+    "type": "seq",
     "format": "x-yamlover-chapter",
     "valueType": null,
     "hasKeyed": false,
@@ -1893,7 +1893,7 @@
   },
   ":part-two:3": {
     "path": ":part-two:3",
-    "type": "omni",
+    "type": "vseq",
     "format": "x-yamlover-chapter",
     "valueType": "string",
     "hasKeyed": false,
@@ -1980,7 +1980,7 @@
   },
   ":part-two:misc.yo": {
     "path": ":part-two:misc.yo",
-    "type": "object",
+    "type": "map",
     "format": null,
     "valueType": null,
     "hasKeyed": true,
@@ -2030,7 +2030,7 @@
   },
   ":part-two:misc.yo:list": {
     "path": ":part-two:misc.yo:list",
-    "type": "array",
+    "type": "seq",
     "format": null,
     "valueType": null,
     "hasKeyed": false,
@@ -2099,7 +2099,7 @@
   },
   ":part-two:ontos": {
     "path": ":part-two:ontos",
-    "type": "object",
+    "type": "map",
     "format": "x-yamlover-chapter",
     "valueType": null,
     "hasKeyed": true,

@@ -172,13 +172,13 @@ export function serverPathOf(basePath: string, doc: Document, irPath: readonly n
   let path = basePath;
   let v: Value = doc.root;
   for (const idx of irPath) {
-    const entries = isPointer(v) ? undefined : (v as Node).entries;
+    const entries: Entry[] | undefined = isPointer(v) ? undefined : (v as Node).entries;
     const e: Entry | undefined = entries?.[idx];
     if (!e) throw new Error(`serverPathOf: no entry at index ${idx} under ${path}`);
     // the wire never saw TEMPORARY siblings (pruneTemporary) — a positional address counts
     // only the flushed rows, or it would name the wrong member after a provisional `- `
     const temps = (entries ?? []).slice(0, idx)
-      .filter((s) => (s.meta as { temporary?: boolean | "ordinal" } | undefined)?.temporary).length;
+      .filter((s: Entry) => (s.meta as { temporary?: boolean | "ordinal" } | undefined)?.temporary).length;
     path = appendSeg(path, segOf(e, idx - temps));
     v = e.value;
   }

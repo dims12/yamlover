@@ -10,7 +10,7 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import type { Document, Node } from '../../../parser/ts/src/ir.ts';
+import type { Document, Entry, Node } from '../../../parser/ts/src/ir.ts';
 import { isPointer } from '../../../parser/ts/src/ir.ts';
 import type { WalkOptions } from './walk.ts';
 import { walkTree, ownerNodePath } from './walk.ts';
@@ -84,7 +84,7 @@ function bodyOrdersChild(doc: Document, relFrom: string): boolean {
   const segs = relFrom.split('/');
   let node: Node | undefined = doc.root;
   for (const s of segs.slice(0, -1)) {
-    const e = node?.entries?.find((en) => en.key === s);
+    const e: Entry | undefined = node?.entries?.find((en) => en.key === s);
     node = e !== undefined && !isPointer(e.value) ? e.value : undefined;
   }
   const anchored = (node?.meta as { anchored?: string[] } | undefined)?.anchored;

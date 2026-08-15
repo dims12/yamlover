@@ -21,7 +21,7 @@ import { parseSchemaRef, parseYamlover, unquoteKey } from "../../parser/ts/src/y
 import { schemaTagToken } from "../../parser/ts/src/serialize-yamlover.ts";
 import { anchorBody, keyRawWorthKeeping } from "../../parser/ts/src/serialize-common.ts";
 import { makeAnchor, parsePointer, renderPointer } from "../../parser/ts/src/pointer.ts";
-import { isPointer, type Anchor, type Pointer } from "../../parser/ts/src/ir.ts";
+import { isPointer, type Anchor, type EntryMeta, type Pointer } from "../../parser/ts/src/ir.ts";
 import { formatFromMetaTag, proseFormatOfTag } from "./chapter/format";
 import { schemaTextOf } from "./state";
 
@@ -602,11 +602,11 @@ function toCursor(doc: Document, p: Position): Cursor {
  *  law), so a plainly-typed key stays meta-free. Every entry a hole materializes goes
  *  through here — quoted keys survive whichever boundary lands them. */
 function keyFields(cursor: { key: string | null; keyRaw?: string; flat?: true }): Pick<Entry, "key" | "meta"> {
-  const meta = {
+  const meta: EntryMeta = {
     ...(cursor.key !== null && cursor.keyRaw !== undefined && keyRawWorthKeeping(cursor.keyRaw, cursor.key)
       ? { keyRaw: cursor.keyRaw } : {}),
     // a FLAT-ROW segment commits its concrete — the serializer re-emits the authored fold
-    ...(cursor.key !== null && cursor.flat === true ? { keyConcrete: "yamlover/key/flat" } : {}),
+    ...(cursor.key !== null && cursor.flat === true ? { keyConcrete: "yamlover/key/flat" as const } : {}),
   };
   return { key: cursor.key, ...(Object.keys(meta).length > 0 ? { meta } : {}) };
 }
@@ -1685,7 +1685,7 @@ function applyIntent(state: EditorState, intent: Intent, site: Site): EditorStat
           return ok({
             ...state,
             doc: withNode(doc, cursor.path, (n) => {
-              const { value: _v, raw: _r, ...rest } = n as Record<string, unknown>;
+              const { value: _v, raw: _r, ...rest } = n as unknown as Record<string, unknown>;
               return { ...rest, kind: "mapping" } as unknown as Node;
             }),
             cursor: { at: "hole", path: cursor.path, index: 0, text: "", key: null, head: true },
