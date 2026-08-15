@@ -28,7 +28,7 @@ description: the push - & gives this node another real path
   is tagged in two bare lines:
 - !!<format: text/x-yamlover> |
   30
-  &:: tags: field: mathematics: numbers: whole: -
+  &:: ontos: field: mathematics: numbers: whole: -
 - >
   **Ordinal bookmarks.** A trailing `-` segment makes the membership keyless: the container gains
   this node as a positional member. No position may be claimed - `&: path: 3` is rejected (a

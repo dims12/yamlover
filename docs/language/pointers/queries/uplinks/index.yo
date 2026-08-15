@@ -20,6 +20,6 @@ description: the two-dot family - reverse navigation mirroring the downward form
   : pets: 0: ..                → :pets           (spine only)
   : pets: 0: ?..               → :pets, :team:alice
   : pets: 0: pet..             → :team:alice
-  : thirty: -..                → :tags:whole
+  : thirty: -..                → :ontos:whole
   : adam: cain: enoch: enoch.. → :adam:cain, :adam:azura
                                  (both parents - the directed graph)

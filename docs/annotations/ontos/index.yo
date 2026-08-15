@@ -1,0 +1,22 @@
+Ontos - the ontologies
+description: general trees/graphs of general things; project-local and built-in
+- >
+  An **ontology** is an ordinary subtree of general things - colors, topics, genres, workflow
+  states - whose entities exist to be **pointed at**. An **onto** is one such entity: a node
+  conforming to `$defs: onto` (`format: x-yamlover-onto`), carrying an optional `color` and,
+  being a node like any other, anything else - sub-ontos included, so an ontology nests to any
+  depth.
+- >
+  Ontologies live in two homes. The **project's own** sit under its `ontos/` root (the
+  `ontos:` [settings](*::server) location - `*:: ontos` by default), created freely from the
+  picker. The **built-in** ones ship with yamlover itself and are grafted into every served
+  project under the self-import key, so `::yamlover:ontos:colors:yellow` resolves everywhere,
+  exactly as `::yamlover:$defs` does.
+- >
+  Filing something under an onto is **membership**, not machinery: the target (a node, or one
+  of its [fragments](*::annotations:fragments)) declares a
+  [bookmark](*::language:pointers:bookmarks) into the ontology - `&:: ontos: topic: math: -`
+  for a project onto, `&:: yamlover: ontos: colors: yellow: -` for a built-in - and the onto
+  gains the target as a keyless member. The membership is a plain graph edge: authored on the
+  target, traveling with the document, queryable from both ends
+  ([derivation](*::annotations:derivation)).

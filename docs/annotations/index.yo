@@ -1,18 +1,23 @@
-Annotations - fragments and tagging
-description: how a user marks up a document - regions, tag applications, and where they live
+# SPEC-LEAD: the implementation still writes yamlover-annotations arrays and the x-yamlover-tag
+# format; this family specifies the target model - ontos + bookmark membership + yo: fragments:.
+Annotations - fragments and ontos
+description: how a user marks up a document - regions, and membership in ontologies
 - >
-  How a user marks up a document: **fragments** (regions) and **annotations** (tags applied to a
-  whole node or a fragment). Both live **on the target node** - they travel with the document,
-  not in a side file. The user-facing flow is in [annotating](*::server:ui:annotating); companion
-  chapters: the [logical graph](*::language:logical-graph) (omni), [metadata](*::meta)
-  (`$defs`, `variant`), [pointers](*::language:pointers) (the `::` project scope, `*`/`&`), and
+  How a user marks up a document: **fragments** (regions of a node) and **onto membership**
+  (filing a node or a fragment under an entity of an ontology - what used to be called tagging).
+  Both live **on the target node** - they travel with the document, not in a side file. The
+  user-facing flow is in [annotating](*::server:ui:annotating); companion chapters: the
+  [logical graph](*::language:logical-graph) (omni), [metadata](*::meta) (`$defs`, `variant`),
+  [pointers](*::language:pointers) (the `::` project scope, `*`/`&`), and
   [queries](*::language:pointers:queries).
-- >-
-  This model supersedes the old one (a separate `/annotations/*.yo` node per tag application,
-  reverse-linked by a `target` pointer). The selector role moves into **fragments**; the
-  tag-application becomes a `yamlover-annotations` array element. `$defs: annotation` is redefined and
-  `$defs: fragment` is new.
+- >
+  There is no annotation *object* anymore: applying an onto is a plain **`&` bookmark** - a
+  membership edge into the ontology - and everything an application used to say (a description,
+  a parameter) lives on the **fragment**, which is an ordinary open node. This supersedes both
+  earlier models: the per-file `/annotations/*.yo` applications, and the
+  `yamlover-annotations` array element.
 - *: fragments
+- *: ontos
 - *: applications
 - *: storage
 - *: schemas

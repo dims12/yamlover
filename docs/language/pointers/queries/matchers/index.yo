@@ -19,7 +19,7 @@ description: tests between the colons - values, comparisons, and the metadata fo
   documents and queries: `!!<type: T>` tests the type shape (`omni` here tests the *region* - a
   scalar with own fields; the long alias `variant` reads forever); `!!<format: F>` the authored or
   schema-derived format; `!!<*:: yamlover:
-  $defs: tag>` schema conformance. There is no edge-kind test in v1: a fan-out cannot distinguish
+  $defs: onto>` schema conformance. There is no edge-kind test in v1: a fan-out cannot distinguish
   members from children, and node-shape matchers cover the need.
 - !!<format: text/plain> |
   team: ?: age: >10           → :team:alice:age

@@ -1,11 +1,14 @@
 Schemas
-description: $defs fragment and annotation, and the all-colon project-scope spelling
+description: $defs onto and fragment, and the all-colon project-scope spelling
 - !!<*yamlover: $defs: bullets>
-  - '**`$defs: fragment`** (`format: x-yamlover-fragment`) - an object: the selector-union fields (`type, exact, prefix, suffix, page, x, y, w, h, n, s, e, w`), `created`, and an optional binary `image`.'
-  - '**`$defs: annotation`** (`type: variant`, `format: x-yamlover-annotation`) - a tag *application*: its self-value is a tag pointer (the parameterless case); as an object it carries `tag` plus a `description` and any other parameters.'
+  - '**`$defs: onto`** (`format: x-yamlover-onto`) - an entity of an ontology: an optional `color`, optionally sub-ontos; otherwise open.'
+  - '**`$defs: fragment`** (`format: x-yamlover-fragment`) - an omni: the self-value carries the fragment''s principal content (the quoted text), the selector fields beside it (`type, prefix, suffix, start, end, page, x, y, w, h, n, s, e, w`), an optional binary `image` crop, `created` - and the rest is open (`description`, a keyless pointer as the link, ...).'
+- >
+  There is **no `$defs: annotation`** - an application is a bookmark edge, and edges carry no
+  data ([applications](*::annotations:applications)).
 - >
   Both are reached as `*::yamlover:$defs:<name>` (the yamlover project is grafted at every served
   root's self-import key `yamlover`). Note the **all-colon** spelling: a project scope `::` must
-  be followed by colon steps - `*::yamlover/$defs/tag` parses the `/`-path as a link *authority*
-  and does not resolve, whereas `*yamlover/$defs/tag` (no `::`) is a current-scope slash path
-  that does. Server-written tags use the colon form.
+  be followed by colon steps - `*::yamlover/$defs/onto` parses the `/`-path as a link *authority*
+  and does not resolve, whereas `*yamlover/$defs/onto` (no `::`) is a current-scope slash path
+  that does. Server-written ontos use the colon form.

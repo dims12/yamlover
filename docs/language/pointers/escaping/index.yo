@@ -13,7 +13,7 @@ description: backslash carries the literal reading; quotes carry the whole-token
 - !!yo
   mime:   *..: text/html: x          # "/" is no metachar - rides bare
   colon:  *schedule: 09\:30          # a literal ":" inside the key
-  space:  *: tags: 'дорожный знак'   # a key with a space - quoted
+  space:  *: ontos: 'дорожный знак'   # a key with a space - quoted
   digits: *: pets: '1'               # the numeric STRING key "1" - quoted
   tilde:  *: doc: '~'                # the literal key "~" - quoted
   dots:   *\.\.                      # the literal key ".."

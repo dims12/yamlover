@@ -1,0 +1,23 @@
+# The inline-fragment representation concrete. NOT YET IMPLEMENTED - the client-first slice
+# ships the token syntax; the concrete stamp (NodeMeta.concrete on the chunk) follows it.
+marklower/fragment/inline
+description: a chunk whose yo: fragments: members are spelled as [..](..) tokens in its own text
+- >
+  The representation concrete of a **prose chunk** whose `yo: fragments:` members are authored
+  **inline**, as [fragment tokens](*::documents:marklower:grammar) in the chunk's own marklower
+  text. The concrete is carried by the **parent chunk node** - the members themselves have no
+  storage of their own to carry it: the token *is* their storage, and the member view is a
+  projection of the text.
+- >
+  The concrete records nothing but the spelling: the logical graph is identical whether a
+  fragment is a token in the text or an explicit `yo: fragments:` row - and, like every
+  representation concrete, it is not part of IR identity. The serializer folds a member into the
+  text only when the fold is lossless: the member's quote must resolve uniquely in the chunk and
+  cross no other token. **Mixed authoring is legal** - members the text cannot spell (a stale
+  quote, a quote across a token) stay explicit rows beside the inlined ones, silently and
+  losslessly, exactly the [flat-key
+  concrete's](*::language:concretes:03-yamlover:00-yamlover_stream:00-yamlover_code:00-yamlover_structured:00-yamlover_key_value_pair:00-yamlover_key_flat)
+  fallback discipline.
+- >
+  Formats other than marklower have no token to fold into, so the concrete never applies there -
+  the explicit member is their only spelling ([fragments](*::annotations:fragments)).

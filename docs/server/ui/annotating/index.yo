@@ -1,45 +1,49 @@
+# SPEC-LEAD with the annotations family: the implementation still writes yamlover-annotations
+# arrays and the tags/ taxonomy; this chapter describes the target ontos/membership flow.
 Annotating
-description: select a region, pick a tag - the flow shared by prose, images, maps, and PDFs
+description: select a region, pick an onto - the flow shared by prose, images, maps, and PDFs
 - >
-  An annotation is **a tag applied to a piece of a material** - one tag application, saved **into
-  the target itself**: a selected region becomes a `yamlover-fragments` entry on the node, and
-  each applied tag an element of its `yamlover-annotations` array (the exact shapes:
-  [annotations](*::annotations)) - so it travels with the document, persists across
-  reloads, shows up wherever the material is read, and is listed on the tag's own page among the
-  tag's members. Its display color is **the applied tag's**: a built-in **pure color tag**
-  (`yamlover/tags/colors/...`) carries an explicit color, and any **named tag** gets its stable
-  name-derived hue (the same hue its badges use everywhere). The flow is the **same for prose,
-  images, maps, and PDFs**: you **select**, then pick a tag.
+  Annotating is **filing a piece of a material under an onto** - one membership, saved **into
+  the target itself**: a selected region becomes a fragment on the node (in marklower prose the
+  inline token, elsewhere a `yo: fragments:` member), and each applied onto one bookmark line on
+  it (the exact shapes: [annotations](*::annotations)) - so it travels with the document,
+  persists across reloads, shows up wherever the material is read, and is listed on the onto's
+  own page among its members. Its display color is **the applied onto's**: a built-in **pure
+  color onto** (`yamlover/ontos/colors/...`) carries an explicit color, and any **named onto**
+  gets its stable name-derived hue (the same hue its badges use everywhere). The flow is the
+  **same for prose, images, maps, and PDFs**: you **select**, then pick.
 - >
   **1. Select** the thing to mark: **prose / PDF** - drag to select text; **image / map** - drag
   a rectangle over the region.
 - >
-  **2.** A small **tag picker** pops up by the selection (its cells are [the query
+  **2.** A small **picker** pops up by the selection (its cells are [the query
   editor](*::server:query-editor) in pick mode). **Nothing is pre-selected** - a new mark starts
   blank, and the selected text / dragged rectangle stays shown in a **neutral** color while the
-  picker is open, so it's clear what you're marking without implying a tag. The controls:
+  picker is open, so it's clear what you're marking without implying an onto. The controls:
 - !!<*yamlover: $defs: bullets>
-  - '**Color-tag swatches** - the six built-in pure color tags; click one to apply it.'
-  - '**Named-tag chips** - the tags already on this target (shown **outlined**), the tags on the same node''s other parts, your **recently-used** tags, and the project taxonomy; click one to apply it.'
-  - '**A tag path input** - type any tag''s node path (e.g. `/examples/67-pdf-tags/tags/genre/humor/deadpan`) and press **Enter** to apply that tag. A **bare name** (no `/`) works too: if no such tag exists yet it is **created on the spot** - appended to the project''s tag taxonomy (the `tags: *:: tags` setting in `.yo/settings.yo`, `<root>/tags` by default) as `<name>: !!<*$defs/tag>` - and then applied.'
-  - '**Copy** (prose only) - copies the selected text to the clipboard and creates **no** annotation.'
-  - '**Close** (or click anywhere outside) - closes the picker, committing nothing extra.'
+  - '**Color swatches** - the six built-in pure color ontos; click one to apply it.'
+  - '**Named chips** - the ontos already on this target (shown **outlined**), those on the same node''s other parts, your **recently-used** ones, and the project''s ontologies; click one to apply it.'
+  - '**A path input** - type any onto''s node path and press **Enter** to file the region there. A **bare name** (no path) works too: if no such onto exists yet it is **created on the spot** - appended to the project''s ontologies (the `ontos: *:: ontos` setting in `.yo/settings.yo`, `<root>/ontos` by default) as `<name>: !!<*::yamlover:$defs:onto>` - and then applied.'
+  - '**Copy** (prose only) - copies the selected text to the clipboard and creates **no** fragment.'
+  - '**Close** (or click anywhere outside) - closes the picker, committing nothing.'
 - >
-  **3. Picking a tag IS the apply.** Each pick applies its tag at once and the menu stays open,
-  so you can add several; an **applied** tag shows outlined, and clicking it again **removes**
-  it. Closing without picking leaves the region untagged - a new selection never tags itself.
+  **3. Picking IS the apply.** Each pick files the region at once and the menu stays open, so
+  you can add several; an **applied** onto shows outlined, and clicking it again **removes** the
+  membership. Closing without picking leaves the region unfiled - a new selection never files
+  itself, and until the first pick nothing has touched the text.
 - >
   A new mark appears **immediately** - it doesn't wait for the save round-trip. Saved marks
-  render in their tag's color - a highlight under prose, a colored rectangle over an image, map,
-  PDF, or DjVu region - and a count shows above the material. The same region can carry several
-  tags - each application is its own annotation.
+  render in their onto's color - a highlight under prose, a colored rectangle over an image,
+  map, PDF, or DjVu region - and a count shows above the material. The same region can carry
+  several memberships - each is its own bookmark line.
 - >
-  **To re-tag or delete an annotation, click it.** The same picker reopens in *edit* mode over
-  the mark's current tags (shown outlined): pick another tag to add, click an outlined one to
-  remove, or close to leave it.
+  **To re-file or delete a mark, click it.** The same picker reopens in *edit* mode over the
+  mark's current ontos (shown outlined): pick another to add, click an outlined one to remove,
+  or close to leave it. Removing the last membership removes the fragment - and in prose,
+  unwraps its token, restoring the text byte-exact.
 - >
-  The built-in tags ship with the yamlover project (at its root: `tags/colors`, beside `$defs/`);
-  the engine grafts the **self-import key `yamlover`** into every served root - including the
-  yamlover project itself - so `/yamlover/tags/colors/...` and `/yamlover/$defs/...` resolve in
-  every project. Whole-node tagging stays as it was: a bookmark membership on the node itself (no
-  annotation object needed when there's no region and no comment).
+  The built-in ontologies ship with the yamlover project (at its root: `ontos/colors`, beside
+  `$defs/`); the engine grafts the **self-import key `yamlover`** into every served root -
+  including the yamlover project itself - so `/yamlover/ontos/colors/...` and
+  `/yamlover/$defs/...` resolve in every project. Whole-node filing needs no fragment at all: a
+  bookmark membership on the node itself.

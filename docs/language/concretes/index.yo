@@ -34,3 +34,4 @@ description: every way a node is physically stored and written
 - *: 05-json5p
 - *: 06-json5_code
 - *: 07-json_code
+- *: 08-marklower_fragment_inline

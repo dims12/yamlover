@@ -3,7 +3,7 @@ description: the TOC tree, the breadcrumb, the node header, and the live event s
 - !!<format: text/plain> |
   +--------------+-----------------------------------------------+
   |  TOC tree    |  breadcrumb                                   |
-  |  (left)      |  [type] [tags]  |  yamlover . json5p . schema |  <- node header
+  |  (left)      |  [type] [ontos]  |  yamlover . json5p . schema |  <- node header
   |              | --------------------------------------------- |
   |  click a     |  upstream relations ( .. and incoming refs)   |
   |  node to     |  -------------------------------  <- the <hr> |

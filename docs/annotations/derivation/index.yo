@@ -1,8 +1,8 @@
 Engine derivation
-description: annotations are ordinary graph entries - the engine derives the views
+description: memberships are ordinary graph edges - the engine derives the views
 - >
-  Annotations and fragments are ordinary graph entries, so the engine derives the views:
+  Fragments and memberships are ordinary graph data, so the engine derives the views:
 - !!<*yamlover: $defs: bullets>
-  - '**A node''s annotations** = its own `yamlover-annotations` elements (plus those of its fragments), each resolving to a tag via the element''s value pointer or `tag:` field.'
-  - '**Materials filed under a tag** (`/api/tagged`) = the reverse of those forward tag pointers - every `yamlover-annotations` element pointing at the tag, surfaced as its owning material or fragment.'
-  - '**Highlighting** reads the sibling fragment''s selector (and its `image` crop) for the region.'
+  - '**A node''s ontos** = its membership edges walked UP: `: N: ?..: !!<format: x-yamlover-onto>` - every parent of N (bookmark-created ones included) that is an onto; a fragment''s ontos likewise from the fragment member.'
+  - '**Materials filed under an onto** (`/api/tagged`) = the onto''s own keyless members: `O: -` - each surfacing as its owning material, or as a fragment of it.'
+  - '**Highlighting** reads the member fragment''s selector (and its `image` crop) for the region.'

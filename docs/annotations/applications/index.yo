@@ -1,24 +1,26 @@
-Annotations - yamlover-annotations
-description: a tag applied to a whole node or a fragment - parameterless or parametrized
+Applications - membership by bookmark
+description: filing a node or fragment under an onto is one & line - parameters live on the fragment
 - >
-  An **annotation** is the application of a **tag** to a target - the **whole node** or a
-  **fragment** within it. Annotations live under the target's **`yamlover-annotations`** key, a
-  **sequence**. Each element is one of:
-- >
-  **Parameterless** - a bare **tag pointer**. We only know the target *has* this tag:
+  Applying an [onto](*::annotations:ontos) to a target is **one bookmark line** on the target -
+  a membership edge, nothing more:
 - !!<format: text/x-yamlover> |
-  - *::tags:genre:brevity:shortest-paper
+  A Pinch of Math
+  &:: ontos: genre: brevity: shortest-paper: -
 - >
-  **Parametrized** - an **object** carrying a **`tag:`** field plus one or more parameters:
+  The **whole node** carries its own memberships; a **fragment** carries memberships for just
+  its region - in marklower prose, right inside the [fragment
+  token](*::documents:marklower:grammar):
 - !!<format: text/x-yamlover> |
-  - {description: 'A standalone LaTeX block', tag: *::tags:topic:math}
-  - importance: 10
-    tag: *::tags:review:flagged
+  Mathematics likes to hide, but a standalone [&:: yamlover: ontos: topic: math: -: LaTeX]() block
+  gives it away.
 - >
-  The applied tag's **color** (its explicit `color`, else a name-derived hue) drives display -
-  never the selector. A **fragment node carries its own `yamlover-annotations`** (tagging that
-  region); the **document root** carries a top-level one (tagging the whole node). Two tags on
-  one target = two elements.
+  An application **carries no data of its own** - an edge cannot. Whatever the old parametrized
+  application said (`description`, `importance`, ...) lives on the **fragment**, which is an
+  open node ([fragments](*::annotations:fragments)); a *whole-node* application that needs
+  parameters targets a **selector-less fragment** - the fragment that stands for the whole
+  node - and puts them there.
 - >
-  Tag pointers are written in **project scope** (`*::...`), matching the tag taxonomy at the
-  project root (`::tags:...`) and the built-in palette (`::yamlover:tags:colors:...`).
+  The applied onto's **color** (its explicit `color`, else a name-derived hue) drives display -
+  never the selector. Two ontos on one target = two bookmark lines; membership is additive, and
+  the onto sees its members in bookmark order after its own entries
+  ([bookmarks](*::language:pointers:bookmarks)).

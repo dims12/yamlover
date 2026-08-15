@@ -71,10 +71,10 @@ description: a named constraint on node content - not a type, never a decoder; m
     - '-'
     - an omni node
     - 'A book chapter - title self value, `description`, positional body; the format that shapes this book.'
-  - - '`x-yamlover-tag` · `x-yamlover-fragment` · `x-yamlover-annotation`'
+  - - '`x-yamlover-onto` · `x-yamlover-fragment`'
     - '-'
     - an omni or keyed node
-    - 'The platform structures - tags and annotations are omni, a fragment a plain map.'
+    - 'The platform structures - an onto and a fragment are both omni.'
   - - '`application/octet-stream`'
     - '`contentMediaType`'
     - bytes

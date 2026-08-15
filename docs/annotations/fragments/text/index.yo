@@ -12,6 +12,12 @@ description: a quoted selection - the selected text as the value, plus disambigu
       prefix: 'reads the file twice: '
       suffix: ', once to build'
 - >
+  In **marklower prose** the same member has an inline spelling - the [fragment
+  token](*::documents:marklower:grammar): `[once to scan]()` written in place of the words is
+  the **logical equivalent** of the explicit row above, and it is the *normalized* form there;
+  the explicit row is the general spelling (and the only one in other formats). The token's
+  position supplies `prefix`/`suffix` by itself, so an inline fragment never writes them.
+- >
   To highlight the region again, the viewer searches the node's text for the quoted value;
   when the same words occur more than once, the surrounding context pins which occurrence is
   meant.

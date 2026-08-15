@@ -1,5 +1,7 @@
+# The inline grammar. The fragment-token reading of [..](..) is SPEC-LEAD: the implementation
+# still renders it as a plain link; scanner + fragment projection land with the client-first slice.
 The grammar
-description: five constructs, atomic tokens, soft breaks
+description: five constructs, atomic tokens, soft breaks - and the fragment token
 - >
   Five constructs, and no others. Everything else passes through verbatim.
 - !!<*yamlover: $defs: table>
@@ -12,29 +14,66 @@ description: five constructs, atomic tokens, soft breaks
   - ['`~~strike~~`', 'struck through']
   - ['`` `code` ``', 'code span - **atomic**']
   - ['`$$...$$`', 'math, typeset with KaTeX - **atomic**, may span lines']
-  - ['`[label](target)`', 'a link - *points at* the target, a yamlover expression']
+  - ['`[value](fields)`', 'the **fragment token** - an inline omni; a keyless pointer field makes it a hyperlink']
 - >
   **Atomic** means the contents are never re-interpreted as markup: a `*` inside `` `code` `` or
   `$$...$$` is a literal asterisk, not emphasis. Bold is matched before italic, so `**x**` is one
   strong run rather than two emphases. Emphasis **may wrap an atomic token** - `` **`code`** `` is
   a bold code span, `*a `b` c*` an italic run with a code span inside - while a marker *inside*
-  the token still can never open or close emphasis. A **link** is an emphasis **boundary**: a
-  marker pair spanning one stays literal text; a link styles its own label (`[*a*](b)`).
+  the token still can never open or close emphasis. A **fragment token** is an emphasis
+  **boundary**: a marker pair spanning one stays literal text; the token styles its own value
+  (`[*a*](b)`).
 - >
   An **intra-word `_` is a literal character**, never an emphasis marker - Markdown's rule, kept
   for the same reason: technical prose is full of `snake_case_ids`, and an unbackticked
   `unquoted_scalar_appending` must not italicize its middle. Only a `_` at a word boundary opens
   or closes emphasis (`__` likewise). `*` keeps intra-word emphasis - identifiers don't use it.
+- The fragment token
+  - >
+    `[...](...)` is **flow syntax for an omni**: the `[]` part holds a node's **self-value** (and
+    optional `&` bookmarks), the `()` part its **fields**, spelled `key: value` and
+    comma-separated. In prose the omni it spells is a **text fragment** - a member of the chunk's
+    `yo: fragments:` ([fragments](*::annotations:fragments)) whose self-value is the token's
+    visible text. A **keyless pointer or URL field is the fragment's link**, so a token whose
+    parens hold only that is an ordinary hyperlink; empty parens (`[once to scan]()`) define a
+    fragment with no fields. A bare `[text]` without parens stays plain prose, as do bare
+    `{...}`/`(...)` - marklower claims **only the full token**.
+  - 'One token, and the member it means - the link rides as a keyless pointer entry:'
+  - !!<format: text/x-yamlover> |
+    reads the file twice: [once to scan](*::annotations:fragments), once to build
+  - !!<format: text/x-yamlover> |
+    'reads the file twice: once to scan, once to build'
+    yo: fragments:
+      - once to scan
+        type: text
+        prefix: 'reads the file twice: '
+        suffix: ', once to build'
+        - *:: annotations: fragments
+  - >
+    Inside `[]` the **yamlover scalar rules** apply - quote the value when it contains a colon. A
+    bookmark ladder is self-delimiting when it ends in `-` (an [onto](*::annotations)
+    membership: `[&:: yamlover: ontos: colors: yellow: -: once to scan]()` - the push, then the
+    text) and must be the quoted spelling otherwise (`[&': put: me: here' once to scan]()`),
+    exactly the [bookmarks](*::language:pointers:bookmarks) placement law.
+  - >
+    The token is marklower's **normalized** spelling of a text fragment; the explicit
+    `yo: fragments:` member is the same fragment authored from the other end - legal but
+    denormalized, the forward/reverse pair of bookmarks all over again. Folding an explicit
+    member into the text is possible only where its quote resolves uniquely and crosses no other
+    token; elsewhere the explicit form stays. Formats other than marklower have no token to fold
+    into - there the explicit member is the only spelling. The fragment's `prefix`/`suffix`
+    (and any `start`/`end`) are **derived from the token's own position**, never written in it.
 - >
   There is **no embed syntax** - marklower delegates structure to yamlover, and embedding *is*
   structure: a chapter body element (see [embeds](*::documents:marklower:embeds)). A `*` before a
-  link's bracket is plain text: `*[a](b)*` is a literal asterisk pair around a link (a link is an
-  emphasis boundary - italicize the label instead), a bare `*[a](b)` a literal asterisk followed
-  by a link. The `*` that matters lives INSIDE the parens, as the target's
+  token's bracket is plain text: `*[a](b)*` is a literal asterisk pair around a token (a token is
+  an emphasis boundary - italicize the value instead), a bare `*[a](b)` a literal asterisk
+  followed by a token. The `*` that matters lives INSIDE the parens, as a
   pointer sigil ([link targets](*::documents:marklower:link-targets)).
 - >
   Marklower is **not a Markdown subset**, and does not try to be. `![](...)` is not image syntax
-  here, and a link target is a yamlover pointer expression, which Markdown has no word for.
+  here, a link target is a yamlover pointer expression, which Markdown has no word for - and
+  `[..](..)` says more here than Markdown's link ever did.
 - Line breaks
   - >
     A **single newline is a soft break**: the hard-wrapped lines of a block scalar are a *source*

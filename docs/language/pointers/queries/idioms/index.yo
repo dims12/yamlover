@@ -6,10 +6,10 @@ description: compositions of the primitives - not new syntax
     - Want
     - Query
       width: 3
-  - ['members of tag T (the embedded model)', '`T: ?..: ?..: !!<type: binary>` - annotated materials reach the tag forward through their annotations, so members are two uplinks away']
-  - ['tags applied to node N', '`: N: yamlover-annotations: -: !!<format: x-yamlover-tag>`']
-  - ['sub-tags of T (not members)', '`T: ?: !!<*:: yamlover: $defs: tag>`']
-  - ['all tag nodes (the tag-picker)', '`:: ...: !!<format: x-yamlover-tag>`']
+  - ['members of onto O', '`O: -` - membership is a bookmark edge, so the filed materials and fragments are O''s own keyless members']
+  - ['ontos of node N', '`: N: ?..: !!<format: x-yamlover-onto>` - memberships walked up; a fragment''s ontos likewise from the fragment member']
+  - ['sub-ontos of O (not members)', '`O: ?: !!<*:: yamlover: $defs: onto>`']
+  - ['all onto nodes (the picker)', '`:: ...: !!<format: x-yamlover-onto>`']
   - ['find-usages of N', '`N: ?..`']
   - ['every blob under here', '`...: !!<type: binary>`']
 - >
