@@ -1,5 +1,5 @@
-# The parens' grammar. The field-kseq reading is SPEC-LEAD (client-first slice pending);
-# the whole-content pointer/URL reading is what ships today.
+# The parens' grammar — implemented: whole-content pointer/URL stays the plain hyperlink,
+# anything else parses as the field kseq.
 Link targets
 description: the parens hold the fragment's fields - a keyless yamlover pointer or URL is the link
 - >

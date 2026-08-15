@@ -1,5 +1,6 @@
-# The inline grammar. The fragment-token reading of [..](..) is SPEC-LEAD: the implementation
-# still renders it as a plain link; scanner + fragment projection land with the client-first slice.
+# The inline grammar. The fragment token is implemented client-first: the scanner, the renderer,
+# the annotate flow (inline create/file/unfile with byte-exact unwrap). Engine-side virtual
+# members (query/doctor visibility of inline fragments) are still to come.
 The grammar
 description: five constructs, atomic tokens, soft breaks - and the fragment token
 - >
