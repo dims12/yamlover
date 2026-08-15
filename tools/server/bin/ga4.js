@@ -44,6 +44,19 @@ export function ga4Tag({ measurementId, basePath = "", pagePath = "", collapse =
     `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}window.gtag=gtag;` +
     `gtag("js",new Date());` +
     // The reported path. Query and fragment are dropped wholesale: both carry data paths.
+    // Which also drops the `utm_` keys a referral arrives with — and gtag reads campaign
+    // attribution off `page_location`, so without the lines below every tagged link (the
+    // README's, say) would report as direct traffic. An explicit campaign field overrides
+    // its `utm_` twin, so the five standard keys are read once at load and passed by name.
+    // By name, and only those five: the allowlist is what keeps the redaction above true.
+    //
+    // Not on a collapsed instance, though. There the promise is stronger — NOTHING from this
+    // URL is forwarded — and a hand-written `?utm_source=<the hash>` would otherwise walk
+    // straight through the allowlist. A demo is reached through the registration page anyway,
+    // which is a plain document with a stock tag that reads the query itself.
+    `var CAMPAIGN={};if(!COLLAPSE){var Q=new URLSearchParams(location.search);` +
+    `["source","medium","campaign","term","content"].forEach(function(k){` +
+    `var v=Q.get("utm_"+k);if(v)CAMPAIGN["campaign_"+k]=v})}` +
     `function at(){if(COLLAPSE)return PUB+"/";var p=location.pathname;` +
     `if(BASE&&p.indexOf(BASE)===0)p=p.slice(BASE.length)||"/";return PUB+p}` +
     // Stamped as GLOBAL parameters rather than per-event: the tag's own enhanced-measurement
@@ -51,7 +64,7 @@ export function ga4Tag({ measurementId, basePath = "", pagePath = "", collapse =
     // report location.href, routing around the redaction above.
     `var last="";function stamp(){var p=at();last=p;` +
     `gtag("set",{page_path:p,page_location:location.origin+p,page_title:COLLAPSE?"yamlover demo":document.title})}` +
-    `stamp();gtag("config",ID,{send_page_view:false});gtag("event","page_view");` +
+    `stamp();gtag("config",ID,Object.assign({send_page_view:false},CAMPAIGN));gtag("event","page_view");` +
     // The SPA routes on the JSON path with no document load, so page_view is re-sent by hand.
     // A collapsed instance reports one path, so every navigation inside it is a repeat — the
     // `last` guard keeps it to a single page_view instead of one per click.

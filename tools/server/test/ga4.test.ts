@@ -75,6 +75,14 @@ describe("ga4Tag — a demo instance withholds its hash", () => {
     expect(JSON.stringify(calls())).not.toContain(HASH);
   });
 
+  it("forwards no campaign either — a hand-written utm_ would be a way through", () => {
+    // The docs mount reads these five keys off the query. A collapsed instance must not, or
+    // `?utm_source=<hash>` in a shared link hands the instance to a third-party report.
+    run(tag(), `/demo/${HASH}/?utm_source=${HASH}&utm_medium=readme`);
+    expect(commands("config")[0][2]).toEqual({ send_page_view: false });
+    expect(JSON.stringify(calls())).not.toContain(HASH);
+  });
+
   it("sends one page_view, not one per in-demo navigation", () => {
     run(tag(), `/demo/${HASH}/`);
     history.pushState({}, "", `/demo/${HASH}/elsewhere`);
@@ -101,6 +109,26 @@ describe("ga4Tag — the docs instance reports real paths", () => {
   it("drops query and fragment, which carry data paths", () => {
     run(tag(), "/docs/language?open=:a:b#frag");
     expect(lastSet().page_path).toBe("/docs/language");
+  });
+
+  it("forwards the utm_ keys it arrived with, which the redacted page_location cannot carry", () => {
+    // The reason this is not free: gtag reads attribution off page_location, and ours has had
+    // the query cut off it by the time config runs. Passed by name, the campaign survives.
+    run(tag(), "/docs/language?utm_source=github&utm_medium=readme&utm_content=docs");
+    expect(commands("config")[0][2]).toEqual({
+      send_page_view: false,
+      campaign_source: "github",
+      campaign_medium: "readme",
+      campaign_content: "docs",
+    });
+    expect(lastSet().page_path).toBe("/docs/language"); // and the path is still clean
+  });
+
+  it("forwards those five and nothing else out of the query", () => {
+    run(tag(), "/docs/language?utm_source=github&open=:a:b&token=sekrit");
+    expect(commands("config")[0][2]).toEqual({ send_page_view: false, campaign_source: "github" });
+    expect(JSON.stringify(calls())).not.toContain("sekrit");
+    expect(JSON.stringify(calls())).not.toContain(":a:b");
   });
 
   it("re-sends page_view when the SPA routes to a new path", () => {

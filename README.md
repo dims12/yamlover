@@ -6,7 +6,7 @@
 *together*: one plain-text, local-first, human-readable graph that you edit like
 notes, an agent reads like a database, and `git` versions like code.
 
-You can [read the full documentation](https://yamlover.inthemoon.net/docs), 
+You can [read the full documentation](https://yamlover.inthemoon.net/docs?utm_source=github&utm_medium=readme&utm_content=docs), 
 which is made with yamlover you can click through.
 
 ## Motivations
@@ -110,7 +110,7 @@ Docs rendering
 
 ![docs-rendering.jpg](images/docs-rendering.jpg)
 
-> **▶ Try it live:** [**yamlover.inthemoon.net**](https://yamlover.inthemoon.net/) —
+> **▶ Try it live:** [**yamlover.inthemoon.net**](https://yamlover.inthemoon.net/?utm_source=github&utm_medium=readme&utm_content=try-it-live) —
 > a private, disposable instance by email, pre-loaded with the examples. No install.
 
 
