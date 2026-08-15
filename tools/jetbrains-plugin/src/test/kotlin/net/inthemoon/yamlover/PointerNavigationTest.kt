@@ -56,6 +56,10 @@ class PointerNavigationTest {
         // other bare tokens stay ordinary string keys
         assertEquals(PointerExpr(Scope.Current, listOf(Step.Key("-1"))), Pointers.parse("-1"))
         assertEquals(PointerExpr(Scope.Current, listOf(Step.Key("1.5"))), Pointers.parse("1.5"))
+        // a bare `-` is the keyless append — not link-legal in a plain `*` reference
+        assertNull(Pointers.parse("-"))
+        assertNull(Pointers.parse("pets: -"))
+        assertEquals(PointerExpr(Scope.Current, listOf(Step.Key("-"))), Pointers.parse("'-'"))
     }
 
     @Test
@@ -216,6 +220,18 @@ class PointerNavigationTest {
           fan: { name: 'Bob', ~*': pets' },
         }
     """.trimIndent()
+
+    @Test
+    fun `a FLAT row paves the nested path and the keyless dash appends`() {
+        val src = "key1: key2: key3: 12\nhuman1: pets: -: Rex\nhuman1: pets: -: Whiskers\nkey1: -: key3: 100\n"
+        val ix = PathIndex.ofYamlover(src)
+        val lineOf = { s: String -> src.indexOf(s).let { src.lastIndexOf('\n', it) + 1 } }
+        assertEquals(lineOf("key1: key2: key3: 12"), ix.resolve(Pointers.parse(": key1: key2: key3")!!, 0))
+        assertEquals(lineOf("human1: pets: -: Rex"), ix.resolve(Pointers.parse(": human1: pets: 0")!!, 0))
+        assertEquals(lineOf("human1: pets: -: Whiskers"), ix.resolve(Pointers.parse(": human1: pets: 1")!!, 0))
+        // middle `-` addresses the last keyless element under key1
+        assertEquals(lineOf("key1: -: key3: 100"), ix.resolve(Pointers.parse(": key1: 0: key3")!!, 0))
+    }
 
     @Test
     fun `json5p nesting, positions, no anchor namespace, back members`() {

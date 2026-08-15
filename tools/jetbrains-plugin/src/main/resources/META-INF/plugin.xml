@@ -29,7 +29,8 @@
                 (<code>: pets: 1</code>; <code>[n]</code> reads as the legacy alias),
                 relative <code>[.&#177;k]</code> indexes, the <code>~</code> null key,
                 <b>flat rows</b> (<code>key1: key2: key3: value</code> — every path segment
-                a key, the keyless <code>-:</code> segment the sequence marker), block
+                a key, the keyless <code>-</code> / <code>-:</code> segment the sequence
+                marker), flow omni <code>[]()</code>, block
                 scalars, quoted keys and comments.</li>
             <li><b>YAML-style indentation</b>, two columns and spaces only, as real
                 per-language code style options rather than the IDE's catch-all "Other"

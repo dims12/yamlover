@@ -56,7 +56,8 @@ export function tokenize(text: string, lang: HlLang = 'yamlover'): HlToken[] {
   const isSpaceOrEol = (c: string) => isSpace(c) || isEol(c);
   const isDigit = (c: string) => c >= '0' && c <= '9';
   const isWordBoundary = (c: string) =>
-    isSpaceOrEol(c) || c === ':' || c === ',' || c === '{' || c === '}' || c === '[' || c === ']';
+    isSpaceOrEol(c) || c === ':' || c === ',' || c === '{' || c === '}' || c === '[' || c === ']' ||
+    c === '(' || c === ')';
   const push = (kind: HlKind, from: number, to: number) => {
     if (to > from) out.push({ kind, text: text.slice(from, to) });
     i = to;
@@ -79,7 +80,9 @@ export function tokenize(text: string, lang: HlLang = 'yamlover'): HlToken[] {
 
   /** A pointer path's hard boundaries (flow: the usual delimiters; block: EOL / ` #`). */
   const isPathBoundary = (c: string): boolean =>
-    flowDepth > 0 ? isSpaceOrEol(c) || c === ',' || c === '{' || c === '}' || c === '#' : isSpaceOrEol(c) || c === '#';
+    flowDepth > 0
+      ? isSpaceOrEol(c) || c === ',' || c === '{' || c === '}' || c === '(' || c === ')' || c === '#'
+      : isSpaceOrEol(c) || c === '#';
 
   /** A run of spaces at `at`: does it END a block path (trailing before EOL / a comment), or
    *  is it interior — the `: ` colon styling? Flow paths (and single-word langs) end on it. */
@@ -272,8 +275,8 @@ export function tokenize(text: string, lang: HlLang = 'yamlover'): HlToken[] {
       }
       continue;
     }
-    if (c === '{') { flowDepth++; push('punct', i, i + 1); continue; }
-    if (c === '}' || c === ']') {
+    if (c === '{' || c === '(') { flowDepth++; push('punct', i, i + 1); continue; }
+    if (c === '}' || c === ']' || c === ')') {
       if (flowDepth > 0) flowDepth--;
       push('punct', i, i + 1);
       continue;

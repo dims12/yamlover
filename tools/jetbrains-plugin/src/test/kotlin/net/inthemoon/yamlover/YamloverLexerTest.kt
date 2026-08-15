@@ -203,4 +203,10 @@ class YamloverLexerTest {
         // `-:x` (no trailing space) is NOT the marker — it starts a word, exactly the TS rule
         assertTrue(ofType("-:x\n", "YAMLOVER_DASH").isEmpty())
     }
+
+    @Test
+    fun `flow omni parens are PUNCT, same as braces`() {
+        val src = "x: []()\n"
+        assertEquals(listOf("[", "]", "(", ")"), ofType(src, "YAMLOVER_PUNCT").filter { it in "[]()" })
+    }
 }

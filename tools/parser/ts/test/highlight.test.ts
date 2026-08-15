@@ -56,6 +56,10 @@ test('hl: sequence dashes, flow punctuation, standalone [n] index', () => {
     ['key', 'b'], ['punct', ':'], ['punct', '['], ['number', '1'], ['punct', ','], ['number', '2'], ['punct', ']'],
   ]);
   assert.deepEqual(kinds('[256, 256]: *thumb\n')[0], ['punct', '[']);
+  // flow omni `[]()` — parens are the fields bracket, same punct/flow as `{}` `[]`
+  assert.deepEqual(kinds('x: []()\n'), [
+    ['key', 'x'], ['punct', ':'], ['punct', '['], ['punct', ']'], ['punct', '('], ['punct', ')'],
+  ]);
 });
 
 test('hl: tags — !!<…> and the !!word type tags', () => {

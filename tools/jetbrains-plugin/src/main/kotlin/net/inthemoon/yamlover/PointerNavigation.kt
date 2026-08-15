@@ -14,8 +14,10 @@ package net.inthemoon.yamlover
  * a bare `~` the NULL key; quotes/escapes carry the string reading (`'1'`, `'~'`, `\~`).
  * Index groups: `[n]` absolute (reads forever as the position's legacy alias), `[.]`/`[.±k]`
  * relative (relative positions need the host frame — parsed, but resolve returns null).
- * There is NO anchor namespace and no precedence: `*name` is pure path lookup (resolve.ts
- * §no-precedence). Out of scope: `::`/`:::` cross-tree links (waits for the engine protocol).
+ * A bare `-` portion is the keyless APPEND (a bookmark / query wildcard — not link-legal
+ * in a plain `*` reference; {@link parse} rejects it). There is NO anchor namespace and no
+ * precedence: `*name` is pure path lookup (resolve.ts §no-precedence). Out of scope:
+ * `::`/`:::` cross-tree links (waits for the engine protocol).
  */
 
 sealed class Step {
@@ -24,6 +26,7 @@ sealed class Step {
     data class RelIndex(val k: Int) : Step() // [.] / [.±k] — the host's own position ± k
     object Parent : Step()
     object NullKey : Step() // the null key: bare `~` (YAML: `: v` ≡ `~: v`)
+    object Append : Step() // the keyless `-` segment (bookmark append / query any-position)
 }
 
 sealed class Scope {
@@ -41,7 +44,11 @@ object Pointers {
     fun parse(raw: String): PointerExpr? {
         val s = raw.trim()
         if (s.isEmpty()) return null
-        return try { parseColon(s) } catch (e: Exception) { null }
+        return try {
+            val p = parseColon(s)
+            // parsePointer without allowAppend: a bare `-` is not link-legal
+            if (p.steps.any { it is Step.Append }) null else p
+        } catch (e: Exception) { null }
     }
 
     // ---- colon form (docs/language/pointers/paths), ported from parser/ts/src/pointer.ts ------------------
@@ -138,6 +145,7 @@ object Pointers {
             val n = name.toString()
             steps.add(when {
                 plain && n == "~" -> Step.NullKey
+                plain && n == "-" -> Step.Append // the keyless segment (quote a literal '-' key)
                 // ASCII digits only — TS's /^\d+$/ (Kotlin's isDigit() is Unicode-wide)
                 plain && n.all { it in '0'..'9' } -> Step.Index(n.toInt())
                 else -> Step.Key(n)
@@ -297,6 +305,7 @@ class PathIndex(
                 is Step.NullKey -> path + seg("~")
                 is Step.Index -> "$path[${step.n}]"
                 is Step.RelIndex -> return null // a relative position needs the host frame
+                is Step.Append -> return null // not link-legal; the index paves it at write time
             }
         }
         return byPath[path]
@@ -341,8 +350,45 @@ class PathIndex(
             val byPath = HashMap<String, Int>()
             val containers = ArrayList<Pair<Int, String>>()
             val stack = ArrayList<Frame>().apply { add(Frame(0, "")) }
+            val next = HashMap<String, Int>() // path → next child index (flat-row paving shares it)
+            fun take(path: String): Int { val i = next[path] ?: 0; next[path] = i + 1; return i }
+            fun lastIdx(path: String): Int? = next[path]?.let { if (it == 0) null else it - 1 }
+            fun seed(path: String, n: Int) { next[path] = maxOf(next[path] ?: 0, n) }
             var pending: Pending? = null // a container whose block may follow
             var lineStart = 0
+
+            fun pave(from: String, segs: List<FlatSeg>, offset: Int): String {
+                var path = from
+                for ((i, s) in segs.withIndex()) {
+                    val last = i == segs.lastIndex
+                    when (s) {
+                        is FlatSeg.Key -> {
+                            val child = path + seg(s.name)
+                            if (byPath.containsKey(child) && !last) path = child
+                            else {
+                                val idx = take(path)
+                                byPath[child] = offset
+                                byPath["$path[$idx]"] = offset
+                                path = child
+                            }
+                        }
+                        FlatSeg.Append -> {
+                            if (!last) {
+                                val prev = lastIdx(path)
+                                path = if (prev != null) "$path[$prev]" else {
+                                    val idx = take(path)
+                                    "$path[$idx]".also { byPath[it] = offset }
+                                }
+                            } else {
+                                val idx = take(path)
+                                path = "$path[$idx]"
+                                byPath[path] = offset
+                            }
+                        }
+                    }
+                }
+                return path
+            }
 
             for (rawLine in text.lineSequence()) {
                 val offset = lineStart
@@ -354,10 +400,11 @@ class PathIndex(
 
                 // open the pending container's block if this line starts it (deeper, or —
                 // for an empty-valued key — a same-indent seq)
-                val isSeqLine = line == "-" || line.startsWith("- ") || line == "~-" || line.startsWith("~- ")
+                val isSeqLine = line == "-" || line.startsWith("- ") || line.startsWith("-:") ||
+                    line == "~-" || line.startsWith("~- ")
                 pending?.let { pk ->
-                    if (indent > pk.indent) stack.add(Frame(indent, pk.path, pk.count))
-                    else if (indent == pk.indent && isSeqLine && pk.sameIndentSeq) stack.add(Frame(indent, pk.path, pk.count, seqOnly = true))
+                    if (indent > pk.indent) { seed(pk.path, pk.count); stack.add(Frame(indent, pk.path, pk.count)) }
+                    else if (indent == pk.indent && isSeqLine && pk.sameIndentSeq) { seed(pk.path, pk.count); stack.add(Frame(indent, pk.path, pk.count, seqOnly = true)) }
                     pending = null
                 }
                 while (stack.size > 1 &&
@@ -375,7 +422,7 @@ class PathIndex(
                 if (line.startsWith("!!")) continue // a document/value tag line: not an entry
 
                 if (line == "-" || line.startsWith("- ")) {
-                    val idx = frame.count++
+                    val idx = take(frame.path)
                     val itemPath = "${frame.path}[$idx]"
                     byPath[itemPath] = offset
                     var rest = stripTags(line.removePrefix("-").trim())
@@ -385,6 +432,7 @@ class PathIndex(
                         rest == "-" || rest.startsWith("- ") -> {
                             // compact `- - x`: the inline head is the item's FIRST child
                             byPath["$itemPath[0]"] = offset
+                            seed(itemPath, 1)
                             pending = Pending(indent, itemPath, 1)
                         }
                         rest.matches(BLOCK_SCALAR_HEAD) -> {} // `- |` / `- >`: deeper lines are scalar content, not entries
@@ -394,6 +442,7 @@ class PathIndex(
                                 // compact `- key: …`: the item is a mapping whose keys sit at
                                 // the content column; index the first key and open the frame
                                 byPath[itemPath + seg(key)] = offset
+                                seed(itemPath, 1)
                                 stack.add(Frame(indent + 2, itemPath, 1))
                             } else {
                                 // a plain scalar head is the item's SELF-VALUE (omni title) —
@@ -405,8 +454,22 @@ class PathIndex(
                     continue
                 }
 
+                val flat = splitFlatPath(line)
+                if (flat != null && (flat.first.size > 1 || flat.first.first() is FlatSeg.Append)) {
+                    // a FLAT row (docs/language/flattening): pave the path; a trailing empty
+                    // `-:` opens the new element's block one step under the row
+                    val leaf = pave(frame.path, flat.first, offset)
+                    val rest = stripTags(flat.second)
+                    when {
+                        rest.isEmpty() -> pending = Pending(indent, leaf, sameIndentSeq = true)
+                        rest.matches(BLOCK_SCALAR_HEAD) -> {}
+                        else -> {} // a scalar leaf — write-once, no deeper entries
+                    }
+                    continue
+                }
+
                 val key = splitKey(line) ?: continue
-                val idx = frame.count++
+                val idx = take(frame.path)
                 val entryPath = frame.path + seg(key)
                 byPath[entryPath] = offset
                 byPath["${frame.path}[$idx]"] = offset // a keyed entry still occupies its position
@@ -520,7 +583,7 @@ class PathIndex(
                         val at = i
                         val sb = StringBuilder()
                         // `/` is an ordinary key character now (docs/language/pointers/paths): it does not end a word
-                        while (i < text.length && !text[i].isWhitespace() && text[i] !in ":,{}[]'\"") { sb.append(text[i]); i++ }
+                        while (i < text.length && !text[i].isWhitespace() && text[i] !in ":,{}[]()'\"") { sb.append(text[i]); i++ }
                         if (sb.isEmpty()) i++ else nameLike(sb.toString(), at, i)
                         afterTilde = false
                     }
@@ -544,6 +607,46 @@ class PathIndex(
                 i++
             }
             return s
+        }
+
+        /** One flat-path segment (docs/language/flattening): a named key, or the keyless `-`. */
+        private sealed class FlatSeg {
+            data class Key(val name: String) : FlatSeg()
+            object Append : FlatSeg()
+        }
+
+        /** Split a line into a flat-path chain + the trailing value rest. `-:` / a lone `-`
+         *  is the keyless segment; a `key:` portion is a named key. Null when the line is
+         *  not a path at all. */
+        private fun splitFlatPath(line: String): Pair<List<FlatSeg>, String>? {
+            val segs = ArrayList<FlatSeg>()
+            var rest = line
+            while (true) {
+                val t = rest.trimStart()
+                if (t == "-" || t.startsWith("-:")) {
+                    segs.add(FlatSeg.Append)
+                    rest = if (t == "-") "" else t.substring(2).trimStart()
+                    continue
+                }
+                val key = splitKey(t) ?: break
+                segs.add(FlatSeg.Key(key))
+                var inS = false; var inD = false
+                var cut = -1
+                for (i in t.indices) {
+                    val c = t[i]
+                    when {
+                        c == '\'' && !inD -> inS = !inS
+                        c == '"' && !inS -> inD = !inD
+                        c == ':' && !inS && !inD && (i + 1 == t.length || t[i + 1] == ' ' || t[i + 1] == '\t') -> {
+                            cut = i; break
+                        }
+                    }
+                }
+                if (cut < 0) break
+                rest = t.substring(cut + 1)
+            }
+            if (segs.isEmpty()) return null
+            return segs to rest.trimStart()
         }
 
         /** `key` of a `key: …` line (null if none); strips quotes; ignores `:` inside quotes. */

@@ -30,7 +30,7 @@ abstract class HlLexerBase(
         @JvmField val number: IElementType,   // numeric scalars, incl. hex and float specials
         @JvmField val keyword: IElementType,  // true / false (casings)
         @JvmField val nullKind: IElementType, // null / ~ (casings)
-        @JvmField val punct: IElementType,    // `: , { } [ ]` and the sigil-adjacent signs
+        @JvmField val punct: IElementType,    // `: , { } [ ] ( )` and the sigil-adjacent signs
         @JvmField val dash: IElementType,     // the sequence marker `- `
         @JvmField val pointer: IElementType,  // a `* & ~` sigil itself
         @JvmField val ref: IElementType,      // a pointer path's name portions (the target)
@@ -221,8 +221,8 @@ abstract class HlLexerBase(
                     tokenType = t.punct
                 }
             }
-            c == '{' -> { tokenEnd = tokenStart + 1; tokenType = t.punct; flowDepth++ }
-            c == '}' || c == ']' -> {
+            c == '{' || c == '(' -> { tokenEnd = tokenStart + 1; tokenType = t.punct; flowDepth++ }
+            c == '}' || c == ']' || c == ')' -> {
                 tokenEnd = tokenStart + 1
                 tokenType = t.punct
                 if (flowDepth > 0) flowDepth--
@@ -258,7 +258,7 @@ abstract class HlLexerBase(
      *  line (or a ` #` comment) — the `: ` separator styling keeps interior spaces. Inside FLOW
      *  (`{…}` / `[…]`) the usual delimiters end it. */
     private fun isPathBoundary(c: Char): Boolean =
-        if (flowDepth > 0) c.isSpaceOrEol() || c == ',' || c == '{' || c == '}' || c == '#'
+        if (flowDepth > 0) c.isSpaceOrEol() || c == ',' || c == '{' || c == '}' || c == '(' || c == ')' || c == '#'
         else c.isSpaceOrEol() || c == '#'
         // NB: a space/tab reaches here only when spacesEndPath() said the path is over — it is
         // a boundary then; an interior `: ` space is handled earlier and never reaches this.
@@ -365,7 +365,7 @@ abstract class HlLexerBase(
 
     private fun Char.isWordBoundary() =
         isSpaceOrEol() || this == ':' || this == ',' || this == '{' || this == '}' ||
-            this == '[' || this == ']'
+            this == '[' || this == ']' || this == '(' || this == ')'
 
     private fun consumeWord() {
         tokenEnd = tokenStart + 1
