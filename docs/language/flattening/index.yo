@@ -25,12 +25,12 @@ description: multicomponent keys - a whole nested document as flat path rows, an
   **normalized form is the nested one**. The authored flat spelling is a REPRESENTATION, not a
   different value: every path segment after the first carries the
   [yamlover/key/flat](*::language:concretes:03-yamlover:00-yamlover_stream:00-yamlover_code:00-yamlover_structured:00-yamlover_key_value_pair:00-yamlover_key_flat)
-  concrete, so the fold survives a round-trip end to end while the model stays identical -
+  concrete, so the fold survives a round-trip end to end while the logical graph stays identical -
   the same classified-and-preserved law every non-default spelling follows
   ([invariants](*::language:concretes:02-invariants)).
 - >
   **Rows are commands.** Order matters in yamlover, and a sequence of flat rows is read as a
-  sequence of commands that build the model by PAVING paths: each segment ensures its node
+  sequence of commands that build the logical graph by PAVING paths: each segment ensures its node
   exists (created null-valued when absent), and the value lands at the path's end. Paving is
   write-once where it must be for the reading to stay unambiguous - see the constraints below.
 - >
@@ -80,7 +80,7 @@ description: multicomponent keys - a whole nested document as flat path rows, an
   key1: key2: key3: 100     # paving made key1: key2 a null-valued node with a child
   key1: key2: 13            # INVALID - the value is null, but key3 is already under it
 - >
-  The [unified node](*::language:model)'s self-value is still reachable: spell the value row
+  The [unified node](*::language:logical-graph)'s self-value is still reachable: spell the value row
   FIRST, then pave children into it (`k: 13` then `k: sub: x` - the scalar grows fields, the
   omni). What flat rows cannot spell stays nested - a self line authored among its fields, a
   bookmark or `!!<...>` tag on an intermediate node, comments between segments - the same
@@ -105,7 +105,7 @@ description: multicomponent keys - a whole nested document as flat path rows, an
 - >
   **The pull link is exclusive.** A flat path may land a
   [reference](*::language:pointers:reference) as its value - and nothing else may share the
-  node. A reference is an EDGE, not a node: in the model a pointer carries no bookmarks, no
+  node. A reference is an EDGE, not a node: in the logical graph a pointer carries no bookmarks, no
   tag, no fields at all, so no `&` chain may precede it on the row and no continuation block
   may follow it:
 - !!<format: text/x-yamlover> |

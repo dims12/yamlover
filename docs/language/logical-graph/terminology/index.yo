@@ -1,6 +1,6 @@
 Terminology
 description: the words the rest of the spec uses precisely
-- 'The model is described with a small vocabulary, used precisely throughout the book:'
+- 'The logical graph is described with a small vocabulary, used precisely throughout the book:'
 - !!<*yamlover: $defs: table>
   header:
     - Term

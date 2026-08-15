@@ -1,7 +1,7 @@
 The model - rows of cells, one omni node
 description: keyless rows, optional header and title; no rows array
 - >
-  A table is just an omni (`variant`) node (the [logical model](*::language:model)): its keyless
+  A table is just an omni (`variant`) node (the [logical graph](*::language:logical-graph)): its keyless
   entries are the **rows**, read top to bottom, and each row is an **array of cells**, read left to
   right. Rows may be keyed - normal for an omni node - and one key is well-known: a row keyed
   `header` is the header row. An optional keyed `title` is the caption. There is no `rows`

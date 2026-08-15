@@ -10,7 +10,7 @@ description: chapters and chunks, marklower prose, tables, and lists
   [language](*::language).
 - >
   This chapter absorbs `CHAPTER.md` and `MARKLOWER.md`. Cross-links into the language point at the
-  [model](*::language:model), [metadata](*::meta), [pointers](*::language:pointers),
+  [logical graph](*::language:logical-graph), [metadata](*::meta), [pointers](*::language:pointers),
   and [concretes](*::language:concretes).
 - *: chapter
 - *: marklower

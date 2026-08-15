@@ -1550,7 +1550,7 @@ function buildRelations(dataRoot: string, s: Store, segs: Seg[]): Record<string,
 
 interface TreeNode {
   path: string; label: string; type: string; format: string | null;
-  valueType?: string | null; hasKeyed?: boolean; hasOrdinal?: boolean; // renderer dispatch facets (docs/language/model/matching)
+  valueType?: string | null; hasKeyed?: boolean; hasOrdinal?: boolean; // renderer dispatch facets (docs/language/logical-graph/matching)
   concrete: string | null; hasChildren: boolean; children: TreeNode[];
   value?: string; // the scalar self-value as a short one-line preview (see tocValue)
   match?: boolean; // shape=filter only: this row is one of the query's matches
@@ -4846,7 +4846,7 @@ function descriptionOf(s: Store, p: string): string | null {
  *  CHILDLESSNESS is not part of being a scalar. Annotating a title lays the tag applications over it
  *  as keyed entries (docs/annotations): the row stays a `scalar` carrying its own value, and gains a
  *  child. That is precisely an omni/`variant` node — `type: string` and `type: variant` both match
- *  it (query.ts) — and tagging must never change how a node reads (docs/language/model/matching). Demanding no
+ *  it (query.ts) — and tagging must never change how a node reads (docs/language/logical-graph/matching). Demanding no
  *  children here made a chapter lose its title, its tree label, and its browser-tab name the moment
  *  anyone annotated it. The `scalar` check stays: a mapping's own value is not a title. */
 function scalarKeyOf(s: Store, p: string, key: string): string | null {

@@ -1,4 +1,4 @@
-The graph
+The structure
 description: an acyclic spine, one relation kind, and a normal form
 - >
   Two edge classes build every yamlover graph. **Containment** - a key holding its value - is the

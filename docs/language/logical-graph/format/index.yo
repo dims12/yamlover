@@ -4,7 +4,7 @@ description: a named constraint on node content - not a type, never a decoder; m
   A **format** is a **named constraint** on a node's content - finer than any type can state:
   `type: string` admits every string, while `format: text/x-plantuml` claims the string parses as a
   PlantUML diagram. A format refines a facet; it is **not a type**
-  ([terminology](*::language:model:terminology)), and it has an open sub-lattice of its own (whether
+  ([terminology](*::language:logical-graph:terminology)), and it has an open sub-lattice of its own (whether
   `text/markdown` subtypes `text/plain` is deliberately unsettled). And it is **not a decoder**:
   since the concrete/format split, how bytes or text become the value is the
   [concrete](*::language:concretes)'s job - the format only says what the decoded value *means*.
@@ -27,7 +27,7 @@ description: a named constraint on node content - not a type, never a decoder; m
     weight: {concrete: binary/int32/le}             # the CONCRETE decodes four bytes to an integer
 - >
   Usually a format constrains a **string scalar**. But a scalar is just a node **without
-  members** ([members](*::language:model:members)), so nothing limits formats to strings: a format
+  members** ([members](*::language:logical-graph:members)), so nothing limits formats to strings: a format
   may name the shape of *any* node - `x-yamlover-chapter` constrains a whole omni node (a title
   self value, a `description` key, a positional body), and the platform's tag, fragment, and
   annotation structures are formats over keyed nodes.

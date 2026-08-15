@@ -2,7 +2,7 @@ Members
 description: entries seen from the container - keyed, keyless, bookmark-created
 - >
   In addition to the scalar self value, a node can have one or more **members**. Members are
-  themselves nodes, linked to this node by [spine edges](*::language:model:terminology). Members can
+  themselves nodes, linked to this node by [spine edges](*::language:logical-graph:terminology). Members can
   be **ordered** (keyless) or **keyed** - and one node may hold both kinds at once, in one ordered
   stream: every member has an integer position, and a keyed member carries a string key besides.
 - >
@@ -23,7 +23,7 @@ description: entries seen from the container - keyed, keyless, bookmark-created
     - mouse                  #     position 1
 - >
   Membership can be constrained. The constraints carry terse YAML-style names, like the
-  [self-value types](*::language:model:values):
+  [self-value types](*::language:logical-graph:values):
 - !!<*yamlover: $defs: table>
   header:
     - Yamlover name
@@ -72,5 +72,5 @@ description: entries seen from the container - keyed, keyless, bookmark-created
   `{value: false, keyed: false}`), the read-forever long aliases (`object`, `array`, `mixed`,
   `variant`), and the capability cube the names are corners of - is the
   [three facets](*::meta:facets) chapter's subject; the schema keywords that describe the members
-  themselves are ONE omni clause mirroring this chapter's model - the
+  themselves are ONE omni clause mirroring the member structure this chapter describes - the
   [members clause](*::meta:members): keyed clauses, keyless clauses, and the `others:` sweep.

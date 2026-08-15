@@ -2,7 +2,7 @@ Where the keys physically live (omni)
 description: the parallel keys sit beside the node's value - a document root, a chunk, a blob
 - >
   A target usually already *has a value* (a markdown string, a PDF's bytes). yamlover's **omni**
-  shape ([the model](*::language:model)) lets a node carry that self-value **and** fields at once,
+  shape ([the logical graph](*::language:logical-graph)) lets a node carry that self-value **and** fields at once,
   so `yamlover-fragments` / `yamlover-annotations` sit beside it.
 - >
   **Whole yamlover document** - plain root keys (the root may carry a scalar value too):

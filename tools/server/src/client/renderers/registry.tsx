@@ -91,7 +91,7 @@ export interface Chunk {
   path: string;
   type: string;
   format: string | null;
-  valueType?: string | null; // renderer dispatch facets (docs/language/model/matching) — so a tagged chunk still routes
+  valueType?: string | null; // renderer dispatch facets (docs/language/logical-graph/matching) — so a tagged chunk still routes
   hasKeyed?: boolean;
   hasOrdinal?: boolean;
   /** The JSON-space path of the document this chunk belongs to (the enclosing
@@ -119,7 +119,7 @@ export interface TocView {
   loadDepth?: number;
 }
 
-/** The three TYPE FACETS a renderer dispatches on (docs/language/model/matching): the scalar self-VALUE's type,
+/** The three TYPE FACETS a renderer dispatches on (docs/language/logical-graph/matching): the scalar self-VALUE's type,
  *  the node's `format`, and whether it owns keyed/ordinal elements. */
 export interface TypeFacets {
   valueType: string | null;
@@ -324,7 +324,7 @@ const REGISTRY: Renderer[] = [
   },
   {
     // A GRAPH node (`!!<*yamlover: $defs: xyflow>`): the subtree drawn as the directed graph it
-    // is (docs/language/model/graph) — self-values inside the boxes, relations titled by ordinal
+    // is (docs/language/logical-graph/structure) — self-values inside the boxes, relations titled by ordinal
     // and key, `*` and `&` edges dashed. Depth null: the whole subtree is the drawing.
     name: "xyflow",
     icon: <GraphIcon />,
@@ -536,7 +536,7 @@ function chapterTocView(node: TreeNode): TocView {
 }
 
 /** The renderer that claims `src`'s facets, or null when none does: of the matchers that accept
- *  it, the most SPECIFIC (highest `specificity`) wins (docs/language/model/matching). */
+ *  it, the most SPECIFIC (highest `specificity`) wins (docs/language/logical-graph/matching). */
 export function rendererFor(src: FacetSource): Renderer | null {
   const f = facetsFrom(src);
   let best: Renderer | null = null;

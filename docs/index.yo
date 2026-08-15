@@ -38,7 +38,7 @@ description: YAML with pointers – the language, its storage model, and its doc
   This book is the reference. It is itself a yamlover document tree—each page is a chapter,
   each paragraph is a marklower chunk, and the table of contents is the positional body you are
   now reading. The [language chapter](*::language) is the self-contained specification—principles,
-  the abstract model, pointers and queries, flattening, and the concrete representations. The [meta chapter](*::meta)
+  the logical graph, pointers and queries, flattening, and the concrete representations. The [meta chapter](*::meta)
   is the meta language—yamlover's replacement for JSON Schema: typing, description, and
   presentation. The [transform chapter](*::transform) extends meta to conversions—transforms
   between yamlover shapes, typed like function prototypes. The [documents chapter](*::documents)

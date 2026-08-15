@@ -10,7 +10,7 @@ description: inline-only prose; tables and lists are yamlover nodes
   structures it delegates to - [tables](*::documents:marklower:tables), [lists](*::documents:marklower:lists),
   and [embeds](*::documents:marklower:embeds).
   Companion language material: the [pointer grammar](*::language:pointers), the [type
-  lattice](*::language:model), the [schema vocabulary](*::meta).
+  lattice](*::language:logical-graph), the [schema vocabulary](*::meta).
 - *: model
 - *: grammar
 - *: link-targets

@@ -1,7 +1,7 @@
 The model - a fully omni node with a positional body
 description: title as self-value, optional description, one interleaved body stream
 - >
-  A chapter is just an omni (`variant`) node (the [logical model](*::language:model)) - a
+  A chapter is just an omni (`variant`) node (the [logical graph](*::language:logical-graph)) - a
   **fully** omni one: the node's own scalar **self-value is the title** (there is no `title:` key),
   `description` is an optional keyed field, and everything else is an **unkeyed (positional)
   body element**. Each body element is *either* a **nested chapter** (the recursion) *or* a

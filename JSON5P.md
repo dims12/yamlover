@@ -9,7 +9,7 @@ which is itself a strict superset of JSON:
 So anything you can write in JSON or JSON5 is already valid json5p; json5p only **adds**
 the pointer layer — the `*` dereference family, keys-as-pointers, `~` back-edges, and
 `&` anchors. This document specifies the json5p *concrete syntax*. The pointer grammar it
-embeds is defined once in `docs/language/pointers`; the abstract model both produce is `IR.md`.
+embeds is defined once in `docs/language/pointers`; the logical graph both produce is `IR.md`.
 
 File extension **`.json5p`**; suggested media type `application/json5p`.
 

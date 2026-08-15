@@ -1,6 +1,6 @@
 # Yamlover meta - the meta language, yamlover's replacement for JSON Schema. Root body:
 # what meta is and what it drives; each part a subdirectory chapter, ordered by the pointer
-# array below. Absorbed from language/model/metadata (+ facets) - log in ../DOCSMIGRATION.md.
+# array below. Absorbed from language/logical-graph/metadata (+ facets) - log in ../DOCSMIGRATION.md.
 Yamlover meta
 description: the meta language - the replacement for JSON Schema: typing, description, presentation
 - >

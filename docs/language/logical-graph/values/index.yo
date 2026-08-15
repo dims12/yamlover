@@ -55,7 +55,7 @@ description: the self-value's types - JSON Schema's set, binary added, its own s
   them, `text/markdown`, `image/png` - a named constraint refining how the value is rendered and
   edited (how a representation *decodes* into the value is the
   [concrete](*::language:concretes)'s job); a bare string's default prose format is
-  `text/marklower`. The [format chapter](*::language:model:format) is its subject.
+  `text/marklower`. The [format chapter](*::language:logical-graph:format) is its subject.
 - 'In a file, the format rides the `!!<...>` tag:'
 - !!<format: text/x-yamlover> |
   adopted: !!<format: date-time> 2019-06-01

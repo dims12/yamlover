@@ -1,13 +1,13 @@
-# The abstract model - terminology, the value axis, order, the graph, matching, and the
+# The logical graph - terminology, the value axis, order, the structure, matching, and the
 # constructs-in-concretes matrix; each a subdirectory chapter, closed by the tests chapter
 # mirroring the first test-examples/ fixtures. The facets/type system and the metadata
 # vocabulary moved to the toplevel meta chapter (docs/meta).
-The logical (abstract) model
-description: omnivorous nodes with ordered relations - the terminology and the graph
+The logical graph
+description: omnivorous nodes with ordered relations - the terminology and the structure
 
 - >
-  The model a yamlover database holds is a **directed** (oriented) **graph**. The graph can have
-  cycles (i.e. it is not acyclic).
+  What a yamlover database holds is a **logical graph**: **directed** (oriented), and free to
+  contain cycles (it is not acyclic).
 
 - >
   The vertices of that graph are called **nodes**. A node may carry a **scalar value** - a string, a
@@ -56,7 +56,7 @@ description: omnivorous nodes with ordered relations - the terminology and the g
 
 
 - >
-  All yamlover concretes are interpreted as (translated to) one logical model: a graph of **omnivorous
+  All yamlover concretes are interpreted as (translated to) one logical graph: **omnivorous
   nodes** connected by **ordered relations**.
 
 - *: values
@@ -64,7 +64,7 @@ description: omnivorous nodes with ordered relations - the terminology and the g
 - *: order
 - *: format
 - *: meta
-- *: graph
+- *: structure
 - *: matching
 - *: terminology
 - *: constructs

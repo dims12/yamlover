@@ -26,7 +26,7 @@ docs/
   index.yo           — the book root: title, intro prose, the ordered chapter pointers
   .yo/settings.yo    — project settings (already present; docs/ is a served root)
   language/          — The yamlover language: the spec, five parts:
-    model/             the abstract model: values, members, order, format, meta (the !!<> tag),
+    model/             the logical graph: values, members, order, format, meta (the !!<> tag),
                        graph, matching, terminology, constructs
     concretes/         storage laws (storage, choosing, invariants) + the per-language
                        catalogs (yamlover, yaml, json5p, json5_code, json_code)
@@ -53,9 +53,9 @@ are legal, the numbering is never order's source of truth.
 | `YAMLOVER.md` | `language/` root + `principles/` + `vs-yaml/` | kept YAML, additions, deliberate breaks |
 | `ANCHOR_REFACTOR.md` | `language/pointers/` | historical design round — fold the *decisions* in, drop the sketch |
 | `SEPARATOR.md` | `language/pointers/` | the colon grammar; its M/O rulings become normative rules |
-| `URIs.md` | `language/pointers/` + `language/model/graph/` | scopes, `&` anchors, escaping, relative indexes; the graph model |
-| `TYPES.md` | `language/model/` | the facet lattice |
-| `META.md` | `language/model/metadata/` + `language/concretes/` | the metadata schema; the `.yo/` contract |
+| `URIs.md` | `language/pointers/` + `language/logical-graph/structure/` | scopes, `&` anchors, escaping, relative indexes; the graph model |
+| `TYPES.md` | `language/logical-graph/` | the facet lattice |
+| `META.md` | `language/logical-graph/metadata/` + `language/concretes/` | the metadata schema; the `.yo/` contract |
 | `CONCRETES.md` | `language/concretes/` | storage taxonomy, representation, inheritance rules, layout invariants |
 | `QUERY.md` | `language/pointers/queries/` | the query language |
 | `CHAPTER.md` | `documents/chapter/` | the chapter/chunk document model |
@@ -109,7 +109,7 @@ Planning/process docs stay MD and stay put: `PLAN.md`, `TODO.md`, `FUTURE.md`, `
       (README.md — "YAML Overlay, not Yam lover") restored to the chapter root
 - [x] `language/principles/` + `language/vs-yaml/` (2026-08-01 — nine principles, the kept
       table + five breaks + conformance)
-- [x] `language/model/` ← `TYPES.md` + `META.md` vocabulary + `URIs.md` graph model
+- [x] `language/logical-graph/` ← `TYPES.md` + `META.md` vocabulary + `URIs.md` graph model
       (2026-08-01 — the variant-⊤/matcher-region tension stated explicitly; the stale
       "YAML ⊂ yamlover" and "`&` is an ordinary YAML anchor" wordings not carried)
 - [x] `language/concretes/` ← `CONCRETES.md` + `META.md` `.yo/` contract (2026-08-01 —
@@ -297,15 +297,15 @@ Planning/process docs stay MD and stay put: `PLAN.md`, `TODO.md`, `FUTURE.md`, `
       as do the 27 embedded `text/x-yamlover` code chunks and all 10 AGENTS.md fences.
 - [x] The meta language got its own toplevel chapter (2026-08-09): `docs/meta/` — yamlover meta
       presented as the replacement for JSON Schema, shaped like the "Understanding JSON Schema"
-      book — inserted between `language` and `documents` in the root body. `language/model/facets`
-      moved in whole (`git mv` → `meta/facets`); `language/model/metadata` absorbed and retired:
+      book — inserted between `language` and `documents` in the root body. `language/logical-graph/facets`
+      moved in whole (`git mv` → `meta/facets`); `language/logical-graph/metadata` absorbed and retired:
       its blocks now seed `meta/` (root body), `meta/attaching`, `meta/structuring`, and
       `meta/vs-json-schema` (which adds the keyword-by-keyword equivalence table). New stub
       chapters await prose: `value`, `keyed`, `ordinal`, `enum-const`, `annotations`, `format`,
       `composition`, `conditionals`. `meta/principles/` states the two design commitments:
       more-than-validation (why "meta", not "schema") and terse-keywords (yaml-style short
-      names, kebab-case TBD). All live citations repointed (`::language:model:metadata` → `::meta`,
-      `docs/language/model/{metadata,facets}` → `docs/meta{,/facets}`) across the book, the root
+      names, kebab-case TBD). All live citations repointed (`::language:logical-graph:metadata` → `::meta`,
+      `docs/language/logical-graph/{metadata,facets}` → `docs/meta{,/facets}`) across the book, the root
       MDs, `$defs/chapter`, both `.yo/meta.yo` overlays, and the tools' code comments; this log
       keeps the historical spellings.
 - [x] The model grew its missing chapters (2026-08-09): `model/members` (members as nodes on
@@ -447,7 +447,7 @@ chapters, the `entries:` keyword) deliberately run AHEAD of the code. The rules:
       shipped 2026-08-14 for directory metas (`pattern: true` reads the plain-string clause
       key as a regexp - patternProperties semantics; exact beats pattern, author order,
       first match; nested `members:` reach a subdirectory's files, the subdirectory's own
-      meta wins; SCHEMA_VERSION 13; fixture 0812; docs/language/model/tests/cases is the
+      meta wins; SCHEMA_VERSION 13; fixture 0812; docs/language/logical-graph/tests/cases is the
       first meta-typed chapter). Design-ahead (docs only, unchecked): schema-side pattern
       clauses, index-range selectors, the `at:` clause position keyword (restart the ordinal
       count from N, `~` = floating), per-clause `min`/`max` subsuming

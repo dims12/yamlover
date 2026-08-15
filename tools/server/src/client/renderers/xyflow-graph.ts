@@ -3,7 +3,7 @@
 // semantics — what becomes a node, what becomes an edge, how each is labelled — are unit
 // testable without a canvas.
 //
-// The model is the language's own (docs/language/model): nodes carry a scalar SELF-VALUE and are
+// The model is the language's own (docs/language/logical-graph): nodes carry a scalar SELF-VALUE and are
 // joined by relations that carry an ORDINAL and, sometimes, a KEY. So every relation is labelled
 // with both when it has both, and containment, `*` dereference and `&` anchor membership are three
 // EDGE KINDS the view draws differently — a pointer is a graph edge, never a copy

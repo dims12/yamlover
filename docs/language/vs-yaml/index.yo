@@ -1,6 +1,6 @@
 # Relationship to YAML - the kept surface, then every deliberate break, each its own
 # subdirectory chapter.
-Differences (and similarities) with YAML
+Comparison with YAML
 description: the kept surface, and every place the same token means something else
 - >
   The main feature of yamlover is its **omnivorous node** —
@@ -13,7 +13,7 @@ description: the kept surface, and every place the same token means something el
 - > 
   Reading is
   concrete-aware: a `.yaml`/`.yml` file is interpreted with YAML’s own
-  semantics, producing a faithful abstract model; a `.yo` file is
+  semantics, producing a faithful logical graph; a `.yo` file is
   parsed using yamlover’s semantics, expressing the full omnivorous structure.
 
 - >

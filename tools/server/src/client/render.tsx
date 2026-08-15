@@ -39,7 +39,7 @@ export interface Link {
   count?: number;
   size?: number;
   format?: string | null;
-  valueType?: string | null; // renderer dispatch facets (docs/language/model/matching) — carried so a chunk routes correctly
+  valueType?: string | null; // renderer dispatch facets (docs/language/logical-graph/matching) — carried so a chunk routes correctly
   hasKeyed?: boolean;
   hasOrdinal?: boolean;
   yo?: boolean; // `!!yo` — plain yamlover, exempt from the enclosing schema (chapter routing)
@@ -103,7 +103,7 @@ function numToken(name: string, syntax: Syntax): string {
 /** The scalar SELF-VALUE a string/scalar renderer should show. An OMNI node (a scalar that also
  *  carries fields — e.g. a markdown doc that gained `yamlover-annotations` keys) projects its page
  *  `value` as a `$yamloverMixed` marker, so peel it to the self-value; a plain scalar passes
- *  through. Pairs with the facet-tolerant dispatch (docs/language/model/matching): routing keeps an annotated string
+ *  through. Pairs with the facet-tolerant dispatch (docs/language/logical-graph/matching): routing keeps an annotated string
  *  on its renderer, and this hands that renderer the string — not the marker object. */
 export function scalarValue(v: unknown): unknown {
   const m = asMixed(v);

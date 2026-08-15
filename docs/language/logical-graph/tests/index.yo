@@ -1,9 +1,9 @@
-# Tests - the abstract model's laws pinned by executable fixtures. The cases/ subchapter
+# Tests - the logical graph's laws pinned by executable fixtures. The cases/ subchapter
 # mirrors fixtures of the test-examples/ corpus (test-examples/README.md describes the
 # anatomy) and its .yo/meta.yo mounts their files as text; the corpus stays the source of
 # truth, these copies make it browsable as part of the book.
 Tests
-description: the model's laws witnessed by fixtures - an input, its canonical IR, a byte golden
+description: the logical graph's laws witnessed by fixtures - an input, its canonical IR, a byte golden
 
 - >
   *Status: an experiment - the first ten fixtures of `test-examples/` are mirrored here
@@ -12,7 +12,7 @@ description: the model's laws witnessed by fixtures - an input, its canonical IR
 
 - >
   The chapters above state laws; a test is a law's **witness** - one concrete input and what the
-  model must make of it. The [cases](*: cases) subchapter holds the mirrored fixtures, each a
+  logical graph must make of it. The [cases](*: cases) subchapter holds the mirrored fixtures, each a
   directory whose `index.yo` overlay carries the title and whose files are the fixture members:
 
 - !!<*yamlover: $defs: table>

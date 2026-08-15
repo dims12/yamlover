@@ -208,7 +208,7 @@ describe("any node as a tag", () => {
   });
 });
 
-// docs/language/model/matching: tagging a node turns it OMNI — keyed tag applications laid over its own value — and
+// docs/language/logical-graph/matching: tagging a node turns it OMNI — keyed tag applications laid over its own value — and
 // nothing about how it READS may change. A chapter's title is a keyed scalar child, so annotating it
 // gives that child a child of its own; reading the title by "a CHILDLESS scalar" lost it entirely.
 describe("annotating a node never changes how it reads", () => {

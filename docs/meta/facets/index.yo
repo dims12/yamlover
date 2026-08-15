@@ -8,7 +8,7 @@ description: value, keyed, ordinal - the capability cube and its corners
     - keyword
     - meaning
       width: 2
-  - ['**value**', '`value:`', 'a scalar **self-value** - the [value axis](*::language:model:values)']
+  - ['**value**', '`value:`', 'a scalar **self-value** - the [value axis](*::language:logical-graph:values)']
   - ['**keyed**', '`keyed:`', 'named entries `key: ...`']
   - ['**ordinal**', '`ordinal:`', 'positional entries `- ...`']
 - >
@@ -85,5 +85,5 @@ description: value, keyed, ordinal - the capability cube and its corners
   **The cube's schema spelling.** The facet keywords are the theory; today's authored spelling
   covers the same ground with `value:` for the value facet and the
   [members clause](*::meta:members) for the other two: keyed clauses and keyless clauses of ONE
-  omni `members:` describe named and positional members respectively - matching the model, where
+  omni `members:` describe named and positional members respectively - matching the logical graph, where
   both live in one ordered stream - and the sibling `others:` sweeps whatever no clause matched.

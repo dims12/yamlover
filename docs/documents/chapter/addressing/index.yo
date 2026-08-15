@@ -3,7 +3,7 @@ description: bare-integer positions on the omni node - title consumes no index
 - >
   A chapter node at path `P` addresses its **body elements by their store index** on the node
   itself: `: P: i` - compact `:P:i` - with the bare integer as the position (the YAML-keys round; the
-  omni model indexes entries by their absolute position - a keyed entry like `description` consumes
+  omni node indexes entries by their absolute position - a keyed entry like `description` consumes
   an index too, so a described chapter's first body element is `:P:1`). The **title consumes NO
   index**: it is the node's self-value, not an entry. A document-relative marklower link therefore
   points at `:1` ([link targets](*::documents:marklower:link-targets); the retired bracket spelling

@@ -5,7 +5,7 @@ description: an extension of meta - conversions between yamlover shapes, typed a
 - '*Status: design - this layer is not implemented yet.*'
 - >
   A **transform** converts between shapes of yamlover data. It is the lower-level, data-to-data
-  counterpart of the [projection](*::language:model:terminology) the engine serves: a projection is
+  counterpart of the [projection](*::language:logical-graph:terminology) the engine serves: a projection is
   the read-side view of storage, a transform reshapes data into data.
 - >
   Transforms are an **extension of the meta language** ([yamlover meta](*::meta)). The meta
@@ -19,5 +19,5 @@ description: an extension of meta - conversions between yamlover shapes, typed a
   transform and the inline alias of a [concrete](*::language:concretes): `!!binary` on a scalar
   means `concrete: base64` (read the base64 text, yield the bytes), inferring `type: binary` - a
   tag that carries both a type and the decoding, the way a transform reads. The frame is `!!yo`'s
-  ([named metas](*::language:model:meta)): a transform is a meta, so a bare `!!name` may equally
+  ([named metas](*::language:logical-graph:meta)): a transform is a meta, so a bare `!!name` may equally
   name one, and the name is all the surface ever shows.

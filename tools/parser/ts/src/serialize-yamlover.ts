@@ -8,7 +8,7 @@
 // non-finite numbers, an anchored document
 // root — raises LossyError: refuse, never drop. (Blobs are refused only for now: the IR
 // carries the content HASH, not the bytes; once a byte source is wired in, a blob can
-// emit INLINE as base64 — docs/language/model/values `type: binary` — the same node in a different concrete.)
+// emit INLINE as base64 — docs/language/logical-graph/values `type: binary` — the same node in a different concrete.)
 
 import type { Document, Node, Mapping, Entry, Value, Scalar, Pointer, Comment } from './ir.ts';
 import { isPointer } from './ir.ts';

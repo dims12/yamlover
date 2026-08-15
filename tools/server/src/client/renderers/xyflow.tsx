@@ -1,5 +1,5 @@
 // The renderer for a node tagged `!!<*yamlover: $defs: xyflow>` (format `x-yamlover-xyflow`): the
-// subtree drawn as the GRAPH it is (docs/language/model/graph), laid out left to right by dagre and
+// subtree drawn as the GRAPH it is (docs/language/logical-graph/structure), laid out left to right by dagre and
 // painted by React Flow.
 //
 // What the drawing says: a node's box holds its scalar self-value, a valueless node is a bare

@@ -1,7 +1,7 @@
-Order in the model
+Order in the logical graph
 description: one entry stream, every entry positioned; provenance stays out of the address
 - >
-  The one ordered container is a model-level fact: a node has ONE entry stream, and every entry in it
+  The one ordered container is a graph-level fact: a node has ONE entry stream, and every entry in it
   - keyed or keyless - holds a position. The stream is what the facets describe (keyed and ordinal are
   views of the same entries), what queries enumerate, and what a bare-integer segment addresses.
   [Order is data](*::language:principles:order-is-data) states the principle; this page gives the

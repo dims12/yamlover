@@ -10,7 +10,7 @@ export interface TreeNode {
   label: string;
   type: string;
   format: string | null;
-  valueType?: string | null; // renderer dispatch facets (docs/language/model/matching)
+  valueType?: string | null; // renderer dispatch facets (docs/language/logical-graph/matching)
   hasKeyed?: boolean;
   hasOrdinal?: boolean;
   concrete: string | null; // how it is stored; `dir` → a plain-folder icon
@@ -23,7 +23,7 @@ export interface TreeNode {
 export interface NodeJson {
   path: string;
   type: string;
-  format?: string | null; // schema `format`; with the facets it keys the renderer (docs/language/model/matching)
+  format?: string | null; // schema `format`; with the facets it keys the renderer (docs/language/logical-graph/matching)
   valueType?: string | null; // the scalar self-VALUE's type (null|boolean|integer|number|string|binary), or null
   hasKeyed?: boolean; // owns ≥1 keyed element
   hasOrdinal?: boolean; // owns ≥1 ordinal (keyless) element

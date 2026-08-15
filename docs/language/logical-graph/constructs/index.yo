@@ -1,7 +1,7 @@
 The constructs in the concretes
-description: the same model, spelled in a .yo file, in json5p, and as a directory
+description: the same logical graph, spelled in a .yo file, in json5p, and as a directory
 - >
-  The abstract model has a handful of constructs, and each main concrete spells all of them (or falls
+  The logical graph has a handful of constructs, and each main concrete spells all of them (or falls
   back where it cannot). The yamlover file surface is the reference; the json5p brace surface quotes
   its pointer expressions and has no tags; the directory concrete spreads the node over the filesystem
   with the `.yo` overlays:

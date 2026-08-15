@@ -4,7 +4,7 @@ import { scalarValue } from "../../src/client/render";
 // A string/scalar renderer must show the SELF-VALUE. An omni node (a scalar that also gained
 // fields — e.g. a markdown doc with `yamlover-annotations`) projects its page value as a
 // `$yamloverMixed` marker; scalarValue peels it so the renderer gets the string, not "[object
-// Object]". This is the page-side half of the facet-tolerant dispatch (docs/language/model/matching).
+// Object]". This is the page-side half of the facet-tolerant dispatch (docs/language/logical-graph/matching).
 describe("scalarValue", () => {
   it("passes a plain scalar through", () => {
     expect(scalarValue("# Hello")).toBe("# Hello");
