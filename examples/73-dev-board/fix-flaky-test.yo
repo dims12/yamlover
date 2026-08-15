@@ -5,4 +5,4 @@ priority: low
 - Reproduces ~1 in 20 runs locally; likely a same-second mtime collision in the manifest compare.
 - Pin the clock or compare on (size, hash) when mtimes tie.
 yamlover-annotations:
-- *::yamlover:tags:workflow:dev:ready
+- *::yamlover:ontos:workflow:dev:ready

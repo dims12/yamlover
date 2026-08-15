@@ -60,8 +60,8 @@ describe("DetailsView", () => {
 
   it("renders a color tag as a circular swatch, a named tag as a badge", async () => {
     mAnns.mockResolvedValue([
-      { tag: { path: "::yamlover:tags:colors:yellow", name: "yellow", color: "#f9e2af" } },
-      { tag: { path: ":tags:done", name: "done", color: null } },
+      { tag: { path: "::yamlover:ontos:colors:yellow", name: "yellow", color: "#f9e2af" } },
+      { tag: { path: ":ontos:done", name: "done", color: null } },
     ]);
     const { container } = render(<DetailsView members={[item(":doc.md", "text/markdown", "Doc")]} onNavigate={() => {}} />);
     await waitFor(() => expect(container.querySelector(".tagswatch")).toBeTruthy());

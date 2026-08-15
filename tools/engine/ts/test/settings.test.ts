@@ -43,23 +43,23 @@ test('an unparsable settings file yields the defaults (never breaks serving)', (
 });
 
 test('a PROJECT-scope *-pointer is the canonical location form (*:: name → :name)', () => {
-  const root = projectWith('tags: *:: taxonomy: places\n');
-  assert.equal(loadSettings(root).tags, ':taxonomy:places');
+  const root = projectWith('ontos: *:: taxonomy: places\n');
+  assert.equal(loadSettings(root).ontos, ':taxonomy:places');
   rmSync(root, { recursive: true, force: true });
 });
 
 test('document/current scope pointers are accepted leniently too (resolved against the served root)', () => {
-  const root = projectWith('annotations: *: notes\ntags: *:: tags\n');
+  const root = projectWith('annotations: *: notes\ntags: *:: ontos\n');
   const s = loadSettings(root);
   assert.equal(s.annotations, ':notes'); // *: → document root
-  assert.equal(s.tags, ':tags'); // *:: → project root
+  assert.equal(s.ontos, ':ontos'); // *:: → project root
   rmSync(root, { recursive: true, force: true });
 });
 
 test('pointers that cannot name a place inside the root fall back to the default', () => {
-  for (const bad of ['tags: *.. : outside\n', 'tags: *:: ..: outside\n']) {
+  for (const bad of ['ontos: *.. : outside\n', 'ontos: *:: ..: outside\n']) {
     const root = projectWith(bad);
-    assert.equal(loadSettings(root).tags, DEFAULT_SETTINGS.tags, bad);
+    assert.equal(loadSettings(root).ontos, DEFAULT_SETTINGS.ontos, bad);
     rmSync(root, { recursive: true, force: true });
   }
 });
@@ -68,7 +68,7 @@ test('one odd field does not sink the others', () => {
   const root = projectWith('annotations: marks\ntags: 7\n');
   const s = loadSettings(root);
   assert.equal(s.annotations, ':marks');
-  assert.equal(s.tags, DEFAULT_SETTINGS.tags);
+  assert.equal(s.ontos, DEFAULT_SETTINGS.ontos);
   rmSync(root, { recursive: true, force: true });
 });
 
@@ -80,16 +80,16 @@ test('uri + exports: parsed from the config (IMPORTS.md §1/§2); absent → und
   // or as a world pointer
   assert.equal(loadSettings(projectWith('uri: *::: yamlover.inthemoon.net\n')).uri, 'yamlover.inthemoon.net');
   // exports: a list of pointer/query texts
-  const s = loadSettings(projectWith('exports:\n- *:: $defs\n- *:: tags\n'));
-  assert.deepEqual(s.exports, ['*:: $defs', '*:: tags']);
+  const s = loadSettings(projectWith('exports:\n- *:: $defs\n- *:: ontos\n'));
+  assert.deepEqual(s.exports, ['*:: $defs', '*:: ontos']);
 });
 
 test('writeSettingKey sets one key surgically, preserving comments + other fields; round-trips', () => {
-  const root = projectWith('# my config\nuri: ::: acme.example\ntags: *:: tags\n');
+  const root = projectWith('# my config\nuri: ::: acme.example\nontos: *:: ontos\n');
   writeSettingKey(root, 'annotations', '*:: notes');
   const src = readFileSync(join(root, '.yo', 'settings.yo'), 'utf8');
   assert.ok(src.includes('# my config')); // comment preserved
-  assert.ok(src.includes('tags: *:: tags')); // other field preserved
+  assert.ok(src.includes('ontos: *:: ontos')); // other field preserved
   assert.ok(src.includes('annotations: *:: notes'));
   assert.equal(loadSettings(root).annotations, ':notes');
   // replacing it in place does not duplicate the key
@@ -109,7 +109,7 @@ test('ensureSettingsFile creates a defaults file when absent (and it loads to th
   assert.ok(created.includes('!!<*yamlover:$defs:config>')); // renders with the settings editor
   const s = loadSettings(root);
   assert.equal(s.annotations, DEFAULT_SETTINGS.annotations);
-  assert.equal(s.tags, DEFAULT_SETTINGS.tags);
+  assert.equal(s.ontos, DEFAULT_SETTINGS.ontos);
   assert.equal(s.sidecars, DEFAULT_SETTINGS.sidecars);
   // present → left exactly as-is (hand edits survive)
   const hand = projectWith('# mine\ntags: *:: my: tags\n');
@@ -134,7 +134,7 @@ test('width: a valid integer is read; junk / out-of-range → undefined', () => 
     assert.equal(loadSettings(root).width, undefined);
     rmSync(root, { recursive: true, force: true });
   }
-  assert.equal(loadSettings(projectWith('tags: *:: tags\n')).width, undefined); // absent
+  assert.equal(loadSettings(projectWith('ontos: *:: ontos\n')).width, undefined); // absent
 });
 
 test('theme: dark/light read; junk → undefined', () => {

@@ -92,7 +92,7 @@ console.log(`yamlover  copied ${docFiles.length} agent docs → dist/agent-docs`
 const repoRoot = join(pkgRoot, "..", "..");
 const taxDir = join(pkgRoot, "dist/builtin-taxonomy");
 const skipDb = (src) => !/index\.db(-(wal|shm|journal))?$/.test(src);
-for (const sub of ["$defs", "tags"]) {
+for (const sub of ["$defs", "ontos"]) {
   cpSync(join(repoRoot, sub), join(taxDir, sub), { recursive: true, filter: skipDb });
 }
 console.log("yamlover  copied yamlover taxonomy ($defs + tags) → dist/builtin-taxonomy");

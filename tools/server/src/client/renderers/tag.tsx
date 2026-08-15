@@ -2,14 +2,14 @@ import type { CSSProperties } from "react";
 import { asLink } from "../render";
 import { canonPath, strToSegs } from "../paths";
 
-export const TAG_FORMAT = "x-yamlover-tag";
+export const ONTO_FORMAT = "x-yamlover-onto";
 
 /** Whether a tag node is one of the built-in PURE COLOR tags (the palette) — detected by its
- *  canonical path living under `tags:colors:` (the established color-palette location, also
+ *  canonical path living under `ontos:colors:` (the established color-palette location, also
  *  special-cased in annotate.tsx's `indexToRefs`/`rememberRecent`). Such tags render as a
  *  circular swatch wherever applied tags are listed, not as a name badge. */
 export function isColorTagPath(path: string): boolean {
-  return /(^|:)tags:colors:/.test(canonPath(path));
+  return /(^|:)ontos:colors:/.test(canonPath(path));
 }
 
 /** Expose a tag's colour to CSS as `--tag`. Every chip/swatch/dot paints through it — CSS renders
@@ -39,7 +39,7 @@ export interface TagLink {
 
 /**
  * Split a node's `relations` into **tag references** (any up-edge that resolves to
- * an `x-yamlover-tag` node) and everything else. This includes the structural
+ * an `x-yamlover-onto` node) and everything else. This includes the structural
  * `..` when the containment parent is itself a tag — so a tag shows its *parent
  * tag* in the bar, exactly as a paper shows the tags it is filed under. Tag
  * references render as badges (see {@link TagBadges}); the rest stay in the
@@ -53,7 +53,7 @@ export function splitTagRefs(relations?: Record<string, unknown>): {
   const rest: Record<string, unknown> = {};
   for (const [name, v] of Object.entries(relations || {})) {
     const link = asLink(v);
-    if (link && link.format === TAG_FORMAT) {
+    if (link && link.format === ONTO_FORMAT) {
       tags.push({ path: link.path, label: tagLabel(link.path, link.title), color: link.color ?? null });
     } else {
       rest[name] = v;

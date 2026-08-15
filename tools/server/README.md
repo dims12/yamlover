@@ -239,7 +239,7 @@ Registered today (a representative slice — the registry is the source of truth
 | renderer | matches (format) | draws with |
 |----------|------------------|------------|
 | `chapter` | `x-yamlover-chapter` | a positional body: numbered chunks + subchapter links |
-| `tag` / `board` | `x-yamlover-tag` / `x-yamlover-board` | tag-hierarchy diagram / board (handled outside the specificity loop) |
+| `tag` / `board` | `x-yamlover-onto` / `x-yamlover-board` | tag-hierarchy diagram / board (handled outside the specificity loop) |
 | `task` | `x-yamlover-task` | task view |
 | `table` | `x-yamlover-table` | a grid (`docs/documents/marklower`): rows/header/caption from the omni entries, merged cells (`colSpan`/`rowSpan`) from resolved relative-index `*` pointers, nested tables inline, marklower cells; prose cells edit in place under the lock |
 | `marklower` | `text/marklower` (a chapter's prose chunks, by schema propagation) | its own inline grammar (`docs/documents/marklower`): emphasis, `` `code` ``, `$$math$$` via KaTeX, links, and `*[…](…)` media embeds |

@@ -41,13 +41,13 @@ describe("/api/tag (create)", () => {
     await h.ready;
 
     const NAME = "исаакиевский собор";
-    const ENC = ":tags:'" + encodeURIComponent(NAME) + "'"; // percent-encoded canonical token (a spacey key rides quoted)
+    const ENC = ":ontos:'" + encodeURIComponent(NAME) + "'"; // percent-encoded canonical token (a spacey key rides quoted)
     const r = await callBody(h, "POST", "/api/tag", { name: NAME });
     expect(r.status).toBe(201);
     expect(r.json).toMatchObject({ path: ENC, name: NAME, color: null, created: true });
-    const body = fs.readFileSync(path.join(root, "tags", ".yo", "body.yo"), "utf8");
-    expect(body).toContain(`${NAME}: !!<*::yamlover:$defs:tag>`);
-    expect((await nodeJson(h, { path: r.json.path })).json.format).toBe("x-yamlover-tag");
+    const body = fs.readFileSync(path.join(root, "ontos", ".yo", "body.yo"), "utf8");
+    expect(body).toContain(`${NAME}: !!<*::yamlover:$defs:onto>`);
+    expect((await nodeJson(h, { path: r.json.path })).json.format).toBe("x-yamlover-onto");
 
     // the freshly created tag can be applied right away
     const a = await callBody(h, "POST", "/api/annotate", { target: ":name", tag: r.json.path });
@@ -63,28 +63,28 @@ describe("/api/tag (create)", () => {
     await callBody(h, "POST", "/api/tag", { name: "twice" });
     const r = await callBody(h, "POST", "/api/tag", { name: "twice" });
     expect(r.status).toBe(201);
-    expect(r.json).toMatchObject({ path: ":tags:twice", name: "twice", created: false });
-    const body = fs.readFileSync(path.join(root, "tags", ".yo", "body.yo"), "utf8");
+    expect(r.json).toMatchObject({ path: ":ontos:twice", name: "twice", created: false });
+    const body = fs.readFileSync(path.join(root, "ontos", ".yo", "body.yo"), "utf8");
     expect(body.match(/^twice:/gm)).toHaveLength(1);
   });
 
   it("appends to an existing taxonomy body without clobbering it", async () => {
-    const root = tmpTree({ "tags/.yo/body.yo": "old: !!<*yamlover: $defs: tag>\n" });
+    const root = tmpTree({ "ontos/.yo/body.yo": "old: !!<*yamlover: $defs: onto>\n" });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
 
     const r = await callBody(h, "POST", "/api/tag", { name: "new" });
     expect(r.status).toBe(201);
-    const body = fs.readFileSync(path.join(root, "tags", ".yo", "body.yo"), "utf8");
-    expect(body).toContain("old: !!<*yamlover: $defs: tag>");
-    expect(body).toContain("new: !!<*::yamlover:$defs:tag>");
-    expect((await nodeJson(h, { path: ":tags:old" })).json.format).toBe("x-yamlover-tag");
+    const body = fs.readFileSync(path.join(root, "ontos", ".yo", "body.yo"), "utf8");
+    expect(body).toContain("old: !!<*yamlover: $defs: onto>");
+    expect(body).toContain("new: !!<*::yamlover:$defs:onto>");
+    expect((await nodeJson(h, { path: ":ontos:old" })).json.format).toBe("x-yamlover-onto");
   });
 
   it("honors a *-pointer tags location from settings.yo", async () => {
     const root = tmpTree({
       name: "Alice",
-      ".yo/settings.yo": "tags: *:: taxonomy: places\n",
+      ".yo/settings.yo": "ontos: *:: taxonomy: places\n",
     });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
@@ -105,7 +105,7 @@ describe("/api/tag (create)", () => {
       expect(r.status, JSON.stringify(name)).toBe(400);
       expect(r.json.error).toBeTruthy();
     }
-    expect(fs.existsSync(path.join(root, "tags"))).toBe(false); // nothing was written
+    expect(fs.existsSync(path.join(root, "ontos"))).toBe(false); // nothing was written
   });
 
   it("writes raw (un-encoded) pointer keys, so everything survives a full reindex", async () => {
@@ -123,7 +123,7 @@ describe("/api/tag (create)", () => {
     // with the tag written as a RAW (un-encoded) project-scoped pointer (spacey key quoted).
     const overlay = fs.readFileSync(path.join(root, "Санкт-Петербург", ".yo", "body.yo"), "utf8");
     expect(overlay).toContain('"img.txt":');
-    expect(overlay).toContain("*::tags:'исаакиевский собор'");
+    expect(overlay).toContain("*::ontos:'исаакиевский собор'");
 
     expect((await callBody(h, "POST", "/api/reindex", {})).status).toBe(200);
     const list = call(h, "/api/annotations", { path: target }).json;
@@ -135,7 +135,7 @@ describe("/api/tag (create)", () => {
   });
 
   it("refuses when a non-tag node already occupies the path", async () => {
-    const root = tmpTree({ "tags/busy": "plain file" });
+    const root = tmpTree({ "ontos/busy": "plain file" });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
 
@@ -261,8 +261,8 @@ describe("unified change flow — every write announces its diff over SSE", () =
     const diffs = sse.frames().filter((f) => f.type === "diff");
     // tag create is incremental (announce); annotate/delete reconcile the edited overlay (reindex).
     expect(diffs.length).toBe(4);
-    expect(diffs[0]).toMatchObject({ added: [":tags:.yo:body.yo"], changed: [], removed: [] });
-    expect(diffs[1]).toMatchObject({ added: [], changed: [":tags:.yo:body.yo"], removed: [] });
+    expect(diffs[0]).toMatchObject({ added: [":ontos:.yo:body.yo"], changed: [], removed: [] });
+    expect(diffs[1]).toMatchObject({ added: [], changed: [":ontos:.yo:body.yo"], removed: [] });
     const nonEmpty = (d: { added: string[]; changed: string[]; removed: string[] }) => d.added.length + d.changed.length + d.removed.length > 0;
     expect(nonEmpty(diffs[2])).toBe(true); // annotate edited the root overlay
     expect(nonEmpty(diffs[3])).toBe(true); // delete edited it again
@@ -607,8 +607,8 @@ describe("/api/paste (rich — an HTML selection: image chunks + heading subchap
 describe("agile board — drag = re-tag a task's state", () => {
   it("moves a task between state lanes and rewrites its on-disk annotation", async () => {
     const root = tmpTree({
-      "mytask.yo": ["!!<*yamlover:$defs:task>", "title: Wire the widget", "yamlover-annotations:", "- *::tags:state:backlog", ""].join("\n"),
-      "tags/.yo/body.yo": ["!!<*yamlover:$defs:tag>", "state: Lifecycle states", "  backlog: Captured", "  in-progress: Working", ""].join("\n"),
+      "mytask.yo": ["!!<*yamlover:$defs:task>", "title: Wire the widget", "yamlover-annotations:", "- *::ontos:state:backlog", ""].join("\n"),
+      "ontos/.yo/body.yo": ["!!<*yamlover:$defs:onto>", "state: Lifecycle states", "  backlog: Captured", "  in-progress: Working", ""].join("\n"),
     });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
@@ -618,20 +618,20 @@ describe("agile board — drag = re-tag a task's state", () => {
 
     // the task starts in the backlog lane
     expect((await nodeJson(h, { path: ":mytask.yo" })).json.format).toBe("x-yamlover-task");
-    expect(column(":tags:state:backlog")).toContain(":mytask.yo");
-    expect(column(":tags:state:in-progress")).not.toContain(":mytask.yo");
+    expect(column(":ontos:state:backlog")).toContain(":mytask.yo");
+    expect(column(":ontos:state:in-progress")).not.toContain(":mytask.yo");
 
     // DRAG → in-progress: drop the old state annotation, add the new
-    const del = await callBody(h, "DELETE", "/api/annotate", undefined, { target: ":mytask.yo", tag: ":tags:state:backlog" });
+    const del = await callBody(h, "DELETE", "/api/annotate", undefined, { target: ":mytask.yo", tag: ":ontos:state:backlog" });
     expect(del.status).toBe(200);
-    const add = await callBody(h, "POST", "/api/annotate", { target: ":mytask.yo", tag: ":tags:state:in-progress" });
+    const add = await callBody(h, "POST", "/api/annotate", { target: ":mytask.yo", tag: ":ontos:state:in-progress" });
     expect(add.status).toBe(201);
 
     // the lanes have flipped, and the file now points at the new state
-    expect(column(":tags:state:in-progress")).toContain(":mytask.yo");
-    expect(column(":tags:state:backlog")).not.toContain(":mytask.yo");
+    expect(column(":ontos:state:in-progress")).toContain(":mytask.yo");
+    expect(column(":ontos:state:backlog")).not.toContain(":mytask.yo");
     const body = fs.readFileSync(path.join(root, "mytask.yo"), "utf8");
-    expect(body).toContain("*::tags:state:in-progress");
+    expect(body).toContain("*::ontos:state:in-progress");
     expect(body).not.toContain("state:backlog");
   });
 });
@@ -641,22 +641,22 @@ describe("agile board — drag = re-tag a task's state", () => {
 describe("/api/board (lane config)", () => {
   it("persists lanes as project-scope tag pointers and re-reads them", async () => {
     const root = tmpTree({
-      ".yo/body.yo": "!!<*yamlover:$defs:board>\nworkflow: *::tags:workflow:dev\n",
-      "tags/.yo/body.yo": "!!<*yamlover:$defs:tag>\nworkflow: Lifecycles\n  dev: Software task lifecycle\n    ready: Ready\n    done: Done\n    cancelled: Dropped\n",
+      ".yo/body.yo": "!!<*yamlover:$defs:board>\nworkflow: *::ontos:workflow:dev\n",
+      "ontos/.yo/body.yo": "!!<*yamlover:$defs:onto>\nworkflow: Lifecycles\n  dev: Software task lifecycle\n    ready: Ready\n    done: Done\n    cancelled: Dropped\n",
     });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
 
     const r = await callBody(h, "POST", "/api/board", {
       path: ":",
-      lanes: [[":tags:workflow:dev:ready"], [":tags:workflow:dev:done", ":tags:workflow:dev:cancelled"]],
+      lanes: [[":ontos:workflow:dev:ready"], [":ontos:workflow:dev:done", ":ontos:workflow:dev:cancelled"]],
     });
     expect(r.status).toBe(201);
     const body = fs.readFileSync(path.join(root, ".yo", "body.yo"), "utf8");
     expect(body).toContain("lanes:");
-    expect(body).toContain("- [*::tags:workflow:dev:ready]");
-    expect(body).toContain("- [*::tags:workflow:dev:done, *::tags:workflow:dev:cancelled]");
-    expect(body).toContain("workflow: *::tags:workflow:dev"); // the existing config is preserved
+    expect(body).toContain("- [*::ontos:workflow:dev:ready]");
+    expect(body).toContain("- [*::ontos:workflow:dev:done, *::ontos:workflow:dev:cancelled]");
+    expect(body).toContain("workflow: *::ontos:workflow:dev"); // the existing config is preserved
     // the lane tag pointers resolve (the board reads them at depth 3)
     const deep = (await nodeJson(h, { path: ":", depth: "3" })).json;
     const lanes = deep.value.lanes;

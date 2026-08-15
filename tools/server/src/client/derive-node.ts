@@ -29,7 +29,7 @@ const MIX = "$yamloverMixed";
 const LINK = "$yamloverLink";
 const REF = "$yamloverRef";
 const NUM = "$yamloverNum";
-const TAG_FORMAT = "x-yamlover-tag";
+const ONTO_FORMAT = "x-yamlover-onto";
 
 const wireScalar = (v: unknown): unknown =>
   typeof v === "number" && !Number.isFinite(v) ? { [NUM]: String(v) } : v;
@@ -137,7 +137,7 @@ function mintLink(node: Node, segs: Seg[], own: Own[], bucket: SideBucket, dc: s
   } else {
     info.count = nonBack.length;
   }
-  if (format === TAG_FORMAT) {
+  if (format === ONTO_FORMAT) {
     const c = nonBack.find((o) => o.e.key === "color");
     const cv = c && !isPointer(c.e.value) ? (c.e.value as { value?: unknown }).value : undefined;
     if (typeof cv === "string") info.color = cv;

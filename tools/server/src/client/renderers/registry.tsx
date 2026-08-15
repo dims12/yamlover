@@ -200,7 +200,7 @@ const explorerView = (name: string, label: string, icon: ReactNode, view: ViewMo
   name,
   label,
   icon,
-  accepts: byFormat("x-yamlover-tag", "x-yamlover-board"),
+  accepts: byFormat("x-yamlover-onto", "x-yamlover-board"),
   specificity: 2,
   render: (node, onNavigate) => <ExplorerView node={node} view={view} onNavigate={onNavigate} />,
 });

@@ -296,8 +296,8 @@
                             "value": [
                               {
                                 "$yamloverRef": {
-                                  "text": "*:: part-two: tags: important",
-                                  "path": ":part-two:tags:important"
+                                  "text": "*:: part-two: ontos: important",
+                                  "path": ":part-two:ontos:important"
                                 }
                               }
                             ]
@@ -314,7 +314,7 @@
                     "anchor": true
                   },
                   {
-                    "key": "tags",
+                    "key": "ontos",
                     "value": {
                       "important": {
                         "color": "#d29922"
@@ -469,12 +469,12 @@
         "tag": "!!set"
       },
       "/part-two/3/yamlover-annotations/0": {
-        "pointer": ": tags: important"
+        "pointer": ": ontos: important"
       },
-      "/part-two/tags/important": {
-        "tag": "!!<*yamlover: $defs: tag>"
+      "/part-two/ontos/important": {
+        "tag": "!!<*yamlover: $defs: onto>"
       },
-      "/part-two/tags/important/color": {
+      "/part-two/ontos/important/color": {
         "repr": "yaml/single",
         "raw": "'#d29922'"
       },
@@ -1365,8 +1365,8 @@
                     "value": [
                       {
                         "$yamloverRef": {
-                          "text": "*:: part-two: tags: important",
-                          "path": ":part-two:tags:important"
+                          "text": "*:: part-two: ontos: important",
+                          "path": ":part-two:ontos:important"
                         }
                       }
                     ]
@@ -1383,7 +1383,7 @@
             "anchor": true
           },
           {
-            "key": "tags",
+            "key": "ontos",
             "value": {
               "important": {
                 "color": "#d29922"
@@ -1442,12 +1442,12 @@
         "tag": "!!set"
       },
       "/3/yamlover-annotations/0": {
-        "pointer": ": tags: important"
+        "pointer": ": ontos: important"
       },
-      "/tags/important": {
-        "tag": "!!<*yamlover: $defs: tag>"
+      "/ontos/important": {
+        "tag": "!!<*yamlover: $defs: onto>"
       },
-      "/tags/important/color": {
+      "/ontos/important/color": {
         "repr": "yaml/single",
         "raw": "'#d29922'"
       }
@@ -1915,8 +1915,8 @@
             "value": [
               {
                 "$yamloverRef": {
-                  "text": "*:: part-two: tags: important",
-                  "path": ":part-two:tags:important"
+                  "text": "*:: part-two: ontos: important",
+                  "path": ":part-two:ontos:important"
                 }
               }
             ]
@@ -1928,7 +1928,7 @@
     },
     "comments": {
       "/yamlover-annotations/0": {
-        "pointer": ": tags: important"
+        "pointer": ": ontos: important"
       }
     },
     "relations": {
@@ -1954,14 +1954,14 @@
     "value": [
       {
         "$yamloverRef": {
-          "text": "*:: part-two: tags: important",
-          "path": ":part-two:tags:important"
+          "text": "*:: part-two: ontos: important",
+          "path": ":part-two:ontos:important"
         }
       }
     ],
     "comments": {
       "/0": {
-        "pointer": ": tags: important"
+        "pointer": ": ontos: important"
       }
     },
     "relations": {
@@ -2136,15 +2136,15 @@
       }
     }
   },
-  ":part-two:tags": {
-    "path": ":part-two:tags",
+  ":part-two:ontos": {
+    "path": ":part-two:ontos",
     "type": "object",
     "format": "x-yamlover-chapter",
     "valueType": null,
     "hasKeyed": true,
     "hasOrdinal": false,
     "concrete": "dir/.yo",
-    "documentPath": ":part-two:tags",
+    "documentPath": ":part-two:ontos",
     "title": null,
     "description": null,
     "value": {
@@ -2154,7 +2154,7 @@
     },
     "comments": {
       "/important": {
-        "tag": "!!<*yamlover: $defs: tag>"
+        "tag": "!!<*yamlover: $defs: onto>"
       },
       "/important/color": {
         "repr": "yaml/single",

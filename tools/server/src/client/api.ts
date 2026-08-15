@@ -239,7 +239,7 @@ export interface ConfigSettings {
   uri?: string;
   exports: string[];
   annotations: string;
-  tags: string;
+  ontos: string;
   sidecars: string;
   width?: number; // reading width (ch) — the project layer; browser settings override it
   theme?: string; // ui palette (dark | light) — the project layer; browser settings override it
@@ -277,10 +277,10 @@ export function saveBoardLanes(path: string, lanes: string[][]): Promise<{ ok: t
   return postJson(api("/api/board"), { path, lanes });
 }
 
-/** Create a named tag at the project's default tags location (settings.yo; `/tags` by
+/** Create a named tag at the project's default ontos location (settings.yo; `/ontos` by
  *  default) — the picker's create-on-miss. Idempotent: an existing tag at that path is returned
  *  as-is; a non-tag node already occupying the path is an error. */
-export function createTag(name: string): Promise<TagRef> {
+export function createOnto(name: string): Promise<TagRef> {
   return fetch(api("/api/tag"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) }).then(
     async (res) => {
       const body = await res.json();

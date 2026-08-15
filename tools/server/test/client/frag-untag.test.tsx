@@ -44,7 +44,7 @@ function Probe({ path }: { path: string }) {
   return <output>{m.annotations.filter((a) => a.tag).length}</output>;
 }
 
-const TAG = "::yamlover:tags:colors:yellow";
+const TAG = "::yamlover:ontos:colors:yellow";
 const SEL = { type: "rect", x: 1, y: 2, w: 3, h: 4 };
 
 // A probe over the REGION picker (openCreate + palette) plus the material — to prove a fresh

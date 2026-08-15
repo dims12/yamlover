@@ -13,12 +13,12 @@ members:
     type: array                         #   a list of pointer/query texts
     others:
       type: string
-  annotations: *:: yamlover: $defs: tag   # where new annotations are created (`*:: annotations`)
-  tags: *:: yamlover: $defs: tag          # where new tags are created (`*:: tags`)
+  annotations: *:: yamlover: $defs: onto   # where new annotations are created (`*:: annotations`)
+  ontos: *:: yamlover: $defs: onto          # where new tags are created (`*:: tags`)
   sidecars:                             # where derived sidecar blobs go: per-directory | project
     type: string
   width:                                # reading width (ch) for rendered prose (markdown/asciidoc/
     type: integer                       #   chapter); the browser settings layer overrides it per device
   theme:                                # ui palette: dark | light; the browser settings layer
     type: string                        #   overrides it per device
-  annotation-tag: *:: yamlover: $defs: tag  # the last-used annotation tag (the picker default)
+  annotation-tag: *:: yamlover: $defs: onto  # the last-used annotation tag (the picker default)

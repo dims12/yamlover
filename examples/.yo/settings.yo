@@ -7,5 +7,5 @@
 !!<*yamlover:$defs:config>
 
 annotations: *:: annotations   # create new annotations in :annotations
-tags: *:: tags                 # create new tags in :tags
+ontos: *:: ontos                # create new ontos in :ontos
 sidecars: per-directory        # where derived thumbnail/crop blobs go (enum, not a path)

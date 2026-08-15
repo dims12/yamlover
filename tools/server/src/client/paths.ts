@@ -122,10 +122,10 @@ export function displayPath(path: string): string {
  *  container), and the remaining segments joined with `": "` (a space after each colon, matching the
  *  yamlover source spelling) — e.g. `workflow: dev: ready`. Indices stay `[i]`. Falls back to the
  *  last segment when nothing remains under `tags`. */
-export function tagDisplayPath(path: string): string {
+export function ontoDisplayPath(path: string): string {
   const all = strToSegs(canonPath(path));
   // Drop everything up to and including the `tags` root container — what's left is the tag's spine.
-  const ti = all.indexOf("tags");
+  const ti = all.indexOf("ontos");
   const segs = ti >= 0 ? all.slice(ti + 1) : all;
   if (!segs.length) return all.length ? String(all[all.length - 1]) : ":";
   return segs.map((s) => (s === null ? "~" : String(s))).join(": ");

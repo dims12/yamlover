@@ -32,7 +32,7 @@ describe("api endpoints (engine-backed)", () => {
     const rootJson = (await nodeJson(h, { path: ":", depth: "1" })).json;
     expect(Object.keys(rootJson.value as object)).not.toContain("yamlover");
     // reachable: direct navigation works and serves the grafted taxonomy
-    const tags = (await nodeJson(h, { path: ":yamlover:tags:colors" }));
+    const tags = (await nodeJson(h, { path: ":yamlover:ontos:colors" }));
     expect(tags.status).toBe(200);
     // reachable: project-scope pointers into it still resolve (schema application shows it)
     const y = (await nodeJson(h, { path: ":yamlover" }));

@@ -24,17 +24,17 @@ export interface Settings {
    *  project declares no URI (then it cannot be imported by others). Identity, not transport. */
   uri?: string;
   /** The paths this project EXPORTS to importers (IMPORTS.md §2): a list of pointer/query texts
-   *  (docs/language/pointers/queries), e.g. `*:: $defs`, `*:: tags`. Empty when nothing is exported. Advisory metadata —
+   *  (docs/language/pointers/queries), e.g. `*:: $defs`, `*:: ontos`. Empty when nothing is exported. Advisory metadata —
    *  the engine bundles the yamlover taxonomy regardless; this documents the contract. */
   exports: string[];
   /** Where new annotations are created — a project path (`:annotations`), authored as the
    *  project-scope pointer `annotations: *:: annotations`. Reading is location-independent — an
    *  annotation is recognized by its schema (`x-yamlover-annotation`), wherever it sits. */
   annotations: string;
-  /** Where new tags are created (the picker's create-on-miss target) — a project path, authored
-   *  `tags: *:: tags`. As with annotations, reading is location-independent — a tag is recognized
-   *  by its schema (`x-yamlover-tag`), wherever it sits. */
-  tags: string;
+  /** Where new ontos are created (the picker's create-on-miss target) — a project path, authored
+   *  `ontos: *:: ontos`. As with annotations, reading is location-independent — a tag is recognized
+   *  by its schema (`x-yamlover-onto`), wherever it sits. */
+  ontos: string;
   /** Where DERIVED sidecar blobs (thumbnail + fragment-crop images) are written, under a hidden
    *  `.yo/` overlay dir. An ENUM, not a path: `'per-directory'` → the source file's own
    *  directory `.yo/` (a self-contained doc; document-scope pointer `*:.yo:…`);
@@ -57,7 +57,7 @@ export const DEFAULT_SETTINGS: Settings = {
   uri: undefined,
   exports: [],
   annotations: ':annotations',
-  tags: ':tags',
+  ontos: ':ontos',
   sidecars: 'per-directory',
   width: undefined,
   theme: undefined,
@@ -77,7 +77,7 @@ export const DEFAULT_SETTINGS_SOURCE = `# .yo/settings.yo — project settings f
 !!<*yamlover:$defs:config>
 
 annotations: *:: annotations   # create new annotations in :annotations
-tags: *:: tags                 # create new tags in :tags
+ontos: *:: ontos                 # create new ontos in :ontos
 sidecars: per-directory        # where derived thumbnail/crop blobs go (enum, not a path)
 # width: 100                   # reading width (ch) for prose views; browser settings override it
 `;
@@ -110,7 +110,7 @@ export function loadSettings(absRoot: string): Settings {
     uri: uriSetting(valueAt(root, 'uri')),
     exports: exportsSetting(valueAt(root, 'exports')),
     annotations: locationSetting(valueAt(root, 'annotations'), DEFAULT_SETTINGS.annotations),
-    tags: locationSetting(valueAt(root, 'tags'), DEFAULT_SETTINGS.tags),
+    ontos: locationSetting(valueAt(root, 'ontos'), DEFAULT_SETTINGS.ontos),
     sidecars: sidecarLocation(valueAt(root, 'sidecars'), DEFAULT_SETTINGS.sidecars),
     width: intSetting(valueAt(root, 'width'), 20, 400),
     theme: enumSetting(valueAt(root, 'theme'), ['dark', 'light'] as const),

@@ -84,9 +84,9 @@ test('world scope (:::) is external when the authority is not a local root key',
 });
 
 test('project scope (::) is INTERNAL — an unresolved authority is dangling, not external', () => {
-  // `::tags:…` means a `tags` key at the served root; absent, it is a typo, not a host. (This is the
+  // `::ontos:…` means a `tags` key at the served root; absent, it is a typo, not a host. (This is the
   // class of bug that used to vanish into the external bucket.)
-  const t = resolveDocument(parseJson5p(`{ bad: *'::tags:workflow' }`))[0].target;
+  const t = resolveDocument(parseJson5p(`{ bad: *'::ontos:workflow' }`))[0].target;
   assert.equal(t.kind, 'unresolved');
 });
 
@@ -134,30 +134,30 @@ test('boundary: an ORDINARY tag opens no document — `:` still means the file',
 
 // ─────────────────────── self-import absorption (graft-virtualize) ───────────────────────
 
-test('self-import: `::yamlover:tags:x` is ABSORBED to the real `:tags:x` when no yamlover node', () => {
-  // a project root (its taxonomy at :tags, no materialized :yamlover): the `yamlover` authority
+test('self-import: `::yamlover:ontos:x` is ABSORBED to the real `:ontos:x` when no yamlover node', () => {
+  // a project root (its taxonomy at :ontos, no materialized :yamlover): the `yamlover` authority
   // loops back to the project root, so the pointer lands on the REAL node — not a graft duplicate.
-  const doc = parseYamlover('tags:\n  x: 1\nref: *::yamlover:tags:x\n');
+  const doc = parseYamlover('ontos:\n  x: 1\nref: *::yamlover:ontos:x\n');
   const e = resolveDocument(doc).find((r) => r.label === 'ref')!;
   assert.equal(e.target.kind, 'node');
-  assert.equal((e.target as { path: string }).path, ':tags:x');
+  assert.equal((e.target as { path: string }).path, ':ontos:x');
 });
 
-test('self-import: `::yamlover:tags:x` steps INTO a materialized yamlover node when one exists', () => {
+test('self-import: `::yamlover:ontos:x` steps INTO a materialized yamlover node when one exists', () => {
   // a foreign/subdir root whose taxonomy lives under a real `yamlover` graft key: step in as before.
-  const doc = parseYamlover('yamlover:\n  tags:\n    x: 1\nref: *::yamlover:tags:x\n');
+  const doc = parseYamlover('yamlover:\n  ontos:\n    x: 1\nref: *::yamlover:ontos:x\n');
   const e = resolveDocument(doc).find((r) => r.label === 'ref')!;
   assert.equal(e.target.kind, 'node');
-  assert.equal((e.target as { path: string }).path, ':yamlover:tags:x');
+  assert.equal((e.target as { path: string }).path, ':yamlover:ontos:x');
 });
 
-test('self-import: `::tags:x` and `::yamlover:tags:x` reach the SAME node in a project', () => {
-  const doc = parseYamlover('tags:\n  x: 1\nplain: *::tags:x\nviaImport: *::yamlover:tags:x\n');
+test('self-import: `::ontos:x` and `::yamlover:ontos:x` reach the SAME node in a project', () => {
+  const doc = parseYamlover('ontos:\n  x: 1\nplain: *::ontos:x\nviaImport: *::yamlover:ontos:x\n');
   const edges = resolveDocument(doc);
   const plain = edges.find((r) => r.label === 'plain')!;
   const via = edges.find((r) => r.label === 'viaImport')!;
-  assert.equal((plain.target as { path: string }).path, ':tags:x');
-  assert.equal((via.target as { path: string }).path, ':tags:x');
+  assert.equal((plain.target as { path: string }).path, ':ontos:x');
+  assert.equal((via.target as { path: string }).path, ':ontos:x');
 });
 
 // ─────────────────────── relative indexes — [.±k] (docs/language/pointers/relative-indexes) ───────────────────────

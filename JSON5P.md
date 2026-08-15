@@ -150,7 +150,7 @@ and a keyless membership is a trailing `: -` inside the path string:
     { age: 30, pet: &':supercat' { species: 'cat', color: 'pink' } },
     { age: 10, pet: *':supercat' },          // plain path — no anchor namespace
   ],
-  thirty: &':tags:whole:-' 30,               // keyless: the tag container holds this node
+  thirty: &':ontos:whole:-' 30,               // keyless: the tag container holds this node
 }
 ```
 

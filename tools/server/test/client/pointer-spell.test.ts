@@ -50,7 +50,7 @@ describe("spellPointer — rooted ladders", () => {
   });
 
   it("ladder 2 spells the project scope (first portion = the root child)", () => {
-    expect(spellPointer(":tags:colors:yellow", ":", 2)).toBe(":: tags: colors: yellow");
+    expect(spellPointer(":ontos:colors:yellow", ":", 2)).toBe(":: ontos: colors: yellow");
   });
 
   it("ladder 2 on the root itself falls back to the document root (:: needs a portion)", () => {
@@ -63,10 +63,10 @@ describe("pointerCells — a committed raw back into cells", () => {
     expect(pointerCells("c")).toEqual({ ladder: 0, portions: ["c"] });
     expect(pointerCells("..: x")).toEqual({ ladder: 0, portions: ["..", "x"] });
     expect(pointerCells(": a: b: 0")).toEqual({ ladder: 1, portions: ["a", "b", "0"] });
-    expect(pointerCells(":: tags: colors")).toEqual({ ladder: 2, portions: ["tags", "colors"] });
-    expect(pointerCells("::: yamlover.inthemoon.net: $defs: tag")).toEqual({
+    expect(pointerCells(":: ontos: colors")).toEqual({ ladder: 2, portions: ["ontos", "colors"] });
+    expect(pointerCells("::: yamlover.inthemoon.net: $defs: onto")).toEqual({
       ladder: 3,
-      portions: ["yamlover.inthemoon.net", "$defs", "tag"],
+      portions: ["yamlover.inthemoon.net", "$defs", "onto"],
     });
   });
 
@@ -92,7 +92,7 @@ describe("pointerCells — a committed raw back into cells", () => {
 
 describe("spellCells", () => {
   it("reduces a picked path to the machine's spell shape, re-deriving the actual ladder", () => {
-    expect(spellCells(":tags:colors:yellow", ":", 2)).toEqual({ ladder: 2, portions: ["tags", "colors", "yellow"] });
+    expect(spellCells(":ontos:colors:yellow", ":", 2)).toEqual({ ladder: 2, portions: ["ontos", "colors", "yellow"] });
     expect(spellCells(":a:c", ":a", 0)).toEqual({ ladder: 0, portions: ["c"] });
     // the root has no `::` spelling — the returned ladder says what was actually spelled
     expect(spellCells(":", ":a", 2)).toEqual({ ladder: 1, portions: [] });

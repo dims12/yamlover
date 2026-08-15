@@ -38,7 +38,7 @@ list is a feature request; the corpus's honesty depends on it being complete.
 
 - `examples/56-array-of-files/.yo/body.yo`
 - `examples/61-table.yo`
-- `examples/67-pdf-tags/.yo/body.yo`
+- `examples/67-pdf-ontos/.yo/body.yo`
 - `examples/71-kml-map/.yo/body.yo`
 - `examples/73-dev-board/.yo/body.yo`
 - `test-examples/0006/in.yo`

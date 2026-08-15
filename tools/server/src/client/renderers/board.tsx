@@ -12,7 +12,7 @@ import { AnnotationMenu } from "./annotate";
 import { TagTip } from "./tagtip";
 
 export const BOARD_FORMAT = "x-yamlover-board";
-const CONTAINER_TAGISH = new Set(["x-yamlover-tag", "x-yamlover-workflow", "x-yamlover-board"]);
+const CONTAINER_TAGISH = new Set(["x-yamlover-onto", "x-yamlover-workflow", "x-yamlover-board"]);
 
 /** Whether a directory should default to (and offer) the BOARD view: it carries the board schema,
  *  or an overlay board config (a `workflow:` seed or an explicit `lanes:` list). */
@@ -59,7 +59,7 @@ function explicitLanes(node: NodeJson): string[][] | null {
 }
 
 // Keys the board owns as config / taxonomy / graft — never cards.
-const BOARD_CONFIG_KEYS = new Set(["workflow", "lanes", "yamlover", "tags"]);
+const BOARD_CONFIG_KEYS = new Set(["workflow", "lanes", "yamlover", "ontos"]);
 
 /** The directory's CARD members — content entities, not the board's own config / taxonomy / graft.
  *  Drawn from the SHARED projection ({@link memberItems}) so a board lists the same members the

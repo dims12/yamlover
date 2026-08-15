@@ -8,8 +8,8 @@ import { nodeJson } from "./node-json";
 // on /api/json, link markers, and the TOC — and GET /api/tagged, a tag's materials with
 // annotations resolved to their `target`.
 
-const TAG_FILE = { "tags.yo": 'yellow: !!<*yamlover: $defs: tag>\n  color: "#f9e2af"\n' };
-const TAG = ":tags.yo:yellow";
+const TAG_FILE = { "ontos.yo": 'yellow: !!<*yamlover: $defs: onto>\n  color: "#f9e2af"\n' };
+const TAG = ":ontos.yo:yellow";
 
 describe("concrete (stat-derived)", () => {
   it("reports the per-node concrete: dir / dir/.yo / file-backed / inlined language", async () => {
@@ -78,7 +78,7 @@ describe("GET /api/tagged", () => {
   it("a directly-tagged node (authoring `~-` itself) appears as itself — once, even when also annotated", async () => {
     const root = tmpTree({
       ...TAG_FILE,
-      "direct.yo": 'title: "D"\n~- *:: tags.yo: yellow\n',
+      "direct.yo": 'title: "D"\n~- *:: ontos.yo: yellow\n',
     });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
@@ -95,8 +95,8 @@ describe("GET /api/tagged", () => {
   it("subtags are containment children, not memberships — they never appear", async () => {
     const root = tmpTree({
       name: "Alice",
-      "tags.yo":
-        'yellow: !!<*yamlover: $defs: tag>\n  color: "#f9e2af"\n  pale: !!<*yamlover: $defs: tag>\n    color: "#fdf3c4"\n',
+      "ontos.yo":
+        'yellow: !!<*yamlover: $defs: onto>\n  color: "#f9e2af"\n  pale: !!<*yamlover: $defs: onto>\n    color: "#fdf3c4"\n',
     });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
@@ -111,7 +111,7 @@ describe("GET /api/tagged", () => {
     const root = tmpTree({
       name: "Alice",
       ...TAG_FILE,
-      ".yo/settings.yo": "pin: *:: tags.yo: yellow\n",
+      ".yo/settings.yo": "pin: *:: ontos.yo: yellow\n",
     });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;

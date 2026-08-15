@@ -104,9 +104,9 @@ describe("background hasher", () => {
 
 describe("write serialization", () => {
   it("an annotation fired while a reconcile is queued survives it", async () => {
-    // the `!!<…$defs/tag>` attach makes `yellow` an x-yamlover-tag node (same fixture shape
+    // the `!!<…$defs/onto>` attach makes `yellow` an x-yamlover-onto node (same fixture shape
     // as engine-api-write.test.ts)
-    const TAG_FILE = { "tags.yo": 'yellow: !!<*yamlover: $defs: tag>\n  color: "#f9e2af"\n' };
+    const TAG_FILE = { "tags.yo": 'yellow: !!<*yamlover: $defs: onto>\n  color: "#f9e2af"\n' };
     const root = tmpTree({ "doc.md": "# doc", ...TAG_FILE });
     const h = handlers(root);
     await h.ready;

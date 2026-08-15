@@ -51,7 +51,7 @@ falls out of `*` / `{0,…}`).
 : (:?){2,5}            every node 2 to 5 keyed-levels below the document root
 : team: (:?)+          every keyed descendant of team (one or more levels)
 x: (:..enoch){1,3}     holders reachable by 1–3 hops of the reverse `enoch` edge
-:: yamlover: tags: (:?)*: !!<format: x-yamlover-tag>   every tag, any depth (see §2)
+:: yamlover: ontos: (:?)*: !!<format: x-yamlover-onto>   every tag, any depth (see §2)
 ```
 
 **Termination.** Bounded forms (`{m,n}`, `{n}`) always terminate. Unbounded forms

@@ -774,13 +774,13 @@ describe("/api/edit — general data files (yaml/json)", () => {
   });
 
   it("edits scalar values in a .json file by SPAN surgery — comments and flow formatting survive", async () => {
-    const src = '{\n  // rec\n  "name": "Alice",\n  "age": 30,\n  "tags": ["a", "b"],\n  "profile": { "city": "NYC" }\n}\n';
+    const src = '{\n  // rec\n  "name": "Alice",\n  "age": 30,\n  "ontos": ["a", "b"],\n  "profile": { "city": "NYC" }\n}\n';
     const { root, h } = await handlersFor({ "user.json": src });
     const r = await callBody(h, "POST", "/api/edit", {
       edits: [
         { path: ":user.json:name", op: "emplace", yamlover: '"Bob"' },
         { path: ":user.json:age", op: "emplace", yamlover: "31" },
-        { path: ":user.json:tags[1]", op: "emplace", yamlover: '"z"' }, // nested array element
+        { path: ":user.json:ontos[1]", op: "emplace", yamlover: '"z"' }, // nested array element
         { path: ":user.json:profile:city", op: "emplace", yamlover: '"San Jose"' }, // nested object field
       ],
     });
@@ -789,7 +789,7 @@ describe("/api/edit — general data files (yaml/json)", () => {
     expect(out).toContain("// rec"); // comment survives
     expect(out).toContain('"name": "Bob"');
     expect(out).toContain('"age": 31');
-    expect(out).toContain('"tags": ["a", "z"]'); // compact flow formatting kept
+    expect(out).toContain('"ontos": ["a", "z"]'); // compact flow formatting kept
     expect(out).toContain('"profile": { "city": "San Jose" }');
   });
 
@@ -1731,7 +1731,7 @@ describe("/api/edit — a K&R (multi-line flow) value is one token", () => {
 describe("/api/edit — own-line & anchors are decorations, never entries (the index-skew fix)", () => {
   it("an INDEXED emplace past a colon-form anchor line hits the right sibling", async () => {
     const { root, h } = await chapterHandlers({
-      "doc/.yo/body.yo": "!!<*yamlover: $defs: chapter>\ntitle: T\n- one\n&: tags: whole\n- two\n- three\n",
+      "doc/.yo/body.yo": "!!<*yamlover: $defs: chapter>\ntitle: T\n- one\n&: ontos: whole\n- two\n- three\n",
     });
     // entries: title=0, "one"=1, "two"=2, "three"=3 — the anchor line consumes NO index
     const r = await callBody(h, "POST", "/api/edit", { path: ":doc:2", op: "emplace", yamlover: "TWO" });
@@ -1739,25 +1739,25 @@ describe("/api/edit — own-line & anchors are decorations, never entries (the i
     const out = bodyOf(root);
     expect(out).toContain("- TWO");
     expect(out).toContain("- three");     // the NEXT sibling untouched (was clobbered by the skew)
-    expect(out).toContain("&: tags: whole"); // the anchor line stands
+    expect(out).toContain("&: ontos: whole"); // the anchor line stands
     expect(out).not.toContain("- two");
   });
 
   it("an INDEXED remove past the anchor line removes the named sibling, and the anchor stays", async () => {
     const { root, h } = await chapterHandlers({
-      "doc/.yo/body.yo": "!!<*yamlover: $defs: chapter>\ntitle: T\n- one\n&: tags: whole\n- two\n- three\n",
+      "doc/.yo/body.yo": "!!<*yamlover: $defs: chapter>\ntitle: T\n- one\n&: ontos: whole\n- two\n- three\n",
     });
     const r = await callBody(h, "POST", "/api/edit", { path: ":doc:3", op: "remove" });
     expect(r.status).toBe(200);
     const out = bodyOf(root);
     expect(out).toContain("- two");
     expect(out).not.toContain("- three");
-    expect(out).toContain("&: tags: whole");
+    expect(out).toContain("&: ontos: whole");
   });
 
   it("a scalar self-value emplace never mistakes an anchor or a lone !!yo line for the title", async () => {
     const { root, h } = await chapterHandlers({
-      "doc/.yo/body.yo": "!!yo\nOld title\n&: tags: whole\n- x\n",
+      "doc/.yo/body.yo": "!!yo\nOld title\n&: ontos: whole\n- x\n",
     });
     const r = await callBody(h, "POST", "/api/edit", { path: ":doc", op: "emplace", yamlover: '"New"' });
     expect(r.status).toBe(200);
@@ -1765,7 +1765,7 @@ describe("/api/edit — own-line & anchors are decorations, never entries (the i
     expect(out).toContain("New");
     expect(out).not.toContain("Old title");
     expect(out).toContain("!!yo");          // the island mark stands
-    expect(out).toContain("&: tags: whole"); // the anchor stands
+    expect(out).toContain("&: ontos: whole"); // the anchor stands
   });
 });
 

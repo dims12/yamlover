@@ -214,18 +214,18 @@ export async function walkTreeAsync(absDir: string, opts: AsyncWalkOptions = {})
 }
 
 // The BUILT-IN yamlover taxonomy, embedded as source (NOT read from disk — so it survives
-// bundling and ships with no data files): the `$defs/tag` schema (format x-yamlover-tag, with
-// recursive sub-tags) and the `tags/colors` palette. It is grafted as the `yamlover` self-import
-// into any served tree that has no `$defs/` of its own, so `*yamlover/tags/colors/…` resolves —
+// bundling and ships with no data files): the `$defs/onto` schema (format x-yamlover-onto, with
+// recursive sub-tags) and the `ontos/colors` palette. It is grafted as the `yamlover` self-import
+// into any served tree that has no `$defs/` of its own, so `*yamlover/ontos/colors/…` resolves —
 // and color-tag annotations validate — in a PLAIN directory, not only a yamlover project. Mirrors
-// the on-disk taxonomy at the repo root; the palette hexes mirror COLOR_TAGS in annotate.tsx.
-const BUILTIN_TAG_SCHEMA = 'type: variant\nformat: x-yamlover-tag\nmembers:\n  color:\n    type: string\nothers: *:: yamlover: $defs: tag\n';
+// the on-disk taxonomy at the repo root; the palette hexes mirror COLOR_ONTOS in annotate.tsx.
+const BUILTIN_ONTO_SCHEMA = 'type: variant\nformat: x-yamlover-onto\nmembers:\n  color:\n    type: string\nothers: *:: yamlover: $defs: onto\n';
 // embedded fragments / annotations (docs/annotations) — minimal so the `!!<*::yamlover/$defs/…>`
 // tags resolve (and the nodes index as x-yamlover-fragment / -annotation) in a plain served tree.
 const BUILTIN_FRAGMENT_SCHEMA = 'type: object\nformat: x-yamlover-fragment\n';
 const BUILTIN_ANNOTATION_SCHEMA = 'type: variant\nformat: x-yamlover-annotation\n';
-const BUILTIN_TAGS_BODY =
-  '!!<*yamlover:$defs:tag>\ncolors: The palette\n' +
+const BUILTIN_ONTOS_BODY =
+  '!!<*yamlover:$defs:onto>\ncolors: The palette\n' +
   '  yellow:\n    color: "#f9e2af"\n' +
   '  green:\n    color: "#a6e3a1"\n' +
   '  sky:\n    color: "#89dceb"\n' +
@@ -233,16 +233,16 @@ const BUILTIN_TAGS_BODY =
   '  pink:\n    color: "#f5c2e7"\n' +
   '  peach:\n    color: "#fab387"\n';
 
-let builtinTemplate: { tag: Node; tags: Node } | null = null;
+let builtinTemplate: { onto: Node; ontos: Node } | null = null;
 /** The built-in `yamlover` graft node + its `$defs` map (for {@link applySchemas} to resolve
- *  `*yamlover:$defs:tag` without a disk read). Parsed once, then cloned per graft so a walk never
+ *  `*yamlover:$defs:onto` without a disk read). Parsed once, then cloned per graft so a walk never
  *  mutates the shared template (applySchemas attaches derived meta to the instance it grafts). */
 function builtinYamloverGraft(): { node: Node; defs: Map<string, Node> } {
   builtinTemplate ??= {
-    tag: parseYamlover(BUILTIN_TAG_SCHEMA, '$defs/tag').root,
-    tags: parseYamlover(BUILTIN_TAGS_BODY, 'tags/.yo/body.yo').root,
+    onto: parseYamlover(BUILTIN_ONTO_SCHEMA, '$defs/onto').root,
+    ontos: parseYamlover(BUILTIN_ONTOS_BODY, 'ontos/.yo/body.yo').root,
   };
-  const tagCopy = structuredClone(builtinTemplate.tag);
+  const tagCopy = structuredClone(builtinTemplate.onto);
   const fragCopy = parseYamlover(BUILTIN_FRAGMENT_SCHEMA, '$defs/fragment').root;
   const annCopy = parseYamlover(BUILTIN_ANNOTATION_SCHEMA, '$defs/annotation').root;
   const node: Node = {
@@ -254,16 +254,16 @@ function builtinYamloverGraft(): { node: Node; defs: Map<string, Node> } {
         value: {
           kind: 'mapping', array: false,
           entries: [
-            { key: 'tag', edge: 'contain', value: tagCopy },
+            { key: 'onto', edge: 'contain', value: tagCopy },
             { key: 'fragment', edge: 'contain', value: fragCopy },
             { key: 'annotation', edge: 'contain', value: annCopy },
           ],
         },
       },
-      { key: 'tags', edge: 'contain', value: structuredClone(builtinTemplate.tags) },
+      { key: 'ontos', edge: 'contain', value: structuredClone(builtinTemplate.ontos) },
     ],
   };
-  return { node, defs: new Map([['tag', tagCopy], ['fragment', fragCopy], ['annotation', annCopy]]) };
+  return { node, defs: new Map([['onto', tagCopy], ['fragment', fragCopy], ['annotation', annCopy]]) };
 }
 
 /** The walk as a generator: yields one {@link WalkProgress} per filesystem child processed,
@@ -298,14 +298,14 @@ export function* walkTreeGen(absDir: string, opts: WalkOptions = {}): Generator<
   //
   // Three outcomes, by where the taxonomy lives:
   //  • served root IS the yamlover project (own `$defs/`): the taxonomy is ALREADY at `:$defs` /
-  //    `:tags`; materializing again would DUPLICATE every node (`:yamlover:tags:…` beside the real
-  //    `:tags:…`, splitting a tag's backlinks). So DE-MATERIALIZE — drop any `yamlover` key and let
+  //    `:tags`; materializing again would DUPLICATE every node (`:yamlover:ontos:…` beside the real
+  //    `:ontos:…`, splitting a tag's backlinks). So DE-MATERIALIZE — drop any `yamlover` key and let
   //    the resolver/query evaluator absorb `::yamlover:…` ≡ `::…` virtually (resolve.ts, query.ts).
   //  • served root is a SUBDIRECTORY of a project (taxonomy at an ancestor): graft the live ancestor
   //    `$defs`+`tags` in-tree.
   //  • a plain/foreign/DETACHED dir (no taxonomy reachable): graft the BUNDLED taxonomy (mounts.ts,
   //    shipped as package data — the full $defs incl. board/task/workflow + the tags taxonomy), so a
-  //    detached copy of an example still resolves `*::yamlover:tags:workflow:dev`. Falls back to the
+  //    detached copy of an example still resolves `*::yamlover:ontos:workflow:dev`. Falls back to the
   //    minimal in-source builtin only if the bundle is somehow absent.
   // A `yamlover` key pointing somewhere ELSE (not the yamlover world URI) is a real user override and
   // is left untouched (IMPORTS.md §4 "until overridden").
@@ -326,8 +326,8 @@ export function* walkTreeGen(absDir: string, opts: WalkOptions = {}): Generator<
       if (fs.existsSync(defsDir)) {
         // an ANCESTOR's taxonomy (served root is a subdir of a project): bring it in-tree.
         const shared: Entry[] = [{ key: '$defs', edge: 'contain', value: yield* dirNode(defsDir, ctx) }];
-        const tagsDir = path.join(defsRoot, 'tags');
-        if (fs.existsSync(tagsDir)) shared.push({ key: 'tags', edge: 'contain', value: yield* dirNode(tagsDir, ctx) });
+        const ontosDir = path.join(defsRoot, 'ontos');
+        if (fs.existsSync(ontosDir)) shared.push({ key: 'ontos', edge: 'contain', value: yield* dirNode(ontosDir, ctx) });
         node = { kind: 'mapping', entries: shared, array: false };
       } else {
         // No project taxonomy on disk: graft the BUNDLED taxonomy (full $defs + tags), falling back
@@ -478,7 +478,7 @@ export async function reindexPathAsync(
   const yi = parts.indexOf(YAMLOVER_DIR);
   const dirSegs = yi >= 0 ? parts.slice(0, yi) : parts.slice(0, -1);
   if (dirSegs.length === 0) return null; // a root-level file → re-walking the root is a full reindex
-  if (dirSegs[0] === '$defs' || dirSegs[0] === 'tags') return null; // feeds applySchemas/the graft
+  if (dirSegs[0] === '$defs' || dirSegs[0] === 'ontos') return null; // feeds applySchemas/the graft
 
   // locate the splice node's holding entry in the cached tree (navigate by filesystem key)
   let entries = cachedDoc.root.entries;
@@ -1165,7 +1165,7 @@ function applySchemas(root: Node, defsRoot: string, builtinDefs?: Map<string, No
         // A child that declares its OWN inline `!!<*…/$defs/X>` schema wins over an inherited
         // clause — `walk()` applies the child's pointer separately.
         // (Without this, the sweep would clobber, e.g., a `$defs/workflow` node sitting
-        // in a tag taxonomy back down to `x-yamlover-tag`. `hasFormat` can't guard it — a pointer
+        // in a tag taxonomy back down to `x-yamlover-onto`. `hasFormat` can't guard it — a pointer
         // schema carries no `format` field yet.)
         if (e.value.meta?.schema && isPointer(e.value.meta.schema)) continue;
         // a `!!yo` child is plain yamlover — exempt from the enclosing schema (the data island)

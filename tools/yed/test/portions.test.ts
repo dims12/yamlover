@@ -26,7 +26,7 @@ describe("portions - the pure spelling (raw <-> cells)", () => {
   });
   it("reads the scope ladder off the opener", () => {
     expect(portionsOfRaw(": humans: 0")).toEqual({ ladder: 1, portions: ["humans", "0"] });
-    expect(portionsOfRaw(":: tags: genre")).toEqual({ ladder: 2, portions: ["tags", "genre"] });
+    expect(portionsOfRaw(":: ontos: genre")).toEqual({ ladder: 2, portions: ["ontos", "genre"] });
   });
   it("keeps `..` its own cell and folds a relindex onto its portion", () => {
     expect(portionsOfRaw("..: x")).toEqual({ ladder: 0, portions: ["..", "x"] });

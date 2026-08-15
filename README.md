@@ -45,7 +45,7 @@ structured data stop being two different files.
 
 **Personal and organizational knowledge management.** Notes, references,
 contacts, projects, meeting records, research papers, tickets, and study cards
-are all the same substance — a graph of typed nodes with metadata and tags.
+are all the same substance — a graph of typed nodes with metadata and ontos.
 One tree can carry your whole second brain, and a team's tree lives in the same
 repository as its code.
 

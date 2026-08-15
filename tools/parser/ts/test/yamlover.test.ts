@@ -122,10 +122,10 @@ test('& path anchor on a block value; * reaches the anchor-created key', () => {
 
 test('& bookmarks: own-line, multiple, ordinal trailing -', () => {
   // the two-line tagged-scalar file (docs/language/pointers/bookmarks) — order-free
-  const a = parseYamlover('30\n&:: tags: whole: -\n').root as any;
+  const a = parseYamlover('30\n&:: ontos: whole: -\n').root as any;
   assert.equal(a.value, 30);
-  assert.deepEqual(a.meta.anchors.map((x: any) => [x.path.raw, x.ordinal === true]), [[':: tags: whole: -', true]]);
-  const b = parseYamlover('&:: tags: whole: -\n30\n').root as any;
+  assert.deepEqual(a.meta.anchors.map((x: any) => [x.path.raw, x.ordinal === true]), [[':: ontos: whole: -', true]]);
+  const b = parseYamlover('&:: ontos: whole: -\n30\n').root as any;
   assert.equal(b.value, 30);
   assert.equal(b.meta.anchors.length, 1);
   // multiple bookmarks on their own lines inside a node's block
@@ -136,7 +136,7 @@ test('& bookmarks: own-line, multiple, ordinal trailing -', () => {
   // a position may not be claimed
   assert.throws(() => parseYamlover('12\n&: seq[3]\n'), /may not claim a position/);
   // the removed [] spelling is a hard error naming the replacement
-  assert.throws(() => parseYamlover('30\n&:: tags: whole[]\n'), /"\[\]" append was removed/);
+  assert.throws(() => parseYamlover('30\n&:: ontos: whole[]\n'), /"\[\]" append was removed/);
   // a mid-path keyless segment is reserved
   assert.throws(() => parseYamlover('30\n&: tags: -: deep\n'), /mid-path "-" segment is reserved/);
   // and '-' is not link-legal in a plain reference
@@ -458,8 +458,8 @@ test('colon paths: the scope ladder — bare, :, ::, :::', () => {
   const d = parseYamlover([
     'a: *tiny: object',                              // current scope
     'b: *: pets[1]: name',                           // document root
-    'c: *:: $defs: tag',                             // project root / import key
-    'd: *::: yamlover.inthemoon.net: $defs: tag',    // the world (AWS-like URI)
+    'c: *:: $defs: onto',                             // project root / import key
+    'd: *::: yamlover.inthemoon.net: $defs: onto',    // the world (AWS-like URI)
   ].join('\n') + '\n');
   const at = (k: string) => entry(asMap(d.root), k).value as any;
   assert.deepEqual(at('a').base, { scope: 'current' });
@@ -471,24 +471,24 @@ test('colon paths: the scope ladder — bare, :, ::, :::', () => {
 });
 
 test('colon paths: spacing is styling; quoted spacey portions; \\: escape; / is literal', () => {
-  const spaced = parseYamlover('x: *: tags: y\n').root as Mapping;
-  const compact = parseYamlover('x: *:tags:y\n').root as Mapping;
+  const spaced = parseYamlover('x: *: ontos: y\n').root as Mapping;
+  const compact = parseYamlover('x: *:ontos:y\n').root as Mapping;
   assert.deepEqual((entry(spaced, 'x').value as any).steps, (entry(compact, 'x').value as any).steps);
-  const q = parseYamlover("t: *: tags: 'дорожный знак'\n").root as Mapping;
-  assert.deepEqual((entry(q, 't').value as any).steps.map((s: any) => s.name), ['tags', 'дорожный знак']);
-  assert.throws(() => parseYamlover('t: *: tags: дорожный знак\n'), /must be quoted/);
+  const q = parseYamlover("t: *: ontos: 'дорожный знак'\n").root as Mapping;
+  assert.deepEqual((entry(q, 't').value as any).steps.map((s: any) => s.name), ['ontos', 'дорожный знак']);
+  assert.throws(() => parseYamlover('t: *: ontos: дорожный знак\n'), /must be quoted/);
   const e = parseYamlover('t: *sched: 09\\:30\nu: *formats: text/html\n').root as Mapping;
   assert.deepEqual((entry(e, 't').value as any).steps.map((s: any) => s.name), ['sched', '09:30']);
   assert.deepEqual((entry(e, 'u').value as any).steps.map((s: any) => s.name), ['formats', 'text/html']);
 });
 
 test('colon anchors: own-line form runs to end of line', () => {
-  const d = parseYamlover('fan:\n  &: favorites: -\n  name: Bob\nthirty: 30\n  &:: tags: whole: -\n');
+  const d = parseYamlover('fan:\n  &: favorites: -\n  name: Bob\nthirty: 30\n  &:: ontos: whole: -\n');
   const fan = entry(asMap(d.root), 'fan').value as Mapping;
   assert.deepEqual(fan.meta?.anchors?.map((a) => [a.path.base.scope, a.ordinal === true]), [['document', true]]);
   const thirty = entry(asMap(d.root), 'thirty').value as any;
   assert.equal(thirty.value, 30);
-  assert.deepEqual(thirty.meta.anchors[0].path.base, { scope: 'link', authority: 'tags' });
+  assert.deepEqual(thirty.meta.anchors[0].path.base, { scope: 'link', authority: 'ontos' });
 });
 
 test('inline anchor BEFORE a `!!<…>` tag: the colon-form rule reads only the head token', () => {

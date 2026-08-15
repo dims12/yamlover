@@ -81,13 +81,13 @@ parses as a path: `*/pets` is a dangling reference to the literal key "/pets". A
 current: object: path                         # bare       — current scope (siblings)
 : document: rooted: path                      # :          — this document's root
 :: project: rooted: path                      # ::         — this project's root
-::: yamlover.inthemoon.net: $defs: tag        # :::        — the world (an external project)
+::: yamlover.inthemoon.net: $defs: onto        # :::        — the world (an external project)
 ```
 
 - `*pets: 1` — bare: a **sibling** named `pets`, position 1.
 - `*: pets: 0` — `:` document root.
-- `*:: tags: genre` — `::` this project's root.
-- `*::: host.example: $defs: tag` — `:::` a world/external reference.
+- `*:: ontos: genre` — `::` this project's root.
+- `*::: host.example: $defs: onto` — `:::` a world/external reference.
 
 ### The bare-token rule — what a portion means
 
@@ -184,7 +184,7 @@ longer parses.
   mychapter: !!<*:: yamlover: $defs: chapter>
   ```
   Reusable schemas live at the project root under **`$defs`** (e.g. `$defs: chapter`,
-  `$defs: tag`, `$defs: annotation`, `$defs: fragment`). They are referenced project-scoped
+  `$defs: onto`, `$defs: annotation`, `$defs: fragment`). They are referenced project-scoped
   (`*:: $defs: name`) or via the self-import (`*:: yamlover: $defs: name` — synonyms inside this
   project). Schemas are **metadata** (typing/format/presentation), not data storage.
 
@@ -244,8 +244,8 @@ The human marks up documents in the UI. These live **on the target node**, not i
   parameters:
   ```yamlover
   yamlover-annotations:
-    - *:: tags: genre: brevity            # parameterless
-    - {description: 'A math block', tag: *:: tags: topic: math}   # parametrized
+    - *:: ontos: genre: brevity            # parameterless
+    - {description: 'A math block', tag: *:: ontos: topic: math}   # parametrized
   ```
 
   (A flow scalar carrying a SPACE must be quoted — an unquoted `A math block` inside `{…}` is a
@@ -313,8 +313,8 @@ sibling:   *pets: 1                 # current scope, by position (bare digits = 
 rooted:    *: humans: 0: name       # document root → position 0 → key name
 strkey:    *: counts: '1'           # QUOTED digits = the numeric STRING key
 nullkey:   *: doc: ~                # the null key
-projscope: *:: tags: genre          # this project's root
-world:     *::: host.example: $defs: tag
+projscope: *:: ontos: genre          # this project's root
+world:     *::: host.example: $defs: onto
 
 # anchors (push) — "I also live there"; real keys; unambiguous only
 here:  &: chief                     # also at document-root key `chief`

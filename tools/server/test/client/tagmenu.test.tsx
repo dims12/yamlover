@@ -2,17 +2,17 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, screen, cleanup, waitFor, fireEvent } from "@testing-library/react";
 
-// The whole client api is mocked: AnnotationMenu's hooks (useColorTags → fetchNode, useTagIndex →
+// The whole client api is mocked: AnnotationMenu's hooks (useColorOntos → fetchNode, useOntoIndex →
 // query, pruneRememberedTags → fetchNode) fall back gracefully, and the right-click menu's writes
 // (annotate / deleteAnnotation / fetchAnnotations) are observed directly.
 vi.mock("../../src/client/api", () => ({
-  fetchConfig: vi.fn().mockResolvedValue({ source: "", settings: { exports: [], annotations: ":annotations", tags: ":tags", sidecars: "per-directory" }, path: ":.yo:settings.yo" }),
+  fetchConfig: vi.fn().mockResolvedValue({ source: "", settings: { exports: [], annotations: ":annotations", ontos: ":ontos", sidecars: "per-directory" }, path: ":.yo:settings.yo" }),
   fetchAnnotations: vi.fn().mockResolvedValue([]),
   annotate: vi.fn().mockResolvedValue({ ok: true }),
   deleteAnnotation: vi.fn().mockResolvedValue(undefined),
   query: vi.fn().mockResolvedValue([]),
   fetchNode: vi.fn().mockRejectedValue(new Error("no node")),
-  createTag: vi.fn(),
+  createOnto: vi.fn(),
   // the shared query-cell kit (the popup's search row)
   queryTree: vi.fn().mockResolvedValue([]),
   queryFilter: vi.fn().mockResolvedValue({ root: { path: ":", label: "r", type: "object", format: null, concrete: null, hasChildren: false, children: [] }, matches: [], truncated: false }),
@@ -46,33 +46,33 @@ afterEach(cleanup);
 // ---- the typeahead index: collapse the `yamlover` self-import graft duplicates ---- //
 describe("indexToRefs — a tag is just a node (both namespaces listed)", () => {
   it("lists a project's OWN tag and the GLOBAL self-import tag as DISTINCT nodes (IMPORTS.md)", () => {
-    // `:tags:…` (project-own, document-root) and `:yamlover:tags:…` (global self-import) are
+    // `:ontos:…` (project-own, document-root) and `:yamlover:ontos:…` (global self-import) are
     // different nodes — both belong in the picker. Only an EXACT duplicate path collapses.
     const refs = indexToRefs([
-      ":tags:workflow:dev:ready",
-      ":yamlover:tags:workflow:dev:ready", // a DIFFERENT node (the global one) — kept too
-      ":tags:workflow:dev:ready", // an exact dup of the first — collapsed
+      ":ontos:workflow:dev:ready",
+      ":yamlover:ontos:workflow:dev:ready", // a DIFFERENT node (the global one) — kept too
+      ":ontos:workflow:dev:ready", // an exact dup of the first — collapsed
     ]);
-    expect(refs.map((r) => r.path)).toEqual([":tags:workflow:dev:ready", ":yamlover:tags:workflow:dev:ready"]);
+    expect(refs.map((r) => r.path)).toEqual([":ontos:workflow:dev:ready", ":yamlover:ontos:workflow:dev:ready"]);
     expect(refs.map((r) => r.name)).toEqual(["ready", "ready"]);
   });
   it("keeps each tag at its REAL path and drops the color palette (the swatch row)", () => {
-    const refs = indexToRefs([":yamlover:tags:misc:foo", ":tags:colors:yellow", ":yamlover:tags:colors:red"]);
+    const refs = indexToRefs([":yamlover:ontos:misc:foo", ":ontos:colors:yellow", ":yamlover:ontos:colors:red"]);
     expect(refs.map((r) => r.name)).toEqual(["foo"]);
-    expect(refs[0].path).toBe(":yamlover:tags:misc:foo"); // real path, not rewritten
+    expect(refs[0].path).toBe(":yamlover:ontos:misc:foo"); // real path, not rewritten
   });
 });
 
 // ---- no browse tree: the scoped taxonomy shows as chips; HOVER reveals the path ---- //
 describe("AnnotationMenu — no tree; hover-card reveals the path", () => {
   it("shows no tree; the scoped taxonomy shows as chips; HOVER reveals the canonical path", async () => {
-    mQuery.mockResolvedValue([":tags:workflow:dev:ready", ":tags:workflow:dev:done", ":tags:first tag"]);
+    mQuery.mockResolvedValue([":ontos:workflow:dev:ready", ":ontos:workflow:dev:done", ":ontos:first tag"]);
     const { container } = render(<AnnotationMenu x={0} y={0} applied={[]} mode="create" onPick={() => {}} onUnpick={() => {}} onClose={() => {}} />);
     // the browse tree was removed — never rendered; searching is the query-cell row's job now
     await waitFor(() => expect([...container.querySelectorAll(".annotate-recents .tagtag")].map((b) => b.textContent)).toEqual(["ready", "done", "first tag"]));
     expect(container.querySelector(".annotate-tree")).toBeNull();
     expect(container.querySelector(".annotate-cells")).toBeTruthy(); // the shared query cells
-    // hovering a chip reveals its path canonically — `tags:` prefix dropped, space after colon
+    // hovering a chip reveals its path canonically — `ontos:` prefix dropped, space after colon
     fireEvent.mouseEnter(container.querySelector(".annotate-recents .tagtip-anchor")!);
     await waitFor(() => expect(document.querySelector(".tagtip-path")?.textContent).toBe("workflow: dev: ready"));
   });
@@ -80,7 +80,7 @@ describe("AnnotationMenu — no tree; hover-card reveals the path", () => {
 
 // ---- applied tags are OUTLINED (toggle), shown once, never as a duplicate chip ---- //
 describe("AnnotationMenu — applied tags outline, no duplicates", () => {
-  const NAMED = { path: ":tags:done", name: "done", color: "#a6e3a1" };
+  const NAMED = { path: ":ontos:done", name: "done", color: "#a6e3a1" };
 
   it("outlines an applied NAMED tag (once) and toggles it OFF via onUnpick", () => {
     const onPick = vi.fn();
@@ -98,7 +98,7 @@ describe("AnnotationMenu — applied tags outline, no duplicates", () => {
   });
 
   it("outlines an applied COLOR tag on its SWATCH — never as a duplicate badge", () => {
-    const yellow = { path: "::yamlover:tags:colors:yellow", name: "yellow", color: "#f9e2af" };
+    const yellow = { path: "::yamlover:ontos:colors:yellow", name: "yellow", color: "#f9e2af" };
     const { container } = render(<AnnotationMenu x={0} y={0} applied={[yellow]} mode="create" onPick={() => {}} onUnpick={() => {}} onClose={() => {}} />);
     // a color tag stays in the swatch row (outlined), and does NOT appear as a named badge
     expect([...container.querySelectorAll(".annotate-recents .tagtag")].map((b) => b.textContent)).toEqual([]);
@@ -110,7 +110,7 @@ describe("AnnotationMenu — applied tags outline, no duplicates", () => {
 describe("AnnotationMenu — the chip row dedupes by name", () => {
   it("shows one 'ready' chip when two distinct tags are both named 'ready'", async () => {
     // two REAL tags (different paths, NOT graft duplicates of each other) that read the same
-    mQuery.mockResolvedValue([":tags:ready", ":tags:workflow:dev:ready"]);
+    mQuery.mockResolvedValue([":ontos:ready", ":ontos:workflow:dev:ready"]);
     const { container } = render(<AnnotationMenu x={0} y={0} applied={[]} mode="create" onPick={() => {}} onUnpick={() => {}} onClose={() => {}} />);
     await waitFor(() => {
       const chips = [...container.querySelectorAll(".annotate-recents .tagtag")].map((b) => b.textContent);
@@ -122,15 +122,15 @@ describe("AnnotationMenu — the chip row dedupes by name", () => {
 // ---- default chips: the four sources shown without typing (graft · config location · node · recents) ---- //
 describe("AnnotationMenu — default chips from the four sources", () => {
   it("shows grafted + configured-location tags as chips; out-of-scope nodes only via the query cells", async () => {
-    // settings.tags is ":tags" (the mocked config). The graft lives at :yamlover:tags; a sub-document's
+    // settings.ontos is ":tags" (the mocked config). The graft lives at :yamlover:tags; a sub-document's
     // own taxonomy (:67-pdf-tags:tags) is OUT of scope — reachable through the search row, not a chip.
-    mQuery.mockResolvedValue([":yamlover:tags:fifth tag", ":tags:mine", ":67-pdf-tags:tags:genre:humor"]);
+    mQuery.mockResolvedValue([":yamlover:ontos:fifth tag", ":ontos:mine", ":67-pdf-tags:ontos:genre:humor"]);
     mQueryFilter.mockResolvedValue({
       root: { path: ":", label: "r", type: "object", format: null, concrete: null, hasChildren: false, children: [] },
-      matches: [":67-pdf-tags:tags:genre:humor"],
+      matches: [":67-pdf-tags:ontos:genre:humor"],
       truncated: false,
     });
-    mFetchNode.mockResolvedValue({ path: ":67-pdf-tags:tags:genre:humor", type: "object", concrete: null, title: null, description: null, value: {} });
+    mFetchNode.mockResolvedValue({ path: ":67-pdf-tags:ontos:genre:humor", type: "object", concrete: null, title: null, description: null, value: {} });
     const onPick = vi.fn();
     const { container } = render(<AnnotationMenu x={0} y={0} applied={[]} mode="create" onPick={onPick} onUnpick={() => {}} onClose={() => {}} />);
     await waitFor(() => {
@@ -146,7 +146,7 @@ describe("AnnotationMenu — default chips from the four sources", () => {
     cell.textContent = "humor";
     fireEvent.input(cell);
     fireEvent.keyDown(cell, { key: "Enter" });
-    await waitFor(() => expect(onPick).toHaveBeenCalledWith({ path: ":67-pdf-tags:tags:genre:humor", name: "humor", color: null }));
+    await waitFor(() => expect(onPick).toHaveBeenCalledWith({ path: ":67-pdf-tags:ontos:genre:humor", name: "humor", color: null }));
     expect(mQueryFilter).toHaveBeenCalledWith(":: ...: humor"); // project-wide: the seeded descent + the typed name
   });
 
@@ -176,9 +176,9 @@ describe("AnnotationMenu — default chips from the four sources", () => {
   });
 
   it("Enter on a bare name with NO match CREATES the tag (create-on-miss)", async () => {
-    const { createTag } = await import("../../src/client/api");
-    const created = { path: ":tags:fresh", name: "fresh", color: null };
-    (createTag as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(created);
+    const { createOnto } = await import("../../src/client/api");
+    const created = { path: ":ontos:fresh", name: "fresh", color: null };
+    (createOnto as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(created);
     const onPick = vi.fn();
     const { container } = render(<AnnotationMenu x={0} y={0} applied={[]} mode="create" onPick={onPick} onUnpick={() => {}} onClose={() => {}} />);
     const cell = [...container.querySelectorAll<HTMLElement>(".annotate-cells .crumb-cell")].pop()!;
@@ -187,12 +187,12 @@ describe("AnnotationMenu — default chips from the four sources", () => {
     fireEvent.input(cell);
     fireEvent.keyDown(cell, { key: "Enter" });
     await waitFor(() => expect(onPick).toHaveBeenCalledWith(created));
-    expect(createTag).toHaveBeenCalledWith("fresh");
+    expect(createOnto).toHaveBeenCalledWith("fresh");
   });
 
   it("shows tags borne by OTHER components of the node (nodeTags) as default chips", async () => {
     mQuery.mockResolvedValue([]);
-    const sib = { path: ":tags:sibling", name: "sibling", color: null };
+    const sib = { path: ":ontos:sibling", name: "sibling", color: null };
     const { container } = render(<AnnotationMenu x={0} y={0} applied={[]} nodeTags={[sib]} mode="create" onPick={() => {}} onUnpick={() => {}} onClose={() => {}} />);
     await waitFor(() => expect(mQuery).toHaveBeenCalled());
     expect([...container.querySelectorAll(".annotate-recents .tagtag")].map((b) => b.textContent)).toContain("sibling"); // (3)
@@ -362,7 +362,7 @@ describe("AnnotationMenu — the TOC filter session", () => {
 describe("AnnotationMenu — Enter commit semantics", () => {
   it("a MISSED non-creatable query keeps the cells RINGED and editable — no modal, no commit", async () => {
     // "x?y" carries an operator → not create-on-miss eligible; the filter finds nothing (the
-    // user's `tags: colors: yell` case). Enter must NOT pop a modal "no such node" — the typed
+    // user's `ontos: colors: yell` case). Enter must NOT pop a modal "no such node" — the typed
     // query stays visible with the error ring, ready for correction.
     const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
     const onPick = vi.fn();
@@ -380,13 +380,13 @@ describe("AnnotationMenu — Enter commit semantics", () => {
   });
 
   it("Enter on an ALREADY-APPLIED tag is a satisfied no-op — assign, never a toggle-off", async () => {
-    const done = { path: ":tags:done", name: "done", color: null };
+    const done = { path: ":ontos:done", name: "done", color: null };
     mQueryFilter.mockResolvedValue({
       root: { path: ":", label: "r", type: "object", format: null, concrete: null, hasChildren: false, children: [] },
-      matches: [":tags:done"],
+      matches: [":ontos:done"],
       truncated: false,
     });
-    mFetchNode.mockResolvedValue({ path: ":tags:done", type: "object", concrete: null, title: null, description: null, value: {} });
+    mFetchNode.mockResolvedValue({ path: ":ontos:done", type: "object", concrete: null, title: null, description: null, value: {} });
     const onPick = vi.fn();
     const onUnpick = vi.fn();
     const { container } = render(<AnnotationMenu x={0} y={0} applied={[done]} mode="create" onPick={onPick} onUnpick={onUnpick} onClose={() => {}} />);
@@ -410,9 +410,9 @@ describe("recent tags — the root is never filed nor surfaced", () => {
     // BEFORE the write round-trip — it then showed as a bare ':' chip in every popup
     localStorage.setItem("yo-annotate-recent-tags", JSON.stringify([
       { path: ":", name: ":", color: null },
-      { path: ":tags:ok", name: "ok", color: null },
+      { path: ":ontos:ok", name: "ok", color: null },
     ]));
-    expect(recentTags().map((t) => t.path)).toEqual([":tags:ok"]); // the stale root is invisible
+    expect(recentTags().map((t) => t.path)).toEqual([":ontos:ok"]); // the stale root is invisible
     rememberTag({ path: ":", name: ":", color: null }); // and can never be filed again
     expect(recentTags().some((t) => t.path === ":")).toBe(false);
   });
@@ -430,7 +430,7 @@ describe("useExplorerTagMenu — right-click whole-node tagging", () => {
     );
   }
   it("loads the target's tags, removes via a chip, and adds via a swatch", async () => {
-    mAnns.mockResolvedValue([{ tag: { path: ":tags:keep", name: "keep", color: null } }]);
+    mAnns.mockResolvedValue([{ tag: { path: ":ontos:keep", name: "keep", color: null } }]);
     render(<Harness />);
     fireEvent.click(screen.getByText("open"));
 
@@ -441,7 +441,7 @@ describe("useExplorerTagMenu — right-click whole-node tagging", () => {
 
     // clicking the applied chip → deleteAnnotation(target, tagPath)
     fireEvent.click(screen.getByText("keep"));
-    expect(mDelete).toHaveBeenCalledWith(":doc.md", ":tags:keep");
+    expect(mDelete).toHaveBeenCalledWith(":doc.md", ":ontos:keep");
 
     // a color swatch → annotate({ target, tag })
     fireEvent.click(document.querySelector(".annotate-swatch")!);
@@ -459,7 +459,7 @@ describe("useExplorerTagMenu — right-click whole-node tagging", () => {
 
   it("ignores FRAGMENT annotations — an image with a tagged REGION is not itself tagged", async () => {
     // the node's only annotation is on a fragment (a tagged region), marked by `fragmentSlug`
-    mAnns.mockResolvedValue([{ tag: { path: ":tags:верхушка", name: "верхушка", color: null }, fragmentSlug: "abc" }]);
+    mAnns.mockResolvedValue([{ tag: { path: ":ontos:верхушка", name: "верхушка", color: null }, fragmentSlug: "abc" }]);
     render(<Harness />);
     fireEvent.click(screen.getByText("open"));
     await waitFor(() => expect(mAnns).toHaveBeenCalledWith(":doc.md"));

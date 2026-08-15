@@ -81,10 +81,10 @@ test('mv: anchor-named refs are untouched and still resolve', () => {
 
 test('mv: a link-scoped ordinal bookmark is rewritten when its tag container moves (A4)', () => {
   const root = tmpRoot();
-  mkdirSync(join(root, 'tags'));
-  writeFileSync(join(root, 'tags', 'chem.yo'), 'Chemistry\n');
-  writeFileSync(join(root, 'ann.yo'), '30\n&:: tags: chem.yo: -\n');
-  mv(root, 'tags', 'labels');
+  mkdirSync(join(root, 'ontos'));
+  writeFileSync(join(root, 'ontos', 'chem.yo'), 'Chemistry\n');
+  writeFileSync(join(root, 'ann.yo'), '30\n&:: ontos: chem.yo: -\n');
+  mv(root, 'ontos', 'labels');
   assert.equal(readFileSync(join(root, 'ann.yo'), 'utf8'), '30\n&::labels:chem.yo:-\n');
   const s = new Store(':memory:');
   reindex(s, root);

@@ -39,7 +39,7 @@
             "steps": [
               {
                 "sel": "key",
-                "name": "tags"
+                "name": "ontos"
               },
               {
                 "sel": "key",
@@ -185,7 +185,7 @@
                         "steps": [
                           {
                             "sel": "key",
-                            "name": "tags"
+                            "name": "ontos"
                           },
                           {
                             "sel": "key",
@@ -211,7 +211,7 @@
                         "steps": [
                           {
                             "sel": "key",
-                            "name": "tags"
+                            "name": "ontos"
                           },
                           {
                             "sel": "key",
@@ -341,7 +341,7 @@
                         "steps": [
                           {
                             "sel": "key",
-                            "name": "tags"
+                            "name": "ontos"
                           },
                           {
                             "sel": "key",
@@ -497,7 +497,7 @@
                         "steps": [
                           {
                             "sel": "key",
-                            "name": "tags"
+                            "name": "ontos"
                           },
                           {
                             "sel": "key",
@@ -523,7 +523,7 @@
                         "steps": [
                           {
                             "sel": "key",
-                            "name": "tags"
+                            "name": "ontos"
                           },
                           {
                             "sel": "key",
@@ -734,7 +734,7 @@
                         "steps": [
                           {
                             "sel": "key",
-                            "name": "tags"
+                            "name": "ontos"
                           },
                           {
                             "sel": "key",
@@ -764,7 +764,7 @@
                         "steps": [
                           {
                             "sel": "key",
-                            "name": "tags"
+                            "name": "ontos"
                           },
                           {
                             "sel": "key",
@@ -877,7 +877,7 @@
                         "steps": [
                           {
                             "sel": "key",
-                            "name": "tags"
+                            "name": "ontos"
                           },
                           {
                             "sel": "key",

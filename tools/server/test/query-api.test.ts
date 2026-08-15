@@ -20,7 +20,7 @@ describe("/api/query", () => {
   it("a malformed query is a 400, an empty result is a 200 with []", async () => {
     const h = createHandlers(tmpTree({ name: "Alice" }), { gitignore: false });
     await h.ready;
-    expect(call(h, "/api/query", { q: ": tags: дорожный знак" }).status).toBe(400); // unquoted spacey key
+    expect(call(h, "/api/query", { q: ": ontos: дорожный знак" }).status).toBe(400); // unquoted spacey key
     expect(call(h, "/api/query", { q: ": nowhere" }).json.results).toEqual([]);
   });
 
@@ -65,7 +65,7 @@ describe("/api/query", () => {
     // descend INTO the overlay: results inside the hidden subtree are filtered too (ancestor-aware)
     const inside = call(h, "/api/query", { q: ": '.yo': ?", shape: "tree" });
     expect(inside.json.results).toEqual([]);
-    expect(call(h, "/api/query", { q: ": tags: дорожный знак", shape: "tree" }).status).toBe(400);
+    expect(call(h, "/api/query", { q: ": ontos: дорожный знак", shape: "tree" }).status).toBe(400);
   });
 
   // shape=filter: the filtered-TOC form — ONE pruned tree of matches + ALL ancestors,
@@ -140,16 +140,16 @@ describe("/api/query", () => {
     // the popup's find-anywhere query is PROJECT-scoped and reaches inside the graft…
     const r = call(h, "/api/query", { q: ":: ...: colors", shape: "filter" });
     expect(r.status).toBe(200);
-    expect(r.json.matches).toContain(":yamlover:tags:colors");
+    expect(r.json.matches).toContain(":yamlover:ontos:colors");
     // …and the pruned tree carries the graft chain down to the match (+ its palette children)
     const y = r.json.root.children.find((c: any) => c.path === ":yamlover");
     expect(y).toBeTruthy();
-    const colors = y.children.find((c: any) => c.path === ":yamlover:tags").children[0];
+    const colors = y.children.find((c: any) => c.path === ":yamlover:ontos").children[0];
     expect(colors.match).toBe(true);
-    expect(colors.children.map((c: any) => c.path)).toContain(":yamlover:tags:colors:yellow");
+    expect(colors.children.map((c: any) => c.path)).toContain(":yamlover:ontos:colors:yellow");
     // `:: yamlover: ?` suggests the graft's content (the previous dead end)
-    const sub = call(h, "/api/query", { q: ":: yamlover: tags: ?", shape: "tree" });
-    expect(sub.json.results.map((n: any) => n.path)).toContain(":yamlover:tags:colors");
+    const sub = call(h, "/api/query", { q: ":: yamlover: ontos: ?", shape: "tree" });
+    expect(sub.json.results.map((n: any) => n.path)).toContain(":yamlover:ontos:colors");
     // DOCUMENT scope does NOT see project furniture — `:` is the document, `::` the project
     const doc = call(h, "/api/query", { q: ": ...: colors", shape: "filter" });
     expect(doc.json.matches).toEqual([]);
@@ -171,7 +171,7 @@ describe("/api/query", () => {
     expect(none.status).toBe(200);
     expect(none.json.matches).toEqual([]);
     expect(none.json.root.children).toEqual([]);
-    expect(call(h, "/api/query", { q: ": tags: дорожный знак", shape: "filter" }).status).toBe(400);
+    expect(call(h, "/api/query", { q: ": ontos: дорожный знак", shape: "filter" }).status).toBe(400);
     // `: ?` fans over the root's children — the hidden overlay must not appear anywhere
     const r = call(h, "/api/query", { q: ": ?", shape: "filter" });
     expect(r.json.matches).toEqual([":name"]);

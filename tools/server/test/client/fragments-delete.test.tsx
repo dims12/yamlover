@@ -9,8 +9,8 @@ const GROUP: FragmentGroup = {
   slug: "abc123",
   selector: { type: "text", exact: "directories" },
   tags: [
-    { path: ":yamlover:tags:fifth tag", label: "fifth tag", color: null },
-    { path: ":yamlover:tags:forth tag", label: "forth tag", color: null },
+    { path: ":yamlover:ontos:fifth tag", label: "fifth tag", color: null },
+    { path: ":yamlover:ontos:forth tag", label: "forth tag", color: null },
   ],
 };
 
@@ -34,8 +34,8 @@ describe("Fragments panel — delete from the RHS", () => {
     const params = calls.map((c) => new URL("http://x" + c.url.replace(/^[^?]*/, "")).searchParams);
     expect(params.every((p) => p.get("target") === ":60-doc.yo:yamlover-fragments:abc123")).toBe(true);
     const tags = params.map((p) => p.get("tag"));
-    expect(tags).toContain(":yamlover:tags:fifth tag");
-    expect(tags).toContain(":yamlover:tags:forth tag");
+    expect(tags).toContain(":yamlover:ontos:fifth tag");
+    expect(tags).toContain(":yamlover:ontos:forth tag");
 
     // the row hides optimistically → the panel (its only fragment gone) renders nothing
     await waitFor(() => expect(container.querySelector(".fragment-row")).toBeFalsy());

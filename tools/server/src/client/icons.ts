@@ -50,7 +50,7 @@ const FORMAT: Record<string, string> = {
 // Media-type / binary-encoding / custom formats → an icon, chosen by prefix.
 function mediaIcon(format: string): string | null {
   if (format === "x-yamlover-chapter") return "§"; // a chapter — the section sign
-  if (format === "x-yamlover-tag") return "🏷️";
+  if (format === "x-yamlover-onto") return "🏷️";
   if (format.startsWith("x-yamlover-")) return "🧩"; // a custom yamlover renderer
   if (format === "application/pdf") return "📕";
   if (format === "application/x-fictionbook+xml") return "📘";

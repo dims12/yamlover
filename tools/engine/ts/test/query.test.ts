@@ -40,16 +40,16 @@ function fixture(name: string): Store {
       process.on('exit', () => rmSync(root, { recursive: true, force: true }));
       mkdirSync(join(root, '$defs'));
       writeFileSync(
-        join(root, '$defs', 'tag'),
-        'type: object\nformat: x-yamlover-tag\nproperties:\n  color:\n    type: string\nadditionalProperties: *:: yamlover: $defs: tag\n',
+        join(root, '$defs', 'onto'),
+        'type: object\nformat: x-yamlover-onto\nproperties:\n  color:\n    type: string\nadditionalProperties: *:: yamlover: $defs: onto\n',
       );
       mkdirSync(join(root, '$defs', '.yo'));
-      writeFileSync(join(root, '$defs', '.yo', 'meta.yo'), 'properties:\n  tag:\n    type: string\n    format: yamlover/meta\n');
-      mkdirSync(join(root, 'tags'));
-      mkdirSync(join(root, 'tags', '.yo'));
+      writeFileSync(join(root, '$defs', '.yo', 'meta.yo'), 'properties:\n  onto:\n    type: string\n    format: yamlover/meta\n');
+      mkdirSync(join(root, 'ontos'));
+      mkdirSync(join(root, 'ontos', '.yo'));
       writeFileSync(
-        join(root, 'tags', '.yo', 'body.yo'),
-        '!!<*yamlover:$defs:tag>\ncolors: The palette\n  yellow:\n    color: "#f9e2af"\n  green:\n    color: "#a6e3a1"\n',
+        join(root, 'ontos', '.yo', 'body.yo'),
+        '!!<*yamlover:$defs:onto>\ncolors: The palette\n  yellow:\n    color: "#f9e2af"\n  green:\n    color: "#a6e3a1"\n',
       );
       writeFileSync(join(root, 'data.yo'), 'x: 1\n');
       s.indexDocument(walkDir(root));
@@ -73,7 +73,7 @@ for (const c of CASES) {
 // singleton fragment of the corpus).
 test('pointer-shaped queries are singletons', () => {
   const s = fixture('inline');
-  for (const q of ['team: alice: age', ': pets: 1', 'team: zoe', '1', '..: tags', 'team: alice: pet: name']) {
+  for (const q of ['team: alice: age', ': pets: 1', 'team: zoe', '1', '..: ontos', 'team: alice: pet: name']) {
     assert.ok(evalQuery(s, q, ':team:alice').length <= 1, q);
   }
 });

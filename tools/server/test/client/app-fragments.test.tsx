@@ -14,7 +14,7 @@ vi.mock("../../src/client/api", () => ({
   fetchTasks: vi.fn().mockResolvedValue([]),
   createObject: vi.fn(),
   fetchAnnotations: vi.fn().mockResolvedValue([
-    { tag: { path: ":tags:green", name: "green", color: "#0f0" }, selector: { type: "text", exact: "x" }, fragmentSlug: "frag1" },
+    { tag: { path: ":ontos:green", name: "green", color: "#0f0" }, selector: { type: "text", exact: "x" }, fragmentSlug: "frag1" },
   ]),
 }));
 import { App } from "../../src/client/App";

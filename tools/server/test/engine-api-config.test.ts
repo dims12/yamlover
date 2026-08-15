@@ -15,7 +15,7 @@ describe("/api/config (project configuration)", () => {
   it("GET returns the source + parsed settings (uri, exports, locations)", async () => {
     const root = tmpTree({
       name: "Alice",
-      ".yo/settings.yo": "uri: ::: yamlover.inthemoon.net\nexports:\n- *:: $defs\n- *:: tags\ntags: *:: taxonomy\n",
+      ".yo/settings.yo": "uri: ::: yamlover.inthemoon.net\nexports:\n- *:: $defs\n- *:: ontos\nontos: *:: taxonomy\n",
     });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
@@ -25,8 +25,8 @@ describe("/api/config (project configuration)", () => {
     expect(r.json.path).toBe(":.yo:settings.yo");
     expect(r.json.source).toContain("yamlover.inthemoon.net");
     expect(r.json.settings.uri).toBe("yamlover.inthemoon.net");
-    expect(r.json.settings.exports).toEqual(["*:: $defs", "*:: tags"]);
-    expect(r.json.settings.tags).toBe(":taxonomy");
+    expect(r.json.settings.exports).toEqual(["*:: $defs", "*:: ontos"]);
+    expect(r.json.settings.ontos).toBe(":taxonomy");
     h.close();
   });
 
@@ -38,7 +38,7 @@ describe("/api/config (project configuration)", () => {
     expect(r.status).toBe(200);
     expect(r.json.source).toBe("");
     expect(r.json.settings.exports).toEqual([]);
-    expect(r.json.settings.tags).toBe(":tags"); // default
+    expect(r.json.settings.ontos).toBe(":ontos"); // default
     h.close();
   });
 
@@ -52,7 +52,7 @@ describe("/api/config (project configuration)", () => {
     // GET sees the materialized source + parsed defaults
     const cfg = call(h, "/api/config");
     expect(cfg.json.source).toContain("annotations: *:: annotations");
-    expect(cfg.json.settings.tags).toBe(":tags");
+    expect(cfg.json.settings.ontos).toBe(":ontos");
     // and it is now a real, fetchable node (the gear's /api/json no longer 404s) with the config format
     const node = (await nodeJson(h, { path: ":.yo:settings.yo" }));
     expect(node.status).toBe(200);
@@ -70,7 +70,7 @@ describe("/api/config (project configuration)", () => {
     const node = (await nodeJson(h, { path: ":.yo:settings.yo", comments: "1" }));
     expect(node.status).toBe(200);
     // the dangling location pointers render as unresolved refs (pointer text, no link), in place
-    expect(Object.keys(node.json.value)).toEqual(["annotations", "tags", "sidecars"]);
+    expect(Object.keys(node.json.value)).toEqual(["annotations", "ontos", "sidecars"]);
     expect(node.json.value.annotations).toEqual({ $yamloverRef: { text: ":: annotations", path: null } });
     expect(node.json.comments["/annotations"].pointer).toBe(":: annotations");
     // the authored tag application (a POINTER, not the resolved schema) rides the root bucket
@@ -82,19 +82,19 @@ describe("/api/config (project configuration)", () => {
   });
 
   it("reloads in-memory settings when the config file is edited DIRECTLY on disk (watcher/reindex path)", async () => {
-    const root = tmpTree({ name: "Alice", ".yo/settings.yo": "tags: *:: taxonomy\n" });
+    const root = tmpTree({ name: "Alice", ".yo/settings.yo": "ontos: *:: taxonomy\n" });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
-    expect(call(h, "/api/config").json.settings.tags).toBe(":taxonomy");
+    expect(call(h, "/api/config").json.settings.ontos).toBe(":taxonomy");
     // a DIRECT disk edit (what the FS watcher would see), then a manual reconcile (the watcher's path)
-    fs.writeFileSync(path.join(root, ".yo", "settings.yo"), "tags: *:: newloc\n");
+    fs.writeFileSync(path.join(root, ".yo", "settings.yo"), "ontos: *:: newloc\n");
     await callBody(h, "POST", "/api/reindex");
-    expect(call(h, "/api/config").json.settings.tags).toBe(":newloc"); // reloaded, not stale
+    expect(call(h, "/api/config").json.settings.ontos).toBe(":newloc"); // reloaded, not stale
     h.close();
   });
 
   it("reloads settings when the config is edited through the generic /api/edit (a scalar value)", async () => {
-    const root = tmpTree({ name: "Alice", ".yo/settings.yo": "sidecars: per-directory\ntags: *:: taxonomy\n" });
+    const root = tmpTree({ name: "Alice", ".yo/settings.yo": "sidecars: per-directory\nontos: *:: taxonomy\n" });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
     expect(call(h, "/api/config").json.settings.sidecars).toBe("per-directory");

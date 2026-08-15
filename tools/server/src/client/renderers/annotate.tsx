@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { Annotation, TagRef, createTag, fetchAnnotations, fetchNode, query, createFragment, annotate, deleteAnnotation, fetchConfig } from "../api";
+import { Annotation, TagRef, createOnto, fetchAnnotations, fetchNode, query, createFragment, annotate, deleteAnnotation, fetchConfig } from "../api";
 import { explicitColor, isColorTagPath, resolveTagColor, tagFields, tagStyle } from "./tag";
 import { TagTip } from "./tagtip";
 import { canonPath, displayPath, fragmentAnchorId, strToSegs } from "../paths";
@@ -17,7 +17,7 @@ import { READ_ONLY } from "../base";
  * or chip is outlined until you pick one; the just-drawn region shows in a NEUTRAL color meanwhile.
  * Only the tags a target ALREADY carries are shown (outlined). The picker offers:
  *
- *   - the PURE COLOR TAGS (built-in `yamlover/tags/colors/…`) as swatches. Click one to apply it.
+ *   - the PURE COLOR TAGS (built-in `yamlover/ontos/colors/…`) as swatches. Click one to apply it.
  *   - the NAMED tags as chips, shown without typing from four sources (most-relevant first): the
  *     tags APPLIED to this target, the tags borne by OTHER components of the same node, the
  *     recently-used tags, and the project taxonomy (the grafted yamlover tags + the configured
@@ -34,18 +34,18 @@ import { READ_ONLY } from "../base";
  */
 
 // The built-in pure color tags (the palette). This constant is the OFFLINE fallback — the picker
-// fetches the real `/yamlover/tags/colors` nodes once per session (useColorTags) so a project
-// that re-themes them wins; the paths and hexes here mirror yamlover/tags/.yo/body.yo.
-export const COLOR_TAGS: TagRef[] = [
-  { path: "::yamlover:tags:colors:yellow", name: "yellow", color: "#f9e2af" },
-  { path: "::yamlover:tags:colors:green", name: "green", color: "#a6e3a1" },
-  { path: "::yamlover:tags:colors:sky", name: "sky", color: "#89dceb" },
-  { path: "::yamlover:tags:colors:mauve", name: "mauve", color: "#cba6f7" },
-  { path: "::yamlover:tags:colors:pink", name: "pink", color: "#f5c2e7" },
-  { path: "::yamlover:tags:colors:peach", name: "peach", color: "#fab387" },
+// fetches the real `/yamlover/ontos/colors` nodes once per session (useColorOntos) so a project
+// that re-themes them wins; the paths and hexes here mirror yamlover/ontos/.yo/body.yo.
+export const COLOR_ONTOS: TagRef[] = [
+  { path: "::yamlover:ontos:colors:yellow", name: "yellow", color: "#f9e2af" },
+  { path: "::yamlover:ontos:colors:green", name: "green", color: "#a6e3a1" },
+  { path: "::yamlover:ontos:colors:sky", name: "sky", color: "#89dceb" },
+  { path: "::yamlover:ontos:colors:mauve", name: "mauve", color: "#cba6f7" },
+  { path: "::yamlover:ontos:colors:pink", name: "pink", color: "#f5c2e7" },
+  { path: "::yamlover:ontos:colors:peach", name: "peach", color: "#fab387" },
 ];
-export const DEFAULT_TAG = COLOR_TAGS[0];
-export const DEFAULT_COLOR = DEFAULT_TAG.color!;
+export const DEFAULT_ONTO = COLOR_ONTOS[0];
+export const DEFAULT_COLOR = DEFAULT_ONTO.color!;
 // The NEUTRAL color a freshly-drawn region / in-progress selection is painted in, before any tag is
 // picked — "no tag chosen yet". A new selection preselects nothing, so it is deliberately NOT a tag
 // color (a muted gray, not the palette's yellow default).
@@ -86,14 +86,14 @@ export function editable(a: Annotation): boolean {
 // The color tags as indexed (fetched once per session; the constant covers offline/legacy roots).
 let colorTagsPromise: Promise<TagRef[]> | null = null;
 
-/** Load the palette, preferring the project's REAL `::tags:colors` over the self-import graft.
- *  In a yamlover PROJECT the self-import is de-materialized (graft-virtualize), so `::tags:colors`
- *  is the live palette and `::yamlover:tags:colors` no longer exists as a node; in a plain/FOREIGN
- *  served root only the built-in graft `::yamlover:tags:colors` exists. Pin each emitted ref to the
- *  base that resolved, so the written pointer matches the tag PAGE path (`:tags:colors:<name>` in a
+/** Load the palette, preferring the project's REAL `::ontos:colors` over the self-import graft.
+ *  In a yamlover PROJECT the self-import is de-materialized (graft-virtualize), so `::ontos:colors`
+ *  is the live palette and `::yamlover:ontos:colors` no longer exists as a node; in a plain/FOREIGN
+ *  served root only the built-in graft `::yamlover:ontos:colors` exists. Pin each emitted ref to the
+ *  base that resolved, so the written pointer matches the tag PAGE path (`:ontos:colors:<name>` in a
  *  project) and reconciles against the server echo instead of leaving a ghost badge. */
-async function loadColorTags(): Promise<TagRef[]> {
-  for (const base of ["::tags:colors", "::yamlover:tags:colors"]) {
+async function loadColorOntos(): Promise<TagRef[]> {
+  for (const base of ["::ontos:colors", "::yamlover:ontos:colors"]) {
     try {
       const n = await fetchNode(base, 2);
       const out: TagRef[] = [];
@@ -106,13 +106,13 @@ async function loadColorTags(): Promise<TagRef[]> {
       // node absent at this base — try the next
     }
   }
-  return COLOR_TAGS;
+  return COLOR_ONTOS;
 }
 
-export function useColorTags(): TagRef[] {
-  const [tags, setTags] = useState<TagRef[]>(COLOR_TAGS);
+export function useColorOntos(): TagRef[] {
+  const [tags, setTags] = useState<TagRef[]>(COLOR_ONTOS);
   useEffect(() => {
-    colorTagsPromise ??= loadColorTags();
+    colorTagsPromise ??= loadColorOntos();
     let cancelled = false;
     colorTagsPromise.then((t) => { if (!cancelled) setTags(t); });
     return () => { cancelled = true; };
@@ -122,15 +122,15 @@ export function useColorTags(): TagRef[] {
 
 // Enumerate every NAMED tag in the project for the picker typeahead: a document-root recursive
 // descent, format-filtered (docs/language/pointers/queries/idioms "all tag nodes"). Document-root scope finds tags wherever
-// `settings.tags.location` puts them — the client need not know that path. The grafted COLOR
+// `settings.ontos.location` puts them — the client need not know that path. The grafted COLOR
 // palette lives off the document root (link scope `::yamlover:…`) so it is naturally absent;
 // the defensive filter below also drops any color tag a project re-themes in-tree (those are the
 // swatch row, not the suggestion list).
-const TAG_QUERY = ": ...: !!<format: x-yamlover-tag>";
+const ONTO_QUERY = ": ...: !!<format: x-yamlover-onto>";
 
 export function indexToRefs(paths: string[]): TagRef[] {
   // A tag is just a NODE at a real path — keep each path AS-IS (no namespace rewriting). A project's
-  // OWN tags (`:tags:…`, `:67-pdf-tags:tags:…`) and the GLOBAL self-import tags (`:yamlover:tags:…`)
+  // OWN tags (`:ontos:…`, `:67-pdf-tags:ontos:…`) and the GLOBAL self-import tags (`:yamlover:ontos:…`)
   // are DISTINCT nodes and BOTH belong in the picker (IMPORTS.md — a tag lives anywhere, reached by
   // `:`/`::yamlover`). Dedup only EXACT duplicates (one node spelled two scope-ways), and drop the
   // color palette (it is the swatch row, not a suggestion).
@@ -145,12 +145,12 @@ export function indexToRefs(paths: string[]): TagRef[] {
 
 /** The project's named tags, enumerated once and re-enumerated when a `.yo` source changes
  *  (so a freshly created tag appears). Feeds the picker's typeahead suggestions. */
-export function useTagIndex(): TagRef[] {
+export function useOntoIndex(): TagRef[] {
   const [tags, setTags] = useState<TagRef[]>([]);
   const bump = useDiffBump(touchesYamlover);
   useEffect(() => {
     let cancelled = false;
-    query(TAG_QUERY)
+    query(ONTO_QUERY)
       .then((paths) => { if (!cancelled) setTags(indexToRefs(paths)); })
       .catch(() => { if (!cancelled) setTags([]); });
     return () => { cancelled = true; };
@@ -161,14 +161,14 @@ export function useTagIndex(): TagRef[] {
 // The roots whose tags the picker shows AS CHIPS by default (no typing): the grafted yamlover
 // self-import taxonomy (always present) plus the project's CONFIGURED tags location. Tags living
 // elsewhere in the tree (e.g. a sub-document's own `tags/`) stay reachable through the typeahead.
-const GRAFT_TAG_ROOTS = [":yamlover:tags", "::yamlover:tags"];
+const GRAFT_ONTO_ROOTS = [":yamlover:ontos", "::yamlover:ontos"];
 
-/** The project's configured tags location (`settings.tags`), or null until config loads / on error. */
+/** The project's configured tags location (`settings.ontos`), or null until config loads / on error. */
 export function useConfigTagsLocation(): string | null {
   const [loc, setLoc] = useState<string | null>(null);
   useEffect(() => {
     let live = true;
-    fetchConfig().then((c) => { if (live) setLoc(c.settings.tags ?? null); }).catch(() => { /* keep null → graft scope only */ });
+    fetchConfig().then((c) => { if (live) setLoc(c.settings.ontos ?? null); }).catch(() => { /* keep null → graft scope only */ });
     return () => { live = false; };
   }, []);
   return loc;
@@ -200,7 +200,7 @@ export function recentTags(): TagRef[] {
 
 function rememberRecent(t: TagRef): void {
   if (canonPath(t.path) === ":") return; // the root can never be a tag — never file it
-  if (canonPath(t.path).startsWith(":yamlover:tags:colors:")) return; // the swatch row already shows these
+  if (canonPath(t.path).startsWith(":yamlover:ontos:colors:")) return; // the swatch row already shows these
   const next = [t, ...recentTags().filter((r) => r.path !== t.path)].slice(0, 6);
   localStorage.setItem(RECENT_KEY, JSON.stringify(next));
 }
@@ -492,8 +492,8 @@ export function AnnotationMenu({
    *  itself. */
   targetPath?: string;
 }) {
-  const colorTags = useColorTags();
-  const tagIndex = useTagIndex(); // named tags (whole tree) — the scoped ones show as default chips
+  const colorTags = useColorOntos();
+  const tagIndex = useOntoIndex(); // named tags (whole tree) — the scoped ones show as default chips
   const tagsLoc = useConfigTagsLocation(); // the configured tags location → its tags show as default chips
   const [recents, setRecents] = useState(recentTags); // shown at once; pruned against the server
   const [busy, setBusy] = useState(false); // a lookup/create round-trip is in flight
@@ -557,7 +557,7 @@ export function AnnotationMenu({
       const name = creatableNameOf(meta.query);
       if (name === null) return;
       setBusy(true);
-      createTag(name)
+      createOnto(name)
         .then(onPick)
         .catch((e) => window.alert(`cannot create tag "${name}": ` + (e as Error).message))
         .finally(() => setBusy(false));
@@ -639,7 +639,7 @@ export function AnnotationMenu({
   // the last-used / recent tags, (d) the project taxonomy — the grafted yamlover tags plus the
   // configured tags location. ANYTHING else in the tree is reachable through the query cells
   // (the dropdown + the filtered TOC), so the chip row no longer doubles as a search result.
-  const scopedIndex = tagIndex.filter((t) => underAnyRoot(t.path, [...GRAFT_TAG_ROOTS, tagsLoc]));
+  const scopedIndex = tagIndex.filter((t) => underAnyRoot(t.path, [...GRAFT_ONTO_ROOTS, tagsLoc]));
   const view = dedupeNamed([...applied, ...nodeTags, ...recents, ...scopedIndex]);
 
   // Keep the fixed-position menu fully on-screen: it opens at the selection (x = left, y = the

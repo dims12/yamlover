@@ -8,8 +8,8 @@ import { nodeJson } from "./node-json";
 // / hasOrdinal. The regression they fix: tagging a node turns it omni, but its value facet (format,
 // valueType) must survive so the client still routes it (e.g. markdown stays markdown).
 
-const TAG_FILE = { "tags.yo": 'yellow: !!<*::yamlover:$defs:tag>\n  color: "#f9e2af"\n' };
-const TAG = ":tags.yo:yellow";
+const TAG_FILE = { "ontos.yo": 'yellow: !!<*::yamlover:$defs:onto>\n  color: "#f9e2af"\n' };
+const TAG = ":ontos.yo:yellow";
 
 describe("type facets in /api/json", () => {
   it("a plain markdown string exposes a string value facet, no elements", async () => {

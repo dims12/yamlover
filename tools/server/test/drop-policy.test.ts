@@ -86,12 +86,12 @@ describe("planFileUpload", () => {
 
 describe("planBoardRetag", () => {
   it("rejects dropping into the same lane", () => {
-    expect(planBoardRetag({ path: ":t" }, ":tags:doing", { path: ":tags:doing", label: "doing" }).allowed).toBe(false);
+    expect(planBoardRetag({ path: ":t" }, ":ontos:doing", { path: ":ontos:doing", label: "doing" }).allowed).toBe(false);
   });
 
   it("describes the retag by card title and lane label", () => {
-    const v = planBoardRetag({ path: ":t", title: "Fix login" }, ":tags:todo", { path: ":tags:doing", label: "doing" });
-    expect(v).toMatchObject({ allowed: true, plan: { kind: "board-retag", task: ":t", fromTag: ":tags:todo", toTag: ":tags:doing" } });
+    const v = planBoardRetag({ path: ":t", title: "Fix login" }, ":ontos:todo", { path: ":ontos:doing", label: "doing" });
+    expect(v).toMatchObject({ allowed: true, plan: { kind: "board-retag", task: ":t", fromTag: ":ontos:todo", toTag: ":ontos:doing" } });
     if (v.allowed) expect(v.plan.description).toBe('Move "Fix login" to "doing"');
   });
 });
@@ -105,7 +105,7 @@ describe("read-only server (window.__READONLY__)", () => {
     (globalThis as { window?: unknown }).window = { __READONLY__: true };
     expect(planNodeMove(n(":a:note.yo", "file/yamlover"), n(":b", "dir"))).toEqual({ allowed: false, reason: "server is read-only" });
     expect(planFileUpload(n(":a", "dir"), ["x.png"])).toEqual({ allowed: false, reason: "server is read-only" });
-    expect(planBoardRetag({ path: ":t" }, ":tags:todo", { path: ":tags:doing", label: "doing" })).toEqual({ allowed: false, reason: "server is read-only" });
+    expect(planBoardRetag({ path: ":t" }, ":ontos:todo", { path: ":ontos:doing", label: "doing" })).toEqual({ allowed: false, reason: "server is read-only" });
   });
 
   it("an explicit false flag changes nothing", () => {

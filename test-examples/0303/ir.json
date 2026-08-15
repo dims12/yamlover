@@ -19,7 +19,7 @@
             {
               "base": {
                 "scope": "link",
-                "authority": "tags"
+                "authority": "ontos"
               },
               "steps": [
                 {

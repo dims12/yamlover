@@ -433,9 +433,9 @@ test('67-pdf-tags (instance): omni-blobs (file + embedded annotations) + a tag t
   const s = new Store(':memory:');
   s.indexDocument(walkDir(examples));
   const R = ':67-pdf-tags';
-  // the tag taxonomy gets x-yamlover-tag propagated down the open-keyed tree
-  assert.equal(s.node(R + ':tags')?.format, 'x-yamlover-tag');
-  assert.equal(s.node(R + ':tags:field:mathematics:number-theory')?.format, 'x-yamlover-tag');
+  // the tag taxonomy gets x-yamlover-onto propagated down the open-keyed tree
+  assert.equal(s.node(R + ':ontos')?.format, 'x-yamlover-onto');
+  assert.equal(s.node(R + ':ontos:field:mathematics:number-theory')?.format, 'x-yamlover-onto');
   // a paper is the real file (a blob) AUGMENTED with an owned `yamlover-annotations` array — an
   // omni-blob (binary value + a field), the EMBEDDED tagging model (docs/annotations).
   const euler = R + ':S0002-9904-1966-11654-3.pdf';
@@ -446,10 +446,10 @@ test('67-pdf-tags (instance): omni-blobs (file + embedded annotations) + a tag t
   // label) — the reverse direction of the old `&`-anchor membership.
   const anns = euler + ':yamlover-annotations';
   const tags = s.entries(anns).filter((e) => e.kind === 'ref').map((e) => e.to);
-  assert.ok(tags.includes(R + ':tags:field:mathematics:number-theory'));
-  assert.ok(tags.includes(R + ':tags:genre:brevity:shortest-paper'));
+  assert.ok(tags.includes(R + ':ontos:field:mathematics:number-theory'));
+  assert.ok(tags.includes(R + ':ontos:genre:brevity:shortest-paper'));
   // the tag sees the paper's array as an incoming ref (the derived reverse → "materials under a tag")
-  const nt = R + ':tags:field:mathematics:number-theory';
+  const nt = R + ':ontos:field:mathematics:number-theory';
   assert.ok(s.relationships(nt).in.some((e) => e.kind === 'ref' && e.from === anns));
   s.close();
 });
@@ -471,7 +471,7 @@ test('a sub-document encoding format (yamlover/meta) parses the file — never a
   const root = mkdtempSync(join(tmpdir(), 'yo-docfmt-'));
   mkdirSync(join(root, '.yo'));
   writeFileSync(join(root, '.yo', 'meta.yo'), 'properties:\n  tag:\n    type: string\n    format: yamlover/meta\n');
-  writeFileSync(join(root, 'tag'), 'type: object\nformat: x-yamlover-tag\nproperties:\n  description:\n    type: string\n');
+  writeFileSync(join(root, 'tag'), 'type: object\nformat: x-yamlover-onto\nproperties:\n  description:\n    type: string\n');
   const s = new Store(':memory:');
   s.indexDocument(walkDir(root));
   const tag = s.node(':tag');
@@ -484,13 +484,13 @@ test('a sub-document encoding format (yamlover/meta) parses the file — never a
 
 // The BUILT-IN graft: serving a subdir of a `yamlover/$defs` host (the repo) grafts the host's
 // `yamlover/` subtree into the walked root, so `*yamlover: $defs: …` (the hosted schemas) and
-// `*:: yamlover: tags: colors…` (the pure color tags every annotation may apply) resolve from
+// `*:: yamlover: ontos: colors…` (the pure color tags every annotation may apply) resolve from
 // any served root.
 test('built-in yamlover/ subtree is grafted when serving below a yamlover/$defs host', () => {
   const s = indexedDir('59-all-formats-object'); // a subdir of the repo (the yamlover/$defs host)
-  assert.equal(s.node(':yamlover:tags:colors')?.format, 'x-yamlover-tag');
-  assert.equal(s.node(':yamlover:tags:colors:yellow')?.format, 'x-yamlover-tag');
-  assert.equal(s.node(':yamlover:tags:colors:yellow:color')?.value, '#f9e2af');
+  assert.equal(s.node(':yamlover:ontos:colors')?.format, 'x-yamlover-onto');
+  assert.equal(s.node(':yamlover:ontos:colors:yellow')?.format, 'x-yamlover-onto');
+  assert.equal(s.node(':yamlover:ontos:colors:yellow:color')?.value, '#f9e2af');
   assert.equal(s.node(':yamlover:$defs:chapter:type')?.value, 'variant'); // the schemas ride along
   s.close();
 });
@@ -502,8 +502,8 @@ test('built-in graft outside a yamlover/$defs host (palette always available); U
   writeFileSync(join(root, 'name'), 'Alice\n');
   const s = new Store(':memory:');
   s.indexDocument(walkDir(root));
-  assert.equal(s.node(':yamlover:tags:colors:yellow')?.format, 'x-yamlover-tag');
-  assert.equal(s.node(':yamlover:tags:colors:yellow:color')?.value, '#f9e2af');
+  assert.equal(s.node(':yamlover:ontos:colors:yellow')?.format, 'x-yamlover-onto');
+  assert.equal(s.node(':yamlover:ontos:colors:yellow:color')?.value, '#f9e2af');
   s.close();
   rmSync(root, { recursive: true, force: true });
   // THE UNIFORM GRAFT (walk.ts): an all-keyless root gets the graft like every other shape —
@@ -526,30 +526,30 @@ test('built-in graft outside a yamlover/$defs host (palette always available); U
   const arr = indexedDir('56-array-of-files');
   assert.equal(arr.node(':')?.is_array, false);
   assert.equal(arr.node(':yamlover')?.meta?.hidden, true); // grafted, hidden plumbing
-  assert.equal(arr.node(':yamlover:tags:colors:yellow:color')?.value, '#f9e2af'); // …and it resolves
+  assert.equal(arr.node(':yamlover:ontos:colors:yellow:color')?.value, '#f9e2af'); // …and it resolves
   assert.ok(!arr.toc(':', 1).some((n) => n.label === 'yamlover')); // …and stays off the TOC
   arr.close();
 });
 
-test('detached tree: the BUNDLED yamlover taxonomy resolves *::yamlover:tags:workflow:dev (IMPORTS.md §4)', () => {
+test('detached tree: the BUNDLED yamlover taxonomy resolves *::yamlover:ontos:workflow:dev (IMPORTS.md §4)', () => {
   // a board copied away from its project (no ancestor `$defs/`) — the bug behind a board with no
   // lanes. The bundled taxonomy must supply the dev workflow + its states + the board/task schemas.
   const root = mkdtempSync(join(tmpdir(), 'yo-detached-'));
   mkdirSync(join(root, '.yo'));
   writeFileSync(join(root, '.yo', 'body.yo'),
-    '!!<*yamlover:$defs:board>\nworkflow: *::yamlover:tags:workflow:dev\n');
+    '!!<*yamlover:$defs:board>\nworkflow: *::yamlover:ontos:workflow:dev\n');
   const doc = walkDir(root);
   const s = new Store(':memory:');
   s.indexDocument(doc);
-  assert.equal(s.node(':yamlover:tags:workflow:dev')?.format, 'x-yamlover-workflow');
+  assert.equal(s.node(':yamlover:ontos:workflow:dev')?.format, 'x-yamlover-workflow');
   for (const st of ['backlog', 'ready', 'in-progress', 'done', 'cancelled'])
-    assert.equal(s.node(`:yamlover:tags:workflow:dev:${st}`)?.format, 'x-yamlover-tag');
+    assert.equal(s.node(`:yamlover:ontos:workflow:dev:${st}`)?.format, 'x-yamlover-onto');
   assert.equal(s.node(':yamlover:$defs:board:format')?.value, 'x-yamlover-board');
   assert.ok(s.node(':yamlover:$defs:task') !== null);
   // and the board's workflow pointer actually resolves to the grafted workflow node
   const edge = resolveDocument(doc).find((e) => e.from === ':workflow');
   assert.equal(edge?.target.kind, 'node');
-  assert.equal(edge?.target.kind === 'node' && edge.target.path, ':yamlover:tags:workflow:dev');
+  assert.equal(edge?.target.kind === 'node' && edge.target.path, ':yamlover:ontos:workflow:dev');
   s.close();
   rmSync(root, { recursive: true, force: true });
 });
@@ -558,10 +558,10 @@ test('world URI: ::: yamlover.inthemoon.net is the bundled self-import; other au
   const root = mkdtempSync(join(tmpdir(), 'yo-world-'));
   mkdirSync(join(root, '.yo'));
   writeFileSync(join(root, '.yo', 'body.yo'),
-    'mine: *::: yamlover.inthemoon.net: tags: colors: yellow\nother: *::: acme.example: x\n');
+    'mine: *::: yamlover.inthemoon.net: ontos: colors: yellow\nother: *::: acme.example: x\n');
   const edges = resolveDocument(walkDir(root));
   const mine = edges.find((e) => e.from === ':mine');
-  assert.equal(mine?.target.kind === 'node' && mine.target.path, ':yamlover:tags:colors:yellow');
+  assert.equal(mine?.target.kind === 'node' && mine.target.path, ':yamlover:ontos:colors:yellow');
   const other = edges.find((e) => e.from === ':other');
   assert.equal(other?.target.kind, 'external'); // transport out of scope — stays external
   assert.equal(other?.target.kind === 'external' && other.target.authority, 'acme.example');
@@ -575,7 +575,7 @@ test('self-import: explicit `yamlover: *::: …` key materializes the taxonomy; 
   writeFileSync(join(root, '.yo', 'body.yo'), 'yamlover: *::: yamlover.inthemoon.net\n');
   const s = new Store(':memory:');
   s.indexDocument(walkDir(root));
-  assert.equal(s.node(':yamlover:tags:colors:yellow')?.format, 'x-yamlover-tag');
+  assert.equal(s.node(':yamlover:ontos:colors:yellow')?.format, 'x-yamlover-onto');
   s.close();
   rmSync(root, { recursive: true, force: true });
   // a `yamlover` key pointing ELSEWHERE is a user override — no graft happens
@@ -584,7 +584,7 @@ test('self-import: explicit `yamlover: *::: …` key materializes the taxonomy; 
   writeFileSync(join(root2, '.yo', 'body.yo'), 'local:\n  hi: 1\nyamlover: *local\n');
   const s2 = new Store(':memory:');
   s2.indexDocument(walkDir(root2));
-  assert.equal(s2.node(':yamlover:tags:colors:yellow'), null);
+  assert.equal(s2.node(':yamlover:ontos:colors:yellow'), null);
   s2.close();
   rmSync(root2, { recursive: true, force: true });
 });
@@ -594,7 +594,7 @@ test('settings.yo is indexed as a HIDDEN node (x-yamlover-config); body/meta sta
   // but hidden from the TOC (IMPORTS.md). body/meta remain consumed overlays (not nodes).
   const root = mkdtempSync(join(tmpdir(), 'yo-settingsnode-'));
   mkdirSync(join(root, '.yo'));
-  writeFileSync(join(root, '.yo', 'settings.yo'), '!!<*yamlover:$defs:config>\ntags: *:: tags\n');
+  writeFileSync(join(root, '.yo', 'settings.yo'), '!!<*yamlover:$defs:config>\ntags: *:: ontos\n');
   writeFileSync(join(root, '.yo', 'body.yo'), 'extra: 1\n');
   writeFileSync(join(root, 'name'), 'Alice\n');
   const s = new Store(':memory:');
@@ -636,20 +636,20 @@ test('self-import graft: a root that IS a project is DE-MATERIALIZED — `::yaml
   const dir = mkdtempSync(join(tmpdir(), 'yamlover-walk-'));
   mkdirSync(join(dir, '$defs'));
   writeFileSync(join(dir, '$defs', 'thing'), 'type: object\n');
-  mkdirSync(join(dir, 'tags'));
-  writeFileSync(join(dir, 'tags', 'red.yo'), 'Red things\n');
+  mkdirSync(join(dir, 'ontos'));
+  writeFileSync(join(dir, 'ontos', 'red.yo'), 'Red things\n');
   // a material whose pointer uses the self-import (graft-scope) spelling the client emits
-  writeFileSync(join(dir, 'data.yo'), 'ref: *::yamlover:tags:red.yo\n');
+  writeFileSync(join(dir, 'data.yo'), 'ref: *::yamlover:ontos:red.yo\n');
   const s = new Store(':memory:');
   s.indexDocument(walkDir(dir));
   // the real taxonomy is at the root…
   assert.ok(s.node(':$defs:thing'));
-  assert.ok(s.node(':tags:red.yo'));
+  assert.ok(s.node(':ontos:red.yo'));
   // …and NO duplicate self-import subtree is materialized
   assert.equal(s.node(':yamlover'), null);
-  assert.equal(s.node(':yamlover:tags:red.yo'), null);
+  assert.equal(s.node(':yamlover:ontos:red.yo'), null);
   // the `::yamlover:…` pointer resolves VIRTUALLY to the REAL node (absorbed self-import)
-  const inb = s.relationships(':tags:red.yo').in.filter((e) => e.kind === 'ref');
+  const inb = s.relationships(':ontos:red.yo').in.filter((e) => e.kind === 'ref');
   assert.equal(inb.length, 1);
   assert.equal(inb[0].from, ':data.yo');
   s.close();

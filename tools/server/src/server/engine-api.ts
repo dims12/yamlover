@@ -706,10 +706,10 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
       }
 
       // Create a NAMED TAG (a WRITE path — the picker's create-on-miss): add
-      // `<name>: !!<*yamlover/$defs/tag>` to the taxonomy body at the project's default tags
-      // location (settings.yo; `/tags` by default → `<location>/.yo/body.yo`),
+      // `<name>: !!<*yamlover/$defs/onto>` to the taxonomy body at the project's default tags
+      // location (settings.yo; `/ontos` by default → `<location>/.yo/body.yo`),
       // then reconcile so it joins the graph. The direct schema attach makes the node an
-      // `x-yamlover-tag` wherever the taxonomy lives — like an annotation, a created tag may be
+      // `x-yamlover-onto` wherever the taxonomy lives — like an annotation, a created tag may be
       // moved anywhere and keeps working. Idempotent: a tag already at that path is returned
       // as-is. Body: { name }.
       if (req.method === "POST" && url.pathname === "/api/tag") {
@@ -718,23 +718,23 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
             enqueue(async () => {
               const name = String((data as { name?: unknown })?.name ?? "").trim();
               if (!name) throw new Error("tag needs a non-empty name");
-              const segs = [...strToSegs(settings.tags), name];
+              const segs = [...strToSegs(settings.ontos), name];
               const tagPath = segsToStr(segs);
               const existing = s.node(storePath(segs));
               if (existing) {
-                if (existing.format !== TAG_FORMAT) throw new Error(`a node already exists at ${tagPath} and is not a tag`);
+                if (existing.format !== ONTO_FORMAT) throw new Error(`a node already exists at ${tagPath} and is not a tag`);
                 const color = s.node(storePath(segs) + ":color")?.value;
                 return { path: tagPath, name, color: typeof color === "string" ? color : null, created: false };
               }
               // Index INCREMENTALLY (the annotate pattern — not a full rebuild, which stats the
               // whole tree and blocks the picker for seconds on a big root); the watcher's
               // reconcile re-walks the edited body and trues the rows up moments later.
-              const written = writeTag(dataRoot, s, settings.tags, name);
-              s.addTag(storePath(strToSegs(settings.tags)), name, written.pos, written.node);
-              if (s.node(storePath(segs))?.format !== TAG_FORMAT) throw new Error(`the created tag did not index as a tag: ${tagPath}`);
+              const written = writeOnto(dataRoot, s, settings.ontos, name);
+              s.addOnto(storePath(strToSegs(settings.ontos)), name, written.pos, written.node);
+              if (s.node(storePath(segs))?.format !== ONTO_FORMAT) throw new Error(`the created tag did not index as a tag: ${tagPath}`);
               // the merged IR must see the new tag too — /api/content serves cachedDoc, and
               // "moments later" is after the client's immediate re-fetch of the created tag
-              await doReindexFile(written.file); // writeTag returns the ABSOLUTE body path
+              await doReindexFile(written.file); // writeOnto returns the ABSOLUTE body path
               announce(written.createdFile ? { added: [written.file] } : { changed: [written.file] });
               return { path: tagPath, name, color: null, created: true };
             }),
@@ -1334,7 +1334,7 @@ const visibleHasChildren = (s: Store, p: string): boolean => s.children(p).some(
  *  looser than {@link inHiddenSubtree}: the `.yo` OVERLAY subtrees (dot-named hidden
  *  ancestors) and hidden nodes THEMSELVES stay off search results, but the grafted `yamlover`
  *  self-import's CONTENT answers — it is project furniture, hidden PLUMBING yet fully
- *  reachable, and `:: ...: colors` must find the built-in palette (`:yamlover:tags:colors`).
+ *  reachable, and `:: ...: colors` must find the built-in palette (`:yamlover:ontos:colors`).
  *  So `:: ?` still omits the graft root (a hidden node itself) while `:: yamlover: ?` and
  *  project-wide descent reach inside it. */
 const queryHidden = (s: Store, p: string): boolean => {
@@ -1467,7 +1467,7 @@ function linkMarker(dataRoot: string, s: Store, segs: Seg[]): Record<string, unk
     // unrealized ones) count the same as inline children (they all render as rows)
     info.count = ownedEntries(s, p).filter((e) => !(e.kind === "contain" && isHidden(s, e.to))).length;
   }
-  if (row.format === TAG_FORMAT) {
+  if (row.format === ONTO_FORMAT) {
     // a pure color tag's explicit color rides the link, so badges color correctly everywhere
     const c = s.node(p + ":color")?.value;
     if (typeof c === "string") info.color = c;
@@ -1543,7 +1543,7 @@ function buildRelations(dataRoot: string, s: Store, segs: Seg[]): Record<string,
     const key = scopedPath(s, segs2, currentDoc);
     // a TAG source stays a link marker so splitTagRefs (client) can peel it into a header badge;
     // every other upstream source shows AS a reference (its pointer text), like the value view.
-    put(key, s.node(src)?.format === TAG_FORMAT ? linkMarker(dataRoot, s, segs2) : refMarker(key, segsToStr(segs2)));
+    put(key, s.node(src)?.format === ONTO_FORMAT ? linkMarker(dataRoot, s, segs2) : refMarker(key, segsToStr(segs2)));
   }
   return out;
 }
@@ -1668,7 +1668,7 @@ function firstChunkText(s: Store, p: string): string | null {
 // `.yo/body.yo` overlay) surgically — see ./embed.ts.
 // --------------------------------------------------------------------------- //
 
-const TAG_FORMAT = "x-yamlover-tag";
+const ONTO_FORMAT = "x-yamlover-onto";
 const FRAGMENT_FORMAT = "x-yamlover-fragment";
 const ANN_KEY = "yamlover-annotations";
 const FRAG_KEY = "yamlover-fragments";
@@ -1791,9 +1791,9 @@ function annotationsFor(dataRoot: string, s: Store, segs: Seg[]): unknown[] {
  *  field, or a legacy direct `~`/`&` membership). Each is climbed to its owning material or
  *  fragment and deduped, ordered lexicographically by path. For an ARBITRARY node (any node can
  *  be a tag now) only annotation-array edges count — an ordinary pointer into it is not a
- *  tagging; the direct-membership read stays for x-yamlover-tag pages. */
+ *  tagging; the direct-membership read stays for x-yamlover-onto pages. */
 function taggedMaterials(dataRoot: string, s: Store, tagStorePath: string): unknown[] {
-  const legacyDirect = s.node(tagStorePath)?.format === TAG_FORMAT;
+  const legacyDirect = s.node(tagStorePath)?.format === ONTO_FORMAT;
   const seen = new Set<string>();
   const out: unknown[] = [];
   const ins = s.relationships(tagStorePath).in
@@ -2098,8 +2098,8 @@ function unembedAnnotation(dataRoot: string, s: Store, target: string, tag: stri
   }
   const { bodyFile, within } = hostFor(dataRoot, s, segs);
   if (!fs.existsSync(bodyFile)) return bodyFile;
-  // Match on the tag's colon-PATH (`:tags:…:name`), tolerating the pointer's spelling: an item may
-  // be project-scope (`*::tags:…`), document-scope (`*: tags: …`, spaced), bare or an object form.
+  // Match on the tag's colon-PATH (`:ontos:…:name`), tolerating the pointer's spelling: an item may
+  // be project-scope (`*::ontos:…`), document-scope (`*: tags: …`, spaced), bare or an object form.
   // Strip whitespace on BOTH sides before the substring test: the item's, to fold a spaced scope
   // (`*: tags: …`), AND the needle's — a tag NAME with a space is a QUOTED key (`'fifth tag'`), so
   // the stored item reads `'fifthtag'` once stripped; an unstripped needle (`'fifth tag'`) would
@@ -2123,11 +2123,11 @@ function unembedAnnotation(dataRoot: string, s: Store, target: string, tag: stri
 }
 
 /** Persist a NEW named tag as a key of the tag-taxonomy body at the project's default tags
- *  location (`settings.yo`; `/tags` unless configured): that directory's instance overlay
- *  gains a `<name>: !!<*yamlover/$defs/tag>` entry. The would-be body is PARSED before
+ *  location (`settings.yo`; `/ontos` unless configured): that directory's instance overlay
+ *  gains a `<name>: !!<*yamlover/$defs/onto>` entry. The would-be body is PARSED before
  *  committing, so a name the yamlover syntax cannot hold as a plain key (one that vanishes into
  *  a comment, say) is refused instead of corrupting the taxonomy. */
-function writeTag(
+function writeOnto(
   dataRoot: string,
   s: Store,
   location: string,
@@ -2141,7 +2141,7 @@ function writeTag(
   const createdFile = !fs.existsSync(file);
   const head = "# Named tags created from the annotation picker (settings.yo: tags.location).\n";
   const existing = createdFile ? head : fs.readFileSync(file, "utf8");
-  const body = (existing === "" || existing.endsWith("\n") ? existing : existing + "\n") + `${name}: !!<*::yamlover:$defs:tag>\n`;
+  const body = (existing === "" || existing.endsWith("\n") ? existing : existing + "\n") + `${name}: !!<*::yamlover:$defs:onto>\n`;
   const entries = parseYamlover(body, file).root.entries ?? [];
   const pos = entries.findIndex((e) => e.key === name);
   const entry = pos >= 0 ? entries[pos] : undefined;

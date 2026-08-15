@@ -27,7 +27,7 @@ function Harness({ path }: { path: string }) {
 }
 
 // A named tag (renders as a `.tagtag.on` chip when applied — easy to click).
-const TAG_FILE = { "tags.yo": "field:\n  math: !!<*::yamlover:$defs:tag>\n" };
+const TAG_FILE = { "tags.yo": "field:\n  math: !!<*::yamlover:$defs:onto>\n" };
 const TAG = ":tags.yo:field:math";
 const SEL = { type: "rect", x: 10, y: 20, w: 30, h: 40 };
 

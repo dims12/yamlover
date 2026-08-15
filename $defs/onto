@@ -1,12 +1,12 @@
-# $defs/tag — a node in a tag taxonomy. A tag's description is its BODY (the node's own scalar
+# $defs/onto — a node in an ontology. A tag's description is its BODY (the node's own scalar
 # value — author `name: !!omni The description` when the tag also has fields, or a plain
 # `name: The description` for a leaf); an optional explicit `color` ("#rrggbb" — a "pure color
 # tag"; absent ⇒ the UI derives a stable hue from the name); every OTHER key is a sub-tag, so
-# the taxonomy recurses to any depth (`others:` → tag). The format `x-yamlover-tag`
+# the taxonomy recurses to any depth (`others:` → onto). The format `x-yamlover-onto`
 # makes the server render each one as a tag (a badge wired to its super/sub-tags). Attach to the
-# taxonomy root with the tag  !!<*yamlover/$defs/tag>  — it propagates down.
+# taxonomy root with the tag  !!<*yamlover/$defs/onto>  — it propagates down.
 type: variant
-format: x-yamlover-tag
+format: x-yamlover-onto
 value:
   type: string
   format: text/marklower
@@ -14,4 +14,4 @@ members:
   color:
     type: string
     description: An explicit display color ("#rrggbb"); absent ⇒ derived from the tag's name
-others: *:: yamlover: $defs: tag
+others: *:: yamlover: $defs: onto

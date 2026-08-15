@@ -11,5 +11,5 @@ estimate: 6h
 - The current `parsePointer` walks scopes and steps in one pass, so `::`/`:::` edge cases leak into step logic.
 - Target a two-phase parse — resolve the scope ladder first, then walk steps — so `docs/language/pointers/paths` rules live in one place.
 yamlover-annotations:
-- *::yamlover:tags:colors:yellow
-- *::yamlover:tags:workflow:dev:ready
+- *::yamlover:ontos:colors:yellow
+- *::yamlover:ontos:workflow:dev:ready

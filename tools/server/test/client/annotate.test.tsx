@@ -7,14 +7,14 @@ import { render, cleanup, waitFor, act, fireEvent } from "@testing-library/react
 const { fetchNode } = vi.hoisted(() => ({ fetchNode: vi.fn() }));
 vi.mock("../../src/client/api", async (orig) => ({ ...(await orig<Record<string, unknown>>()), fetchNode }));
 
-import { AnnotationMenu, AnnotatedMaterial, useAnnotations, useAnnotationMenu, DEFAULT_TAG, copyText } from "../../src/client/renderers/annotate";
+import { AnnotationMenu, AnnotatedMaterial, useAnnotations, useAnnotationMenu, DEFAULT_ONTO, copyText } from "../../src/client/renderers/annotate";
 
 // The annotation layer's live-refresh + remembered-tag hygiene: external changes arrive as a
 // `yamlover:diff` window event (App re-broadcasts SSE diffs), and localStorage recents are
 // pruned against the server so a deleted tag cannot linger as a clickable badge.
 
-const ALIVE = { path: ":tags:alive", name: "alive", color: null };
-const DEAD = { path: ":tags:dead", name: "dead", color: null };
+const ALIVE = { path: ":ontos:alive", name: "alive", color: null };
+const DEAD = { path: ":ontos:dead", name: "dead", color: null };
 const RECENT_KEY = "yo-annotate-recent-tags";
 
 /** Route fetches by their decoded `path` query param; undefined → a 404 {error} response.
@@ -93,10 +93,10 @@ describe("AnnotationMenu remembered-tag pruning", () => {
     // (The last-used tag is no longer in localStorage — it lives in settings.yo, IMPORTS.md —
     // so only the recents list is pruned here.)
     localStorage.setItem(RECENT_KEY, JSON.stringify([ALIVE, DEAD]));
-    mockFetch({ ":tags:alive": { path: ":tags:alive", format: "x-yamlover-tag", value: {} } }); // /tags/dead → 404
+    mockFetch({ ":ontos:alive": { path: ":ontos:alive", format: "x-yamlover-onto", value: {} } }); // /tags/dead → 404
 
     const { container } = render(
-      <AnnotationMenu x={0} y={0} applied={[DEFAULT_TAG]} mode="create" onPick={vi.fn()} onClose={vi.fn()} />,
+      <AnnotationMenu x={0} y={0} applied={[DEFAULT_ONTO]} mode="create" onPick={vi.fn()} onClose={vi.fn()} />,
     );
     const badges = () => [...container.querySelectorAll(".annotate-recents .tagtag")].map((b) => b.textContent);
     expect(badges()).toEqual(["alive", "dead"]); // stored list shows at once
@@ -106,10 +106,10 @@ describe("AnnotationMenu remembered-tag pruning", () => {
   });
 
   it("frames the assigned named tag (`sel`, like the selected color swatch)", async () => {
-    localStorage.setItem(RECENT_KEY, JSON.stringify([ALIVE, { path: ":tags:other", name: "other", color: null }]));
+    localStorage.setItem(RECENT_KEY, JSON.stringify([ALIVE, { path: ":ontos:other", name: "other", color: null }]));
     mockFetch({
-      ":tags:alive": { path: ":tags:alive", format: "x-yamlover-tag", value: {} },
-      ":tags:other": { path: ":tags:other", format: "x-yamlover-tag", value: {} },
+      ":ontos:alive": { path: ":ontos:alive", format: "x-yamlover-onto", value: {} },
+      ":ontos:other": { path: ":ontos:other", format: "x-yamlover-onto", value: {} },
     });
 
     const { container } = render(
@@ -121,8 +121,8 @@ describe("AnnotationMenu remembered-tag pruning", () => {
 
   it("shows the assigned named tag even when it aged out of the recents", async () => {
     localStorage.setItem(RECENT_KEY, JSON.stringify([ALIVE]));
-    mockFetch({ ":tags:alive": { path: ":tags:alive", format: "x-yamlover-tag", value: {} } });
-    const assigned = { path: ":tags:forgotten", name: "forgotten", color: null };
+    mockFetch({ ":ontos:alive": { path: ":ontos:alive", format: "x-yamlover-onto", value: {} } });
+    const assigned = { path: ":ontos:forgotten", name: "forgotten", color: null };
 
     const { container } = render(
       <AnnotationMenu x={0} y={0} applied={[assigned]} mode="edit" onPick={vi.fn()} onClose={vi.fn()} />,
@@ -137,7 +137,7 @@ describe("AnnotationMenu remembered-tag pruning", () => {
     mockFetch({ ":notes": { path: ":notes", format: null, value: {} } }); // exists — that is enough
 
     const { container } = render(
-      <AnnotationMenu x={0} y={0} applied={[DEFAULT_TAG]} mode="create" onPick={vi.fn()} onClose={vi.fn()} />,
+      <AnnotationMenu x={0} y={0} applied={[DEFAULT_ONTO]} mode="create" onPick={vi.fn()} onClose={vi.fn()} />,
     );
     // liveness is EXISTENCE now: the non-tag node survives the prune (still a valid annotation ref)
     await new Promise((r) => setTimeout(r, 30));
@@ -176,7 +176,7 @@ describe("chunk text highlighting (prefix/suffix anchoring + per-chunk scope)", 
       node: ":doc[1]",
       selector: { type: "text", exact: "word", prefix: "the ", suffix: " appears" },
       fragmentSlug: "f1",
-      tag: { path: ":tags:green", name: "green", color: "#0f0" },
+      tag: { path: ":ontos:green", name: "green", color: "#0f0" },
     };
     mockFetch({ "annotations::doc": [ann] });
     const { container } = render(

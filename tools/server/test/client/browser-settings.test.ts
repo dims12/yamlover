@@ -80,7 +80,7 @@ describe("browser settings document", () => {
     expect(browserWidthCh()).toBe(null);
     saveBrowserSettings("width: wide\n");
     expect(browserWidthCh()).toBe(null);
-    saveBrowserSettings("tags: *:: tags\n"); // absent
+    saveBrowserSettings("tags: *:: ontos\n"); // absent
     expect(browserWidthCh()).toBe(null);
   });
 

@@ -9,7 +9,7 @@ The whole feature is built by **reuse**, not by inventing parallel machinery:
 | concern | reuses |
 |---|---|
 | body (the self-value title, description, positional chunks + subtasks) | `$defs/chapter` (`docs/documents/chapter`, `$defs/chapter`) |
-| lifecycle state (backlog → done, due, postponed) | **tags** + **tag applications** (`docs/annotations`, `$defs/tag`) |
+| lifecycle state (backlog → done, due, postponed) | **tags** + **tag applications** (`docs/annotations`, `$defs/onto`) |
 | transitions / state machine | the tag **or-graph** — `next:` ref edges between state tags |
 | planning fields, scheduling fields | **parametrized annotations** (`additionalProperties: true`) |
 | boards, decks | directory views + the **unified change flow** (SSE) |
@@ -72,7 +72,7 @@ assignee: claude
 - Capture the task schema and the state-as-tag model.
 - Include the Anki / SM-2 section.
 yamlover-annotations:
-- *::tags:workflow:dev:in-progress        # ← the current state (see §2)
+- *::ontos:workflow:dev:in-progress        # ← the current state (see §2)
 ```
 
 Subtasks are positional body elements that are themselves tasks (a `- Its title` element — the
@@ -86,22 +86,22 @@ self-value — with its own body below); a flat **board** is instead a *director
 A task's lifecycle position is **one tag application** on the task root
 (`yamlover-annotations`), pointing into a **workflow**: a tag whose contained sub-tags are its
 **states**. The states ship in the project tag taxonomy (`settings.yo` → `tags.location`),
-reached in project scope as `*::tags:workflow:<name>:<state>`.
+reached in project scope as `*::ontos:workflow:<name>:<state>`.
 
 ```yamlover
-# tags/.yo/body.yo  (excerpt)
+# ontos/.yo/body.yo  (excerpt)
 workflow: Lifecycles
   dev: !!<*yamlover:$defs:workflow> Software task lifecycle
-    initial: *::tags:workflow:dev:backlog          # ref → the start state
+    initial: *::ontos:workflow:dev:backlog          # ref → the start state
     backlog:     !!omni Captured, not yet refined
       color: "#9399b2"
-      next: *::tags:workflow:dev:ready
+      next: *::ontos:workflow:dev:ready
     ready:       !!omni Refined, ready to pick up
-      next: *::tags:workflow:dev:in-progress
+      next: *::ontos:workflow:dev:in-progress
     in-progress: !!omni Being worked on
       next:                                         # several successors ⇒ a sequence of refs
-      - *::tags:workflow:dev:done
-      - *::tags:workflow:dev:cancelled
+      - *::ontos:workflow:dev:done
+      - *::ontos:workflow:dev:cancelled
     done:        !!omni Completed                   # no `next:` ⇒ TERMINAL (derived)
       color: "#a6e3a1"
     cancelled:   !!omni Dropped
@@ -110,7 +110,7 @@ workflow: Lifecycles
 
 ### 2.1 Why states-as-tags, and `next:` as ref edges
 
-- **States are ordinary `$defs/tag` nodes.** They get badges, colors, descriptions, the tag
+- **States are ordinary `$defs/onto` nodes.** They get badges, colors, descriptions, the tag
   picker, and `/api/tagged` reverse lookup for free. "Everything is a tag."
 - **Transitions are `next:` REF edges, not containment.** Because the value is a *pointer*, the
   entry is a **ref member**, not a contained sub-tag (the contain-vs-ref / `reverse-members-not-type`
@@ -141,7 +141,7 @@ announced over SSE like every other change (`unified-change-flow`).
 
 ```yamlover
 # $defs/workflow — a state machine expressed as a TAG whose CONTAINED sub-tags are its states
-# (each an ordinary $defs/tag). `initial:` is a ref to the start state; transitions are each
+# (each an ordinary $defs/onto). `initial:` is a ref to the start state; transitions are each
 # state's `next:` ref(s); a terminal state has no outgoing `next`. Transitions are ADVISORY.
 # format x-yamlover-workflow lets the board renderer recognize it and order its lanes.
 # Attach with  !!<*yamlover:$defs:workflow>.
@@ -149,8 +149,8 @@ type: variant
 format: x-yamlover-workflow
 value: {type: string, format: text/marklower}    # the workflow's description (its body)
 properties:
-  initial: *:: yamlover: $defs: tag               # ref → the start state
-additionalProperties: *:: yamlover: $defs: tag    # every other key is a STATE (a plain tag)
+  initial: *:: yamlover: $defs: onto               # ref → the start state
+additionalProperties: *:: yamlover: $defs: onto    # every other key is a STATE (a plain tag)
 ```
 
 Multiple workflows coexist (`dev`, `srs`, a publishing pipeline, …). A task may carry a state
@@ -164,7 +164,7 @@ A **directory whose entries are `$defs/task` nodes** gains a **Board view**, bes
 directory views (explorer grid, thumbnails gallery — `explorer-renderer`, `extractor-registry`).
 
 - **Lanes** = the workflow's states, in spine order, refined by `next` topology. The board's
-  workflow is taken from a `workflow: *::tags:workflow:<name>` key on the directory overlay
+  workflow is taken from a `workflow: *::ontos:workflow:<name>` key on the directory overlay
   (`.yo/body.yo`); absent, it is **inferred** from the state tags the tasks actually
   carry. A saved `lanes:` block overrides the seed — each lane is a single tag, or a list of
   tags giving per-tag **sublanes** stacked vertically inside the lane.
@@ -193,7 +193,7 @@ Chunks already carry their own `yamlover-annotations` (the omni block-scalar for
 `docs/annotations/storage`). Tag them with the `card` taxonomy:
 
 ```yamlover
-# tags/.yo/body.yo  (excerpt)
+# ontos/.yo/body.yo  (excerpt)
 card: Study-card roles
   question:       The prompt side
   answer:         The single correct answer (Q/A card)
@@ -208,15 +208,15 @@ A multiple-choice card:
 !!<*yamlover:$defs:task>
 Capital of France
 - !!var What is the capital of France?
-  yamlover-annotations: [ *::tags:card:question ]
+  yamlover-annotations: [ *::ontos:card:question ]
 - !!var Paris
-  yamlover-annotations: [ *::tags:card:answer-variant, *::tags:card:correct ]
+  yamlover-annotations: [ *::ontos:card:answer-variant, *::ontos:card:correct ]
 - !!var Lyon
-  yamlover-annotations: [ *::tags:card:answer-variant ]
+  yamlover-annotations: [ *::ontos:card:answer-variant ]
 - !!var Marseille
-  yamlover-annotations: [ *::tags:card:answer-variant ]
+  yamlover-annotations: [ *::ontos:card:answer-variant ]
 yamlover-annotations:
-- tag: *::tags:workflow:srs:review                # ← SM-2 scheduling state (below)
+- tag: *::ontos:workflow:srs:review                # ← SM-2 scheduling state (below)
   due:           2026-06-20
   ease:          2.5
   interval:      6
@@ -239,13 +239,13 @@ state lives as a *parametrized* `yamlover-annotations` element (`$defs/annotatio
 
 ```yamlover
 srs: !!<*yamlover:$defs:workflow> Spaced-repetition lifecycle
-  initial: *::tags:workflow:srs:new
+  initial: *::ontos:workflow:srs:new
   new:       !!omni Never studied
-    next: *::tags:workflow:srs:learning
+    next: *::ontos:workflow:srs:learning
   learning:  !!omni In the short-interval learning steps
-    next: *::tags:workflow:srs:review
+    next: *::ontos:workflow:srs:review
   review:    !!omni Scheduled by SM-2; carries the due date + algorithm fields
-    next: *::tags:workflow:srs:suspended
+    next: *::ontos:workflow:srs:suspended
   suspended: !!omni Excluded from review until un-suspended
 ```
 
@@ -303,7 +303,7 @@ Because tasks, states, due dates, and assignees are all ordinary graph data, **w
 next is a query** (`docs/language/pointers/queries`, colon grammar, `GET /api/query`). Sketches:
 
 - **A column of a board** — tasks in a given state:
-  `... !!<*::tags:workflow:dev:in-progress>` (nodes annotated with that state).
+  `... !!<*::ontos:workflow:dev:in-progress>` (nodes annotated with that state).
 - **The AI's queue** — ready work assigned to the agent:
   ready-state tasks whose `assignee` resolves to the agent, ordered by `priority`/`due`.
 - **Due cards** — `review`-state cards whose `due ≤ today` (a comparison filter, `docs/language/pointers/queries`).

@@ -43,7 +43,7 @@ const TEMPLATE = `# Browser settings — this device only.
 !!<*yamlover:$defs:config>
 
 width: 72   # reading width (ch)
-tags: *:: taxonomy
+ontos: *:: taxonomy
 `;
 
 describe("/api/preview (standalone yamlover text)", () => {
@@ -58,7 +58,7 @@ describe("/api/preview (standalone yamlover text)", () => {
     expect(n.concrete).toBe("yamlover");
     expect((n.value as Record<string, unknown>).width).toBe(72);
     // the project-scope pointer has no target in a standalone doc → plain pointer text, no link
-    expect((n.value as Record<string, unknown>).tags).toEqual({ $yamloverRef: { text: ":: taxonomy", path: null } });
+    expect((n.value as Record<string, unknown>).ontos).toEqual({ $yamloverRef: { text: ":: taxonomy", path: null } });
     const comments = n.comments as Record<string, { tag?: string; trailing?: string[] } | string[]>;
     expect((comments.$head as string[])?.[0]).toContain("Browser settings");
     expect((comments[""] as { tag?: string }).tag).toBe("!!<*yamlover: $defs: config>"); // canonical spaced form
@@ -82,7 +82,7 @@ describe("applyTextEdits (/api/edit-text)", () => {
     expect(out).toContain("width: 96");
     expect(out).toContain("# Browser settings — this device only.");
     expect(out).toContain("!!<*yamlover:$defs:config>");
-    expect(out).toContain("tags: *:: taxonomy");
+    expect(out).toContain("ontos: *:: taxonomy");
   });
 
   it("emplace at a FRESH top-level key appends it", () => {

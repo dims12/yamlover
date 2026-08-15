@@ -1,5 +1,5 @@
-# SPEC-LEAD: the implementation still writes yamlover-annotations arrays and the x-yamlover-tag
-# format; this family specifies the target model - ontos + bookmark membership + yo: fragments:.
+# SPEC-LEAD: the implementation still writes yamlover-annotations arrays; this family
+# specifies the target model - ontos + bookmark membership + yo: fragments:.
 Annotations - fragments and ontos
 description: how a user marks up a document - regions, and membership in ontologies
 - >

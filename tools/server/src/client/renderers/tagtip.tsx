@@ -1,7 +1,7 @@
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { fetchNode, TagRef } from "../api";
-import { tagDisplayPath } from "../paths";
+import { ontoDisplayPath } from "../paths";
 import { resolveTagColor, tagBody, tagStyle } from "./tag";
 
 // A tag's BODY (its own text value) is not carried in the menu's tag index, so it is fetched
@@ -56,7 +56,7 @@ export function TagTip({
       {pos &&
         createPortal(
           <span className="tagtip" style={{ left: pos.left, top: pos.top, ...tagStyle(color) }}>
-            <span className="tagtip-path">{tagDisplayPath(tag.path)}</span>
+            <span className="tagtip-path">{ontoDisplayPath(tag.path)}</span>
             {value && <span className="tagtip-value">{value}</span>}
           </span>,
           document.body,

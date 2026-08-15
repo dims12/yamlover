@@ -73,9 +73,9 @@ test('rewrite: a ref INSIDE the moved subtree that survives relatively is untouc
 });
 
 test('rewrite: keyed back-edge and ~- membership are rewritten too', () => {
-  const src = 'tags:\n  t:\n    m: *: doc.md\ndoc.md:\n  ~m: *: tags: t\n  ~- *: tags: t\n';
-  const { p } = plan(src, ':tags:t', ':tags:u');
-  assert.deepEqual(p.rewritten.map((r) => r.newRaw), [': tags: u', ': tags: u']);
+  const src = 'ontos:\n  t:\n    m: *: doc.md\ndoc.md:\n  ~m: *: ontos: t\n  ~- *: ontos: t\n';
+  const { p } = plan(src, ':ontos:t', ':ontos:u');
+  assert.deepEqual(p.rewritten.map((r) => r.newRaw), [': ontos: u', ': ontos: u']);
 });
 
 test('rewrite: a ref through an anchor-created key is rewritten to the moved path', () => {
@@ -89,11 +89,11 @@ test('rewrite: a ref through an anchor-created key is rewritten to the moved pat
 });
 
 test('rewrite: keyed and ordinal anchors retarget when their container moves (A4)', () => {
-  const { p, src } = plan('x: 1\n  &: tags: a: slug\n  &: tags: b: -\ntags:\n  a: one\n  b: two\n', ':tags', ':labels');
+  const { p, src } = plan('x: 1\n  &: ontos: a: slug\n  &: ontos: b: -\nontos:\n  a: one\n  b: two\n', ':ontos', ':labels');
   // rewritten anchors come back COMPACT (spaceless): a single token in any position
   assert.deepEqual(p.rewritten.map((r) => r.newRaw).sort(), ['&:labels:a:slug', '&:labels:b:-']);
   assert.equal(p.unrewritten.length, 0);
-  assert.equal(applied(src, p.edits), 'x: 1\n  &:labels:a:slug\n  &:labels:b:-\ntags:\n  a: one\n  b: two\n');
+  assert.equal(applied(src, p.edits), 'x: 1\n  &:labels:a:slug\n  &:labels:b:-\nontos:\n  a: one\n  b: two\n');
 });
 
 test('rewrite: a current-scope anchor that moved WITH its container keeps its spelling', () => {

@@ -1,5 +1,5 @@
 # $defs/workflow — a state machine, expressed as a TAG whose CONTAINED sub-tags are its STATES
-# (each an ordinary $defs/tag: a description body, an optional `color`). Transitions are REF
+# (each an ordinary $defs/onto: a description body, an optional `color`). Transitions are REF
 # edges, not containment: a state's `next:` holds pointer(s) to its successor state(s) elsewhere
 # in the SAME workflow — a cross-link in the or-graph, so a successor is NOT nested under its
 # predecessor (the contain-vs-ref distinction; a pointer-valued entry is a ref member, never a
@@ -14,5 +14,5 @@ value:                                          # the workflow's description (it
   type: string
   format: text/marklower
 members:
-  initial: *:: yamlover: $defs: tag             # ref → the start state
-others: *:: yamlover: $defs: tag                # every other key is a STATE (a plain tag)
+  initial: *:: yamlover: $defs: onto             # ref → the start state
+others: *:: yamlover: $defs: onto                # every other key is a STATE (a plain tag)

@@ -405,7 +405,7 @@ chapters, the `entries:` keyword) deliberately run AHEAD of the code. The rules:
       an .html file becomes a Blob while the format table says string (a CODE gap now - the
       book keeps the design claim); `int32/le` decode missing from the engine walk (same).
       (Doc side DONE 2026-08-09: the resolution fallback respelled to the real
-      sniff-then-parse, meta/index:19; the `x-yamlover-tag`/`-annotation` row now says omni.)
+      sniff-then-parse, meta/index:19; the `x-yamlover-onto`/`-annotation` row now says omni.)
       Also: "grafts the `yamlover` self-import into EVERY served root" - on the self-root it
       DE-materializes instead (walk.ts:312-345); `json5/meta` missing from DOC_FORMATS while
       the book generalizes "the .../meta variants" (and `json/schema` is code-only).

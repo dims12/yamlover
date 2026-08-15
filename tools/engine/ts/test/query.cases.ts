@@ -50,14 +50,14 @@ pets:
   - name: Mia
     species: cat
 thirty: 30
-  &: tags: whole: -
-tags:
+  &: ontos: whole: -
+ontos:
   whole: Whole numbers
 `;
 
 /** The graft fixture is a TEMP project tree (built by query.test.ts):
- *    $defs/tag                     — "type: object\nformat: x-yamlover-tag\n"
- *    tags/.yo/body.yo  — a palette: yellow + green tags with explicit colors
+ *    $defs/onto                     — "type: object\nformat: x-yamlover-onto\n"
+ *    ontos/.yo/body.yo  — a palette: yellow + green tags with explicit colors
  *    data.yo                 — "x: 1\n"
  *  walkDir grafts the self-import key `yamlover` → {$defs, tags} into the root. */
 
@@ -86,19 +86,19 @@ export const CASES: QueryCase[] = [
   { q: 'pets: -', fixture: 'inline', expect: [':pets:0', ':pets:1'] },
   { q: 'pets: -: name', fixture: 'inline', expect: [':pets:0:name', ':pets:1:name'] },
   { q: 'team: ?: pet', fixture: 'inline', expect: [':pets:0', ':pets:1'] },
-  { q: '?', fixture: 'inline', expect: [':team', ':pets', ':thirty', ':tags'],
+  { q: '?', fixture: 'inline', expect: [':team', ':pets', ':thirty', ':ontos'],
     note: 'a query may open with a wildcard' },
   { q: '?: age', fixture: 'inline', from: ':team', expect: [':team:alice:age', ':team:bob:age'] },
-  { q: ': tags: whole: -', fixture: 'inline', expect: [':thirty'],
+  { q: ': ontos: whole: -', fixture: 'inline', expect: [':thirty'],
     note: 'O2: - sees the ordinal (&…: -) membership appended by /thirty' },
   { q: 'team: alice: -', fixture: 'inline', expect: [':team:alice:age', ':pets:0'],
     note: 'all entries in order: contain (age), then the deref’d ref (pet)' },
-  { q: ': tags: whole: 0', fixture: 'inline', expect: [],
+  { q: ': ontos: whole: 0', fixture: 'inline', expect: [],
     note: 'O2: a position step never addresses an anchor-created member (no position claims)' },
 
   // ════ 3. `...` recursive descent (contain-only, descendant-or-self, pre-order) ════
   { q: '...: !!<type: string>', fixture: 'inline',
-    expect: [':pets:0:name', ':pets:0:species', ':pets:1:name', ':pets:1:species', ':tags:whole'],
+    expect: [':pets:0:name', ':pets:0:species', ':pets:1:name', ':pets:1:species', ':ontos:whole'],
     note: 'string scalars on the spine (ages and /thirty are integers)' },
   { q: '...: !!<type: integer>', fixture: 'inline',
     expect: [':team:alice:age', ':team:bob:age', ':thirty'],
@@ -106,16 +106,16 @@ export const CASES: QueryCase[] = [
   { q: 'team: ...: !!<type: integer>', fixture: 'inline',
     expect: [':team:alice:age', ':team:bob:age'] },
   { q: ': ...: !!<type: object>', fixture: 'inline',
-    expect: [':', ':team', ':team:alice', ':team:bob', ':pets:0', ':pets:1', ':tags'],
+    expect: [':', ':team', ':team:alice', ':team:bob', ':pets:0', ':pets:1', ':ontos'],
     note: 'descendant-or-SELF; pets itself is an ARRAY (dropped) but its ITEMS are objects' },
   { q: ': ...: !!<type: array>', fixture: 'inline', expect: [':pets'] },
   { q: 'thirty: ...', fixture: 'inline', expect: [':thirty'],
     note: 'descent from a leaf is just self' },
 
   // ════ 4. The uplink family (M2) — replaces the old `~` axis ════
-  { q: ': thirty: -..', fixture: 'inline', expect: [':tags:whole'],
+  { q: ': thirty: -..', fixture: 'inline', expect: [':ontos:whole'],
     note: '"which containers hold me keyless" — the ordinal anchor walked backwards' },
-  { q: ': tags: whole: ?..', fixture: 'inline', expect: [':tags'],
+  { q: ': ontos: whole: ?..', fixture: 'inline', expect: [':ontos'],
     note: 'ALL parents of whole: only the spine (the membership edge leaves whole)' },
   { q: ': pets: 0: ?..', fixture: 'inline', expect: [':pets', ':team:alice'],
     note: 'all parents: the spine holder first, then ref holders' },
@@ -197,24 +197,24 @@ export const CASES: QueryCase[] = [
     note: 'fan-out, then up, then dedup: every child’s parents collapse to one pair' },
 
   // ════ 8. 67-pdf-tags — tag idioms over real blobs ════
-  { q: ': tags: genre: humor: deadpan: ?..: ?..: !!<type: binary>', fixture: '67-pdf-tags',
+  { q: ': ontos: genre: humor: deadpan: ?..: ?..: !!<type: binary>', fixture: '67-pdf-tags',
     expect: [":'1105-2_abstract_Is the sequence of earthquake in southern California, with aftershocks removed, Poissonian.pdf'",
              ':1110.2832v2.pdf', ':jaba00061-0143a.pdf'],
     note: 'members of a tag (embedded model): tag ← yamlover-annotations array ← paper, binaries only' },
-  { q: ': tags: genre: brevity: ?: !!<*:: yamlover: $defs: tag>', fixture: '67-pdf-tags',
-    expect: [':tags:genre:brevity:shortest-paper', ':tags:genre:brevity:one-word-answer',
-             ':tags:genre:brevity:empty-body'],
+  { q: ': ontos: genre: brevity: ?: !!<*:: yamlover: $defs: onto>', fixture: '67-pdf-tags',
+    expect: [':ontos:genre:brevity:shortest-paper', ':ontos:genre:brevity:one-word-answer',
+             ':ontos:genre:brevity:empty-body'],
     note: 'SUB-TAGS via schema-conformance (M1: no edge test — node shape decides)' },
-  { q: ': tags: genre: brevity: ?: !!<type: binary>', fixture: '67-pdf-tags', expect: [],
+  { q: ': ontos: genre: brevity: ?: !!<type: binary>', fixture: '67-pdf-tags', expect: [],
     note: 'brevity links no papers directly' },
-  { q: ': tags: genre: ?: ?: !!<*:: yamlover: $defs: tag>', fixture: '67-pdf-tags',
-    expect: [':tags:genre:brevity:shortest-paper', ':tags:genre:brevity:one-word-answer',
-             ':tags:genre:brevity:empty-body', ':tags:genre:humor:deadpan',
-             ':tags:genre:humor:satire'],
+  { q: ': ontos: genre: ?: ?: !!<*:: yamlover: $defs: onto>', fixture: '67-pdf-tags',
+    expect: [':ontos:genre:brevity:shortest-paper', ':ontos:genre:brevity:one-word-answer',
+             ':ontos:genre:brevity:empty-body', ':ontos:genre:humor:deadpan',
+             ':ontos:genre:humor:satire'],
     note: 'two wildcard levels: every sub-sub-tag under genre' },
-  { q: ': jaba00061-0143a.pdf: yamlover-annotations: -: !!<format: x-yamlover-tag>', fixture: '67-pdf-tags',
-    expect: [':tags:field:psychology:behavior-analysis', ':tags:genre:brevity:empty-body',
-             ':tags:genre:humor:deadpan'],
+  { q: ': jaba00061-0143a.pdf: yamlover-annotations: -: !!<format: x-yamlover-onto>', fixture: '67-pdf-tags',
+    expect: [':ontos:field:psychology:behavior-analysis', ':ontos:genre:brevity:empty-body',
+             ':ontos:genre:humor:deadpan'],
     note: '"tags applied to this node" — its yamlover-annotations members (FORWARD, embedded model), format-filtered' },
   { q: ': jaba00061-0143a.pdf: ?..', fixture: '67-pdf-tags',
     expect: [':'],
@@ -229,15 +229,15 @@ export const CASES: QueryCase[] = [
   // The fixture IS a project root (its own $defs/tags), so the `yamlover` self-import is
   // DE-MATERIALIZED (walk.ts) and `:: yamlover: X` is ABSORBED to the REAL `:X` — no duplicate
   // `:yamlover:…` nodes. So `::X` and `::yamlover:X` reach the SAME node, not distinct copies.
-  { q: ':: yamlover: tags: colors: ?', fixture: 'graft',
-    expect: [':tags:colors:yellow', ':tags:colors:green'],
+  { q: ':: yamlover: ontos: colors: ?', fixture: 'graft',
+    expect: [':ontos:colors:yellow', ':ontos:colors:green'],
     note: 'the palette enumerated through the (virtual) self-import key → the real nodes' },
-  { q: ':: yamlover: tags: ...: !!<format: x-yamlover-tag>', fixture: 'graft',
-    expect: [':tags', ':tags:colors', ':tags:colors:yellow', ':tags:colors:green'],
+  { q: ':: yamlover: ontos: ...: !!<format: x-yamlover-onto>', fixture: 'graft',
+    expect: [':ontos', ':ontos:colors', ':ontos:colors:yellow', ':ontos:colors:green'],
     note: 'THE TAG-PICKER QUERY: descendant-or-self, format-filtered (color scalars drop)' },
-  { q: ':: yamlover: tags: colors: ?: color', fixture: 'graft',
-    expect: [':tags:colors:yellow:color', ':tags:colors:green:color'] },
-  { q: ':: tags: colors: yellow', fixture: 'graft', expect: [':tags:colors:yellow'],
+  { q: ':: yamlover: ontos: colors: ?: color', fixture: 'graft',
+    expect: [':ontos:colors:yellow:color', ':ontos:colors:green:color'] },
+  { q: ':: ontos: colors: yellow', fixture: 'graft', expect: [':ontos:colors:yellow'],
     note: 'self-import synonymy: ::X and ::yamlover:X now reach the SAME real node ' +
           '(graft de-materialized — no duplicate :yamlover: subtree)' },
   { q: ':: nowhere: x', fixture: 'graft', expect: [],
@@ -246,8 +246,8 @@ export const CASES: QueryCase[] = [
   //     MATCHER portion applies at the project root itself (the scope ladder honored) ═══
   { q: '::', fixture: 'graft', expect: [':'],
     note: 'bare `::` binds the served project root' },
-  { q: ':: ...: colors', fixture: 'graft', expect: [':tags:colors'],
+  { q: ':: ...: colors', fixture: 'graft', expect: [':ontos:colors'],
     note: 'a matcher after `::` needs no authority — descend the whole PROJECT' },
-  { q: ':: ?', fixture: 'inline', expect: [':team', ':pets', ':thirty', ':tags'],
+  { q: ':: ?', fixture: 'inline', expect: [':team', ':pets', ':thirty', ':ontos'],
     note: 'project-root fan-out, same children as `?` asked at the root' },
 ];

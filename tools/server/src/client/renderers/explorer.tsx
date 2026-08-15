@@ -6,7 +6,7 @@ import { beginNodeDrag, currentDrag, dragHasNode, endNodeDrag } from "../dnd";
 import { useDropConfirm } from "../DropConfirm";
 import { asLink, Link } from "../render";
 import { typeIcon, Glyph } from "../icons";
-import { TAG_FORMAT, tagLabel, tagBody, resolveTagColor, tagStyle } from "./tag";
+import { ONTO_FORMAT, tagLabel, tagBody, resolveTagColor, tagStyle } from "./tag";
 import { displayPath, displayKey } from "../paths";
 import { touchesYamlover, useDiffBump } from "../live";
 import { useExplorerTagMenu } from "./tagmenu";
@@ -38,7 +38,7 @@ const THUMB_BOX: Partial<Record<ViewMode, number>> = { large: 256, thumbnails: 5
  *   - a node stored as a filesystem directory (`concrete` `dir`/`yamlover`,
  *     the registry's concrete fallback) — ALL members show, not just files:
  *     scalar members read `key: value`, containers and binaries link onward;
- *   - a tag (`x-yamlover-tag`) — the members are the MATERIALS filed under it
+ *   - a tag (`x-yamlover-onto`) — the members are the MATERIALS filed under it
  *     (GET /api/tagged: annotations resolved to their `target`, deduped),
  *     alongside its owned fields (subtags as colored badges); the mediating
  *     annotation nodes themselves stay out of the grid.
@@ -100,7 +100,7 @@ export function tagItems(node: NodeJson, tagged: Link[]): ExplorerItem[] {
  *  per-kind mapper turning a node — plus any fetched tag materials — into the ordered item list.
  *  A tag uses {@link tagItems} (materials, no uplinks); everything else {@link generalItems}. */
 export function buildExplorerItems(node: NodeJson, tagged: Link[]): ExplorerItem[] {
-  return node.format === TAG_FORMAT ? tagItems(node, tagged) : generalItems(node);
+  return node.format === ONTO_FORMAT ? tagItems(node, tagged) : generalItems(node);
 }
 
 /** The JSON-Schema type name of a raw value — so a non-marker member still resolves its icon
@@ -243,7 +243,7 @@ function Item({ it, active, view, setRef, onFocus, onNavigate, onContext, dnd }:
   // an uplink labels by its (decoded) relation key; a member by title, else its key
   const name = it.up ? displayKey(it.key) : link.title ?? it.key;
   const label =
-    link.format === TAG_FORMAT ? (
+    link.format === ONTO_FORMAT ? (
       // a tag member (e.g. a subtag) keeps its badge color everywhere
       <span className="tagtag" style={tagStyle(resolveTagColor({ name, color: link.color }))}>{name}</span>
     ) : link.kind === "scalar" && !isDocFormat(link.format) ? (
@@ -276,7 +276,7 @@ function Item({ it, active, view, setRef, onFocus, onNavigate, onContext, dnd }:
 }
 
 export function ExplorerView({ node, view, onNavigate }: { node: NodeJson; view: ViewMode; onNavigate: (path: string) => void }) {
-  const isTag = node.format === TAG_FORMAT;
+  const isTag = node.format === ONTO_FORMAT;
   // a tag's materials (annotations resolved to their targets) — fetched per tag page, refetched
   // when a diff (live.ts) touches a `.yo` file (an annotation created/deleted anywhere)
   const [tagged, setTagged] = useState<Link[]>([]);

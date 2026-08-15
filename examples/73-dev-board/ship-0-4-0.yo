@@ -14,5 +14,5 @@ assignee: dims
 - Write the announcement
   - A short note covering tasks/boards and the colon-grammar migration.
 yamlover-annotations:
-- *::yamlover:tags:workflow:dev:done
-- *::yamlover:tags:colors:yellow
+- *::yamlover:ontos:workflow:dev:done
+- *::yamlover:ontos:colors:yellow

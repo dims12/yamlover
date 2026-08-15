@@ -42,9 +42,9 @@ function loadBundledTaxonomy(): { node: Node; defs: Map<string, Node> } | null {
   if (!dir) return (cached = null);
   const defsRoot = walkTree(path.join(dir, '$defs'), { noGraft: true }).doc.root;
   const entries: Entry[] = [{ key: '$defs', edge: 'contain', value: defsRoot }];
-  const tagsDir = path.join(dir, 'tags');
-  if (fs.existsSync(tagsDir)) {
-    entries.push({ key: 'tags', edge: 'contain', value: walkTree(tagsDir, { noGraft: true }).doc.root });
+  const ontosDir = path.join(dir, 'ontos');
+  if (fs.existsSync(ontosDir)) {
+    entries.push({ key: 'ontos', edge: 'contain', value: walkTree(ontosDir, { noGraft: true }).doc.root });
   }
   const defs = defsMap(defsRoot);
   return (cached = { node: { kind: 'mapping', array: false, entries }, defs });

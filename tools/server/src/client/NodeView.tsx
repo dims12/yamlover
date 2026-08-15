@@ -552,7 +552,7 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
     ready = true;
   }
 
-  // Tag references (rel edges to x-yamlover-tag nodes) show as badges on every
+  // Tag references (rel edges to x-yamlover-onto nodes) show as badges on every
   // representation, JOINED by the WHOLE-NODE tags applied via annotations (deduped by path);
   // the remaining relations stay in the data-view panel. A FRAGMENT annotation (a tagged
   // region, `fragmentSlug` set) belongs to the fragment, not the entity — it lives in the RHS

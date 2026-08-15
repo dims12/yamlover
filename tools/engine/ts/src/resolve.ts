@@ -191,7 +191,7 @@ function resolve(doc: Document, chains: Map<Node, Node[]>, fromChain: Node[], pt
       // SELF-IMPORT (docs/language/pointers/scopes): inside the yamlover project `::X` ≡ `::yamlover:X`. When the
       // served root IS the project, the `yamlover` self-import is DE-MATERIALIZED (walk.ts) — there
       // is no `yamlover` node — so absorb the authority: resolve the steps straight from the project
-      // root, landing on the REAL `:tags:…` / `:$defs:…`, not a graft duplicate. When a `yamlover`
+      // root, landing on the REAL `:ontos:…` / `:$defs:…`, not a graft duplicate. When a `yamlover`
       // node DOES exist (a served subdir, or a foreign dir's bundled graft) it is stepped into.
       const selfImport = authority === 'yamlover' && !root.entries?.some((e) => e.key === 'yamlover');
       steps = selfImport ? ptr.steps : [{ sel: 'key', name: authority }, ...ptr.steps];

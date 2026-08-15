@@ -55,7 +55,7 @@ test('a blob with ONLY reverse members stays binary — reverse members never pr
   writeFileSync(join(dir, 'doc.bin'), Buffer.from([0, 1, 2, 3, 0, 255])); // a NUL → a binary blob
   writeFileSync(
     join(dir, '.yo', 'body.yo'),
-    'marker: !!<*::yamlover:$defs:tag> A tag\n"doc.bin":\n  &: marker: mention\n',
+    'marker: !!<*::yamlover:$defs:onto> A tag\n"doc.bin":\n  &: marker: mention\n',
   );
   const s = new Store(':memory:');
   s.indexDocument(walkDir(dir));

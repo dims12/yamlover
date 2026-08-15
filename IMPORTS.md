@@ -31,7 +31,7 @@ A project lists the paths it exports in the same config, as a sequence of pointe
 ```yamlover
 exports:
 - *:: $defs          # the hosted schemas
-- *:: tags           # the tag taxonomy (palette + workflows)
+- *:: ontos           # the tag taxonomy (palette + workflows)
 - *:: $defs: config  # the config schema itself
 ```
 
@@ -74,7 +74,7 @@ Every project implicitly imports the yamlover project under the alias `yamlover`
 yamlover: *::: yamlover.inthemoon.net
 ```
 
-so that `*:: yamlover: $defs: …` and `*:: yamlover: tags: …` resolve from **any** served root. This
+so that `*:: yamlover: $defs: …` and `*:: yamlover: ontos: …` resolve from **any** served root. This
 key is **implicit** — the engine injects it when absent — but a project MAY write it out explicitly
 (the yamlover project itself does, for documentation). Writing it changes nothing; omitting it
 changes nothing.
@@ -82,7 +82,7 @@ changes nothing.
 yamlover is the **one** authority that resolves with no transport: its exported taxonomy
 (`$defs` + `tags`) ships as **package data**, copied to `dist/builtin-taxonomy/` at build and loaded
 by the engine (mounts.ts), so a detached copy of any project — even one with no taxonomy of its own
-— still resolves `*:: yamlover: tags: workflow: dev` and renders, validates, and tags correctly.
+— still resolves `*:: yamlover: ontos: workflow: dev` and renders, validates, and tags correctly.
 
 How the engine realizes the self-import (walk.ts), by where the taxonomy lives relative to the
 served root:

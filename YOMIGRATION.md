@@ -182,7 +182,7 @@ The derived-format vocabulary — stored in the index DB and matched by queries.
 
 - `tools/yed/src/chapter/format.ts:28-45` — the map (`x-yamlover-table/-bullets/-numbered/
   -chapter/-task`), the `x-yamlover-${name}` constructor, `CHAPTERISH` set (line 164).
-- `tools/engine/ts/src/walk.ts:207-216, 953` — builtin schemas (`x-yamlover-tag`,
+- `tools/engine/ts/src/walk.ts:207-216, 953` — builtin schemas (`x-yamlover-onto`,
   `x-yamlover-fragment`, `x-yamlover-annotation`) and the hosted-schema rule
   `$defs/<name>` → `x-yamlover-<name>`.
 - `tools/engine/ts/src/store.ts:320, 599-611` — formats persisted into the index;

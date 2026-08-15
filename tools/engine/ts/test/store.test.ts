@@ -93,7 +93,7 @@ test('indexes the 06-tour example (mix/omni nodes included)', () => {
 // material's backlink findable and file the annotation under its tag; removeAnnotation must erase
 // the annotation completely.
 test('addAnnotation : removeAnnotation update the index incrementally', () => {
-  const s = indexed('pic: !!<format: image/png> placeholder\nyellow: !!<*yamlover: $defs: tag>\n  color: "#f9e2af"\n');
+  const s = indexed('pic: !!<format: image/png> placeholder\nyellow: !!<*yamlover: $defs: onto>\n  color: "#f9e2af"\n');
   const annPath = ':annotations:x.yo';
   const target = ':pic';
   const tag = ':yellow';

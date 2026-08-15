@@ -282,7 +282,7 @@ A6. **Conformance** — yaml-test-suite anchor/alias cases reclassified to a
    chapter, else a new chapter file, `ecb7212`; then links + rich HTML — arXiv
    PDFs, tweets, image chunks, subchapters, `2f04550`), **`tag` create-on-miss**
    (`POST /api/tag`, `6f09b37` — picker bare-name input appends
-   `<name>: !!<*$defs/tag>` to the taxonomy at the settings `tags.location`), and
+   `<name>: !!<*$defs/onto>` to the taxonomy at the settings `tags.location`), and
    **`mv` LIVE (2026-06-11** — `POST /api/mv`, the mediated move with inbound-ref
    rewriting**)**; `rm/put/link/normalize` remain — `put`/`normalize`
    are unblocked by the serializers (2d), `rm` is mostly the mv plumbing minus the
@@ -338,7 +338,7 @@ protocol (OpenAPI).
 - **58-genealogy-dag** (was 14) — migrated; the reference graph example, single
   `body.yo` with `*` cross-edges + `~` reverses.
 - **67-pdf-tags** (was 18) — migrated (commit `c2d8772`): `rel` tables → a
-  `!!<*yamlover/$defs/tag>` taxonomy with `*`-pointer membership authored both ways.
+  `!!<*yamlover/$defs/onto>` taxonomy with `*`-pointer membership authored both ways.
 - Schema-pinning / `rel` / `$ref`-in-schema demos retired (`62-defs-and-refs`
   dropped pending the meta-authoring rethink, see `docs/meta`).
 
@@ -353,7 +353,7 @@ it). It exists now (`55-meta`). Remaining spec work:
 - **Built-in schemas live at the PROJECT ROOT, grafted as the self-import key
   (restructured 2026-06-13; supersedes the `yamlover/` wrapper of `8872299`):**
   a project's tree IS its URI's tree (`::: yamlover.inthemoon.net`,
-  docs/language/pointers/scopes), so `$defs/` and `tags/colors` sit at the repo root, and the engine grafts
+  docs/language/pointers/scopes), so `$defs/` and `ontos/colors` sit at the repo root, and the engine grafts
   the key `yamlover` → {$defs, tags} into EVERY served root — including this
   project itself (self-import: `//X` ≡ `//yamlover/X`). All `*yamlover/$defs/…`
   pointer texts keep resolving. The taxonomy now also ships as **package data**

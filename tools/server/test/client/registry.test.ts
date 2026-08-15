@@ -196,7 +196,7 @@ describe("renderer registry (facet predicates)", () => {
     expect(offered(node({ concrete: "dir/.yo" }))).toBe(true);
     // already has a representation of its own
     expect(offered(node({ concrete: "dir", format: "x-yamlover-chapter" }))).toBe(false);
-    expect(offered(node({ concrete: "dir", format: "x-yamlover-tag" }))).toBe(false);
+    expect(offered(node({ concrete: "dir", format: "x-yamlover-onto" }))).toBe(false);
     expect(offered(node({ concrete: "dir", format: "x-yamlover-board" }))).toBe(false);
     // not a container: a scalar-bodied directory holds a value, not prose
     expect(offered(node({ concrete: "dir/.yo", type: "integer", valueType: "integer", value: 30 }))).toBe(false);
@@ -232,7 +232,7 @@ describe("renderer registry (facet predicates)", () => {
   it("claims tags (every projection shape) for the explorer — the format alone identifies them", () => {
     for (const valueType of [null, "string"])
       for (const hasKeyed of [false, true])
-        expect(getRenderer(node({ valueType, hasKeyed, format: "x-yamlover-tag" }))?.name).toBe("large-icons");
+        expect(getRenderer(node({ valueType, hasKeyed, format: "x-yamlover-onto" }))?.name).toBe("large-icons");
   });
 
   // Prose is asked for BY NAME. A format-less string is DATA — `name: Alice` in some object — and

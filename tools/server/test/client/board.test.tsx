@@ -39,9 +39,9 @@ describe("cardMemberPaths (board cards from the shared projection)", () => {
       workflow: link({ kind: "object", type: "object", format: "x-yamlover-workflow", path: ":board:workflow" }),
       lanes: link({ kind: "array", type: "array", path: ":board:lanes", count: 2 }),
       yamlover: link({ kind: "object", type: "object", path: ":board:yamlover" }),
-      tags: link({ kind: "object", type: "object", path: ":board:tags" }),
+      ontos: link({ kind: "object", type: "object", path: ":board:ontos" }),
       // a nested tag link is container-tagish → excluded even though its key is not a config key
-      "a-tag": link({ kind: "object", type: "object", format: "x-yamlover-tag", path: ":board:a-tag" }),
+      "a-tag": link({ kind: "object", type: "object", format: "x-yamlover-onto", path: ":board:a-tag" }),
       // genuine content cards
       "task-1.yo": link({ kind: "object", type: "object", format: "x-yamlover-task", path: ":board:task-1.yo", count: 4 }),
       "note.md": link({ kind: "scalar", type: "string", path: ":board:note.md", format: "text/markdown" }),
@@ -61,21 +61,21 @@ describe("BoardView card drag (unified confirm popup)", () => {
     lanes: link({ kind: "array", type: "array", path: ":board:lanes", count: 2 }),
     "t1.yo": link({ kind: "object", type: "object", format: "x-yamlover-task", path: ":board:t1.yo", count: 2 }),
   });
-  const tagLink = (p: string) => link({ kind: "object", type: "object", format: "x-yamlover-tag", path: p });
+  const tagLink = (p: string) => link({ kind: "object", type: "object", format: "x-yamlover-onto", path: p });
 
   function mockBoardFetches() {
     mFetchNode.mockImplementation((p: string) => {
       switch (p) {
         case ":board": // the depth-3 lanes fetch
-          return Promise.resolve({ ...boardNode, value: { ...(boardNode.value as object), lanes: [[tagLink(":tags:todo")], [tagLink(":tags:doing")]] } });
-        case ":tags:todo":
+          return Promise.resolve({ ...boardNode, value: { ...(boardNode.value as object), lanes: [[tagLink(":ontos:todo")], [tagLink(":ontos:doing")]] } });
+        case ":ontos:todo":
           return Promise.resolve({ path: p, type: "object", concrete: null, title: "todo", description: null, value: {} });
-        case ":tags:doing":
+        case ":ontos:doing":
           return Promise.resolve({ path: p, type: "object", concrete: null, title: "doing", description: null, value: {} });
         case ":board:t1.yo": // the card, currently tagged todo
           return Promise.resolve({
             path: p, type: "object", concrete: "file/yamlover", title: "Task One", description: null,
-            value: { "yamlover-annotations": [tagLink(":tags:todo")] },
+            value: { "yamlover-annotations": [tagLink(":ontos:todo")] },
           });
         default:
           return Promise.reject(new Error("unexpected fetch: " + p));
@@ -102,8 +102,8 @@ describe("BoardView card drag (unified confirm popup)", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Move task" }));
     await vi.waitFor(() => expect(mAnnotate).toHaveBeenCalled());
-    expect(mDelete).toHaveBeenCalledWith(":board:t1.yo", ":tags:todo");
-    expect(mAnnotate).toHaveBeenCalledWith({ target: ":board:t1.yo", tag: ":tags:doing" });
+    expect(mDelete).toHaveBeenCalledWith(":board:t1.yo", ":ontos:todo");
+    expect(mAnnotate).toHaveBeenCalledWith({ target: ":board:t1.yo", tag: ":ontos:doing" });
   });
 
   it("cancelling the confirm retags nothing", async () => {

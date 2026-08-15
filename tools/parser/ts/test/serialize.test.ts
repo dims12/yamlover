@@ -315,8 +315,8 @@ test('yamlover rt: strings that look like other types get quoted', () => {
 });
 
 test('yamlover rt: schema tags — pointer, inline node, root', () => {
-  const out = rtYamlover('!!<*yamlover: $defs: tag>\ntags: !!<*yamlover: $defs: tag> A taxonomy\n  field: About\nchunk: !!<format: text/x-plantuml> diagram\n');
-  assert.match(out, /^!!<\*yamlover: \$defs: tag>$/m);
+  const out = rtYamlover('!!<*yamlover: $defs: onto>\ntags: !!<*yamlover: $defs: onto> A taxonomy\n  field: About\nchunk: !!<format: text/x-plantuml> diagram\n');
+  assert.match(out, /^!!<\*yamlover: \$defs: onto>$/m);
 });
 
 test('yamlover rt: duplicate back keys re-emit as distinct anchors', () => {
@@ -370,7 +370,7 @@ const yamloverFiles: string[] = [
   join(examples, '05-tour.yaml'),
   join(examples, '06-tour.yo'),
   join(examples, '08-flat.yo'),
-  join(root, 'tags', '.yo', 'body.yo'),
+  join(root, 'ontos', '.yo', 'body.yo'),
 ];
 for (const dir of readdirSync(examples, { withFileTypes: true })) {
   if (!dir.isDirectory()) continue;
@@ -433,7 +433,7 @@ test('json5p lossy: yamlover tags are refused with a pointer to the meta layer',
   assert.throws(() => serializeJson5p(parseYamlover('crew: !!set\n  - *: fan\nfan: x\n')), LossyError);
   assert.throws(() => serializeJson5p(parseYamlover('p: !!mix\n  - a\n  k: v\n')), LossyError);
   assert.throws(() => serializeJson5p(parseYamlover('r: 5\n  - solid\n')), LossyError); // omni
-  assert.throws(() => serializeJson5p(parseYamlover('t: !!<*yamlover: $defs: tag> body\n')), LossyError);
+  assert.throws(() => serializeJson5p(parseYamlover('t: !!<*yamlover: $defs: onto> body\n')), LossyError);
 });
 
 // ---- json5p: file round-trips ------------------------------------------------------

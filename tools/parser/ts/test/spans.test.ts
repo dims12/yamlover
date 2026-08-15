@@ -73,12 +73,12 @@ test('span: deeply compact "- - - *p"', () => {
 });
 
 test('span: after !!<…> and !!set strips (valueAfter column chain)', () => {
-  const src = 'crew: !!set\n  - *: fan\nfan: x\nt: !!<*yamlover:$defs:tag> body\n';
+  const src = 'crew: !!set\n  - *: fan\nfan: x\nt: !!<*yamlover:$defs:onto> body\n';
   // entry pointer first (document order), then the schema pointer (visited via meta)
   const doc = parseYamlover(src, '<t>');
   const ps = pointers(doc);
   const toks = ps.map((p) => src.slice(p.span!.start, p.span!.end));
-  assert.deepEqual(new Set(toks), new Set(['*: fan', '*yamlover:$defs:tag']));
+  assert.deepEqual(new Set(toks), new Set(['*: fan', '*yamlover:$defs:onto']));
 });
 
 test('span: root !!<…> schema pointer', () => {

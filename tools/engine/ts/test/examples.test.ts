@@ -74,15 +74,15 @@ test('73-dev-board: tasks, board & workflow resolve; state is a ref edge into th
   // the directory is a board; its files index as tasks; the `dev` node overrides its inherited tag
   // schema to $defs/workflow (the inline `!!<*…>` wins over the parent's additionalProperties), and
   // its states stay plain tags. The workflow is PROJECT-GLOBAL (the root `tags/` taxonomy), reached
-  // here via the `yamlover` self-import graft — so its nodes live under `:yamlover:tags:…` when the
-  // board is loaded as a standalone subdir (the bare `:tags:…` form only exists at the project root).
+  // here via the `yamlover` self-import graft — so its nodes live under `:yamlover:ontos:…` when the
+  // board is loaded as a standalone subdir (the bare `:ontos:…` form only exists at the project root).
   assert.equal(s.node(':')?.format, 'x-yamlover-board');
   assert.equal(s.node(':refactor-parser.yo')?.format, 'x-yamlover-task');
-  assert.equal(s.node(':yamlover:tags:workflow:dev')?.format, 'x-yamlover-workflow');
-  assert.equal(s.node(':yamlover:tags:workflow:dev:ready')?.format, 'x-yamlover-tag');
+  assert.equal(s.node(':yamlover:ontos:workflow:dev')?.format, 'x-yamlover-workflow');
+  assert.equal(s.node(':yamlover:ontos:workflow:dev:ready')?.format, 'x-yamlover-onto');
   // a task's state is a forward ref into the workflow's state; the reverse of that edge is the
   // board column (what /api/tagged surfaces). `refactor-parser` sits in the `ready` column.
-  const into = s.relationships(':yamlover:tags:workflow:dev:ready').in;
+  const into = s.relationships(':yamlover:ontos:workflow:dev:ready').in;
   assert.ok(
     into.some((e) => e.kind === 'ref' && e.from.startsWith(':refactor-parser.yo')),
     'the ready task annotates the ready state',
@@ -94,13 +94,13 @@ test('67-pdf-tags: a tag description is its BODY — the node value, untagged sc
   const s = new Store(':memory:');
   s.indexDocument(load('67-pdf-tags'));
   // a mid-taxonomy tag: body + sub-tags, authored WITHOUT !!var (the schema declares variant)
-  const math = s.node(':tags:field:mathematics');
-  assert.equal(math?.format, 'x-yamlover-tag');
+  const math = s.node(':ontos:field:mathematics');
+  assert.equal(math?.format, 'x-yamlover-onto');
   assert.equal(math?.value, 'Mathematics');
-  assert.equal(s.node(':tags:field:mathematics:number-theory')?.value, 'Number theory — Diophantine equations, sums of powers');
+  assert.equal(s.node(':ontos:field:mathematics:number-theory')?.value, 'Number theory — Diophantine equations, sums of powers');
   // a leaf tag that is JUST its description (a plain scalar) still carries the tag format
-  assert.equal(s.node(':tags:genre:annotation')?.format, 'x-yamlover-tag');
-  assert.equal(s.node(':tags:genre:annotation')?.value, 'A secondary / derivative edition of another paper');
+  assert.equal(s.node(':ontos:genre:annotation')?.format, 'x-yamlover-onto');
+  assert.equal(s.node(':ontos:genre:annotation')?.value, 'A secondary / derivative edition of another paper');
   s.close();
 });
 
@@ -117,7 +117,7 @@ test('annotations.yo reverse-links materials to their annotations', () => {
       join(dir, 'annotations.yo'),
       `markdown-phrase: !!<*yamlover: $defs: annotation>
   target: *..: ..: markdown
-  &:: yamlover: tags: colors: yellow: -
+  &:: yamlover: ontos: colors: yellow: -
   selector:
     type: text
     exact: Hover a heading to reveal its
@@ -137,8 +137,8 @@ test('annotations.yo reverse-links materials to their annotations', () => {
     const into = s.relationships(':markdown').in;
     assert.ok(into.some((e) => e.kind === 'ref' && e.from === ann), 'markdown ← its annotation');
     // the annotation is a TAG APPLICATION: a keyless `~-` membership in a built-in color tag
-    const tag = ':yamlover:tags:colors:yellow';
-    assert.equal(s.node(tag)?.format, 'x-yamlover-tag');
+    const tag = ':yamlover:ontos:colors:yellow';
+    assert.equal(s.node(tag)?.format, 'x-yamlover-onto');
     assert.equal(s.node(tag + ':color')?.value, '#f9e2af');
     assert.ok(
       s.relationships(tag).in.some((e) => e.kind === 'back' && e.from === ann && e.label === null),
@@ -156,7 +156,7 @@ test('annotations.yo reverse-links materials to their annotations', () => {
 // An example may only point at ITSELF (`:`-rooted: current/parent/document) or at the project
 // taxonomy via the `yamlover` self-import (`*::yamlover:…`). A cross-example link (`*::examples:…`)
 // or a world URI (`*:::…`) makes the sample non-portable — copied elsewhere it dangles. Workflow
-// states in particular are GLOBAL (root `tags/`, reached as `::yamlover:tags:workflow:…`); an
+// states in particular are GLOBAL (root `tags/`, reached as `::yamlover:ontos:workflow:…`); an
 // example must never define or reach into another example's taxonomy.
 
 /** Every `*`/`~` pointer in a document — entry pointers and `&` anchor paths alike. */
@@ -183,7 +183,7 @@ test('examples are self-contained: every pointer is :-rooted (self) or ::yamlove
   assert.deepEqual(offenders, [], `non-self-contained pointers:\n${offenders.join('\n')}`);
 });
 
-test('examples define no workflow tags locally — the dev workflow is GLOBAL (::yamlover:tags:workflow)', () => {
+test('examples define no workflow tags locally — the dev workflow is GLOBAL (::yamlover:ontos:workflow)', () => {
   const offenders: string[] = [];
   for (const name of entries) {
     const s = new Store(':memory:');

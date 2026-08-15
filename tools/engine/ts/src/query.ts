@@ -225,7 +225,7 @@ export function evalQuery(s: Store, text: string, from = ':'): string[] {
       if (q.base.world === true && authority === YAMLOVER_AUTHORITY) authority = 'yamlover';
       // SELF-IMPORT absorption (mirrors resolve.ts): `:: yamlover: …` ≡ `:: …` when the served root
       // IS the project — the `yamlover` key is de-materialized (walk.ts), so bind to root `:` and let
-      // the steps land on the real `:tags:…` / `:$defs:…`. When a `yamlover` node exists (subdir /
+      // the steps land on the real `:ontos:…` / `:$defs:…`. When a `yamlover` node exists (subdir /
       // foreign bundled graft) it is the bind, as before.
       if (authority === 'yamlover' && childByKey(s, ':', 'yamlover') === null) { binds = [':']; break; }
       const hit = childByKey(s, ':', authority);

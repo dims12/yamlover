@@ -16,8 +16,8 @@ const DEFS = {
     "type: variant\nproperties:\n  title:\n    type: string\n  description:\n    type: string\nitems:\n  anyOf:\n    - *:: yamlover: $defs: chapter\n    - *:: yamlover: $defs: chunk\n",
   "$defs/chunk": "type: [string, binary]\nformat: text/marklower\n",
 };
-const TAG_FILE = { "tags.yo": 'yellow: !!<*::yamlover:$defs:tag>\n  color: "#f9e2af"\n' };
-const TAG = ":tags.yo:yellow";
+const TAG_FILE = { "ontos.yo": 'yellow: !!<*::yamlover:$defs:onto>\n  color: "#f9e2af"\n' };
+const TAG = ":ontos.yo:yellow";
 // title (store index 0) + two prose block chunks (indices 1, 2); "word" repeats in the title and [1].
 const CHAPTER = "!!<*yamlover: $defs: chapter>\ntitle: The word in the title\n- |\n  the word appears here in a chunk\n- |\n  and again elsewhere\n";
 const bodyOf = (root: string) => fs.readFileSync(path.join(root, "doc.yo"), "utf8");
@@ -49,7 +49,7 @@ describe("chunk text fragments (docs/annotations/storage)", () => {
     // the chunk became an omni node: block-scalar prose (indented one step deeper) + fields
     expect(src).toContain("yamlover-fragments:");
     expect(src).toContain('exact: "word"');
-    expect(src).toContain("*::tags.yo:yellow");
+    expect(src).toContain("*::ontos.yo:yellow");
     expect(src).not.toMatch(/^yamlover-fragments:/m); // NOT at the chapter root (column 0) — it hangs off the chunk
     expect(src).toMatch(/^ {2}yamlover-fragments:/m); // at the chunk's field indent (2)
 

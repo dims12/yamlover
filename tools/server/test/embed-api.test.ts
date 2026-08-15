@@ -9,8 +9,8 @@ import { call, callBody } from "./http";
 // `yamlover-annotations`; /api/fragment adds a `yamlover-fragments` region; reads derive from
 // those forward `*::tag` edges. Synthetic temp trees only — never the repo.
 
-const TAG_FILE = { "tags.yo": 'yellow: !!<*::yamlover:$defs:tag>\n  color: "#f9e2af"\n' };
-const TAG = ":tags.yo:yellow";
+const TAG_FILE = { "ontos.yo": 'yellow: !!<*::yamlover:$defs:onto>\n  color: "#f9e2af"\n' };
+const TAG = ":ontos.yo:yellow";
 
 describe("embedded annotations", () => {
   it("tags a whole leaf node via the enclosing overlay (no untagged-omni source)", async () => {
@@ -25,7 +25,7 @@ describe("embedded annotations", () => {
     expect(fs.readFileSync(path.join(root, "name"), "utf8")).toBe("Alice");
     const overlay = fs.readFileSync(path.join(root, ".yo", "body.yo"), "utf8");
     expect(overlay).toContain("yamlover-annotations:");
-    expect(overlay).toContain("*::tags.yo:yellow");
+    expect(overlay).toContain("*::ontos.yo:yellow");
 
     const list = call(h, "/api/annotations", { path: ":name" }).json;
     expect(list).toHaveLength(1);
@@ -61,7 +61,7 @@ describe("embedded annotations", () => {
     expect(r.status).toBe(201);
     const overlay = fs.readFileSync(path.join(root, "docs", ".yo", "body.yo"), "utf8");
     expect(overlay).toContain('"pic.png":');
-    expect(overlay).toContain("*::tags.yo:yellow");
+    expect(overlay).toContain("*::ontos.yo:yellow");
 
     const list = call(h, "/api/annotations", { path: ":docs:pic.png" }).json;
     expect(list).toHaveLength(1);
@@ -145,13 +145,13 @@ describe("embedded annotations", () => {
   it("untagging ONE of two tags keeps the host key and the other annotation", async () => {
     const root = tmpTree({
       name: "Alice",
-      "tags.yo": 'yellow: !!<*::yamlover:$defs:tag>\n  color: "#f9e2af"\ngreen: !!<*::yamlover:$defs:tag>\n  color: "#a6e3a1"\n',
+      "ontos.yo": 'yellow: !!<*::yamlover:$defs:onto>\n  color: "#f9e2af"\ngreen: !!<*::yamlover:$defs:onto>\n  color: "#a6e3a1"\n',
     });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
-    await callBody(h, "POST", "/api/annotate", { target: ":name", tag: ":tags.yo:yellow" });
-    await callBody(h, "POST", "/api/annotate", { target: ":name", tag: ":tags.yo:green" });
-    await callBody(h, "DELETE", `/api/annotate?target=${encodeURIComponent(":name")}&tag=${encodeURIComponent(":tags.yo:yellow")}`, {});
+    await callBody(h, "POST", "/api/annotate", { target: ":name", tag: ":ontos.yo:yellow" });
+    await callBody(h, "POST", "/api/annotate", { target: ":name", tag: ":ontos.yo:green" });
+    await callBody(h, "DELETE", `/api/annotate?target=${encodeURIComponent(":name")}&tag=${encodeURIComponent(":ontos.yo:yellow")}`, {});
     const overlay = fs.readFileSync(path.join(root, ".yo", "body.yo"), "utf8");
     expect(overlay).toContain("yamlover-annotations:"); // one tag remains — nothing pruned
     expect(overlay).toContain("green");
@@ -176,26 +176,26 @@ describe("embedded annotations", () => {
   });
 });
 
-// Removing a HAND-AUTHORED annotation whose pointer is spaced + document-scope (`*: tags: …`) —
+// Removing a HAND-AUTHORED annotation whose pointer is spaced + document-scope (`*: ontos: …`) —
 // not the canonical project-scope form the server writes. The delete matcher normalizes whitespace
 // and matches the colon-path, so the explorer's right-click "untag" works on such pointers too.
 describe("DELETE /api/annotate — tolerant pointer matching", () => {
-  it("removes a spaced, document-scope `*: tags: …` annotation", async () => {
+  it("removes a spaced, document-scope `*: ontos: …` annotation", async () => {
     const root = tmpTree({
       "doc.md": "# hi",
       ".yo/body.yo":
-        '"doc.md":\n  yamlover-annotations:\n  - *: tags: field: math\n  - *: tags: genre: short\n' +
-        "tags: !!<*yamlover:$defs:tag>\n  field:\n    math: Math\n  genre:\n    short: Short\n",
+        '"doc.md":\n  yamlover-annotations:\n  - *: ontos: field: math\n  - *: ontos: genre: short\n' +
+        "ontos: !!<*yamlover:$defs:onto>\n  field:\n    math: Math\n  genre:\n    short: Short\n",
     });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
     expect(call(h, "/api/annotations", { path: ":doc.md" }).json).toHaveLength(2);
 
-    const del = await callBody(h, "DELETE", `/api/annotate?target=${encodeURIComponent(":doc.md")}&tag=${encodeURIComponent(":tags:field:math")}`, {});
+    const del = await callBody(h, "DELETE", `/api/annotate?target=${encodeURIComponent(":doc.md")}&tag=${encodeURIComponent(":ontos:field:math")}`, {});
     expect(del.status).toBe(200);
     // exactly one removed — the other spaced pointer survives (the matcher is path-specific)
     const left = call(h, "/api/annotations", { path: ":doc.md" }).json;
-    expect(left.map((a: any) => a.tag?.path)).toEqual([":tags:genre:short"]);
+    expect(left.map((a: any) => a.tag?.path)).toEqual([":ontos:genre:short"]);
     const body = fs.readFileSync(path.join(root, ".yo", "body.yo"), "utf8");
     expect(body).not.toContain("field: math");
     expect(body).toContain("genre: short");

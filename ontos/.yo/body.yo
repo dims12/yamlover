@@ -1,0 +1,46 @@
+# The built-in ONTOLOGIES: the PALETTE (colors — pure color ontos, each with an explicit
+# color) plus named ontos created from the picker (settings.yo:
+# ontos.location). The palette ships with the yamlover project (::: yamlover.inthemoon.net);
+# the engine grafts {$defs, ontos} as the `yamlover` self-import key into every served
+# root, so *//yamlover/ontos/colors/<name> resolves from any project. Spec: ../$defs/onto.
+!!<*yamlover: $defs: onto>
+!!var Ontos
+colors: Pure color ontos — the annotation palette; each carries an explicit color
+  yellow:
+    color: "#f9e2af"
+  green:
+    color: "#a6e3a1"
+  sky:
+    color: "#89dceb"
+  mauve:
+    color: "#cba6f7"
+  pink:
+    color: "#f5c2e7"
+  peach:
+    color: "#fab387"
+first tag: !!<*::yamlover:$defs:onto>
+second tag: !!<*::yamlover:$defs:onto>
+third tag: !!<*::yamlover:$defs:onto>
+forth tag: !!<*::yamlover:$defs:onto>
+fifth tag: !!<*::yamlover:$defs:onto>
+# Workflows — state machines (TICKETS.md §2). Each `next:` is a REF edge to a successor STATE in
+# the SAME workflow (a cross-link, not a contained sub-tag); a terminal state has no `next`.
+workflow: Lifecycles — task/ticket state machines
+  dev: !!<*yamlover:$defs:workflow> Software task lifecycle
+    initial: *::yamlover:ontos:workflow:dev:backlog
+    backlog: Captured, not yet refined
+      color: "#9399b2"
+      next: *::yamlover:ontos:workflow:dev:ready
+    ready: Refined, ready to pick up
+      color: "#89b4fa"
+      next: *::yamlover:ontos:workflow:dev:in-progress
+    in-progress: Being worked 
+      color: "#fab387"
+      next:
+      - *::yamlover:ontos:workflow:dev:done
+      - *::yamlover:ontos:workflow:dev:cancelled
+    done: Completed
+      color: "#a6e3a1"
+    cancelled: Dropped
+      color: "#f38ba8"
+верхушка: !!<*::yamlover:$defs:onto>

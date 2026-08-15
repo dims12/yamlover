@@ -246,7 +246,7 @@
                     "anchor": true
                   },
                   {
-                    "key": "tags",
+                    "key": "ontos",
                     "value": {
                       "$yamloverLink": {
                         "kind": "object",
@@ -254,7 +254,7 @@
                         "valueType": null,
                         "hasKeyed": true,
                         "hasOrdinal": false,
-                        "path": ":part-two:tags",
+                        "path": ":part-two:ontos",
                         "format": "x-yamlover-chapter",
                         "concrete": "dir/.yo",
                         "count": 1
@@ -1503,7 +1503,7 @@
             "anchor": true
           },
           {
-            "key": "tags",
+            "key": "ontos",
             "value": {
               "important": {
                 "$yamloverLink": {
@@ -1512,8 +1512,8 @@
                   "valueType": null,
                   "hasKeyed": true,
                   "hasOrdinal": false,
-                  "path": ":part-two:tags:important",
-                  "format": "x-yamlover-tag",
+                  "path": ":part-two:ontos:important",
+                  "format": "x-yamlover-onto",
                   "concrete": "yamlover",
                   "count": 1,
                   "color": "#d29922"
@@ -1591,8 +1591,8 @@
       "/2": {
         "tag": "!!set"
       },
-      "/tags/important": {
-        "tag": "!!<*yamlover: $defs: tag>"
+      "/ontos/important": {
+        "tag": "!!<*yamlover: $defs: onto>"
       }
     },
     "relations": {
@@ -2118,8 +2118,8 @@
                   "valueType": null,
                   "hasKeyed": true,
                   "hasOrdinal": false,
-                  "path": ":part-two:tags:important",
-                  "format": "x-yamlover-tag",
+                  "path": ":part-two:ontos:important",
+                  "format": "x-yamlover-onto",
                   "concrete": "yamlover",
                   "count": 1,
                   "color": "#d29922"
@@ -2134,7 +2134,7 @@
     },
     "comments": {
       "/yamlover-annotations/0": {
-        "pointer": ": tags: important"
+        "pointer": ": ontos: important"
       }
     },
     "relations": {
@@ -2165,8 +2165,8 @@
           "valueType": null,
           "hasKeyed": true,
           "hasOrdinal": false,
-          "path": ":part-two:tags:important",
-          "format": "x-yamlover-tag",
+          "path": ":part-two:ontos:important",
+          "format": "x-yamlover-onto",
           "concrete": "yamlover",
           "count": 1,
           "color": "#d29922"
@@ -2175,7 +2175,7 @@
     ],
     "comments": {
       "/0": {
-        "pointer": ": tags: important"
+        "pointer": ": ontos: important"
       }
     },
     "relations": {
@@ -2372,15 +2372,15 @@
       }
     }
   },
-  ":part-two:tags": {
-    "path": ":part-two:tags",
+  ":part-two:ontos": {
+    "path": ":part-two:ontos",
     "type": "object",
     "format": "x-yamlover-chapter",
     "valueType": null,
     "hasKeyed": true,
     "hasOrdinal": false,
     "concrete": "dir/.yo",
-    "documentPath": ":part-two:tags",
+    "documentPath": ":part-two:ontos",
     "title": null,
     "description": null,
     "value": {
@@ -2392,7 +2392,7 @@
             "valueType": "string",
             "hasKeyed": false,
             "hasOrdinal": false,
-            "path": ":part-two:tags:important:color",
+            "path": ":part-two:ontos:important:color",
             "concrete": "yamlover",
             "value": "#d29922"
           }
@@ -2401,7 +2401,7 @@
     },
     "comments": {
       "/important": {
-        "tag": "!!<*yamlover: $defs: tag>"
+        "tag": "!!<*yamlover: $defs: onto>"
       },
       "/important/color": {
         "repr": "yaml/single",

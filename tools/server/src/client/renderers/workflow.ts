@@ -9,7 +9,7 @@
 // is a single link, or (read at depth ≥ 2) a JS array of links.
 import { fetchNode, fetchAnnotations, annotate, deleteAnnotation } from "../api";
 import { asLink } from "../render";
-import { TAG_FORMAT, tagLabel, tagFields, explicitColor } from "./tag";
+import { ONTO_FORMAT, tagLabel, tagFields, explicitColor } from "./tag";
 
 const REF_KEY = "$yamloverRef";
 export const WORKFLOW_FORMAT = "x-yamlover-workflow";
@@ -52,7 +52,7 @@ export async function fetchWorkflowStates(workflowPath: string): Promise<Workflo
   for (const [key, val] of tagFields(wf.value)) {
     if (key === "initial" || key === "color") continue; // not states: the start-state ref / a workflow color
     const link = asLink(val);
-    if (!link || link.format !== TAG_FORMAT || seen.has(link.path)) continue;
+    if (!link || link.format !== ONTO_FORMAT || seen.has(link.path)) continue;
     seen.add(link.path);
     states.push({ path: link.path, label: tagLabel(link.path, link.title), color: link.color ?? null, next: [], initial: link.path === initialPath });
   }

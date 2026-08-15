@@ -359,7 +359,7 @@ export class Store {
    *  fresh `/tags` has no rows yet), then the tag's subtree and its containment edge. Approximate
    *  by design — the next reconcile re-walks the edited taxonomy body and trues everything up;
    *  these rows only have to answer queries until then. */
-  addTag(taxonomyStorePath: string, name: string, pos: number, node: Node): void {
+  addOnto(taxonomyStorePath: string, name: string, pos: number, node: Node): void {
     const insNode = this.db.prepare(
       `INSERT OR REPLACE INTO node (path, type, format, value, content_hash, size, is_array, meta)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -606,7 +606,7 @@ function walkNodes(
  *    target) wins — it already folded the authored tag in;
  *  - else an authored inline schema Node `{format: …}` → that format (e.g. `text/x-plantuml`);
  *  - else an authored pointer to a hosted schema `*…/$defs/<name>` → `x-yamlover-<name>` (so
- *    `$defs/chapter` routes to the chapter renderer, `$defs/tag` to the tag renderer).
+ *    `$defs/chapter` routes to the chapter renderer, `$defs/onto` to the tag renderer).
  *  Returns null when there is no schema or it yields no format. */
 function formatFromMeta(node: Node): string | null {
   if (node.meta?.derivedFormat) return node.meta.derivedFormat;
