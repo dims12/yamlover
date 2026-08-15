@@ -1,0 +1,14 @@
+Map fragments
+description: a geographic box - four edges in degrees
+- >
+  A **map fragment** is a geographic bounding box: its **n**orth, **s**outh, **e**ast and **w**est
+  edges, in degrees (latitude for `n`/`s`, longitude for `e`/`w`). It names the place itself, not
+  any zoom level or tile rendering:
+- !!<format: text/x-yamlover> |
+  type: map
+  n: 59.95
+  s: 59.93
+  e: 30.36
+  w: 30.28
+- >
+  Map fragments carry no crop.

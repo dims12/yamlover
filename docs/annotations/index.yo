@@ -7,11 +7,11 @@ description: how a user marks up a document - regions, tag applications, and whe
   chapters: the [logical graph](*::language:logical-graph) (omni), [metadata](*::meta)
   (`$defs`, `variant`), [pointers](*::language:pointers) (the `::` project scope, `*`/`&`), and
   [queries](*::language:pointers:queries).
-- >
+- >-
   This model supersedes the old one (a separate `/annotations/*.yo` node per tag application,
   reverse-linked by a `target` pointer). The selector role moves into **fragments**; the
-  tag-application becomes a `yamlover-annotations` array element. `$defs: annotation` is
-  redefined and `$defs: fragment` is new.
+  tag-application becomes a `yamlover-annotations` array element. `$defs: annotation` is redefined and
+  `$defs: fragment` is new.
 - *: fragments
 - *: applications
 - *: storage

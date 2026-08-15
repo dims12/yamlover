@@ -1,0 +1,7 @@
+Future
+description: hierarchical fragments as children under the document node
+- >
+  Fragments will become **hierarchical** and surface as **children under the document node** -
+  e.g. marking up the table of contents of a textless (image-only) PDF, so the viewer can show
+  those fragments as a navigable tree. Out of scope here; the shape in this chapter is
+  forward-compatible.

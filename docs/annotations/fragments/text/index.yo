@@ -1,0 +1,32 @@
+Text fragments
+description: a quoted selection - the selected text as the value, plus disambiguating context
+- >
+  A **text fragment** (prose, a markdown chunk) locates its region by **quotation, not by
+  character offsets**. The member's **self-value is the selected text**, copied verbatim;
+  `prefix` and `suffix` carry short runs of the text immediately before and after it:
+- !!yo
+  'reads the file twice: once to scan, once to build'
+  yo: fragments:
+    - once to scan
+      type: text
+      prefix: 'reads the file twice: '
+      suffix: ', once to build'
+- >
+  To highlight the region again, the viewer searches the node's text for the quoted value;
+  when the same words occur more than once, the surrounding context pins which occurrence is
+  meant.
+- >
+  Character positions are **never the fragment's identity**: an edit earlier in the text would
+  silently shift them onto the wrong words, while quotation survives edits elsewhere in the
+  document - the fragment only breaks when the selected passage itself is rewritten, and then
+  it breaks **visibly**, rather than highlighting the wrong place.
+- >
+  In a long text, though, positions earn their keep as an **accelerator**: optional `start` and
+  `end` fields (in the example above, `once to scan` spans characters 22-34 of the chunk) let
+  the viewer jump straight to the spot and pick the right occurrence among many repeats -
+  the W3C practice of pairing its position selector with the quote. The quote stays the truth:
+  when the text at `start`..`end` no longer matches it, the positions are stale - the viewer
+  falls back to searching by quote, and may refresh or drop the fields on the next save.
+- >
+  The shape mirrors the W3C Web Annotation **TextQuoteSelector**, with its `exact` spelled as
+  the member's self-value; the optional `start`/`end` pair mirrors its **TextPositionSelector**.

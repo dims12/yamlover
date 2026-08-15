@@ -1,0 +1,15 @@
+PDF fragments
+description: a page number and a rectangle in the page's own units
+- >
+  A **PDF fragment** names a **page** (counted from 1) and a rectangle on it: `x`, `y` from the
+  page's top-left corner, in the page's own units (points, the size the page reports at scale 1),
+  so the stored region is independent of the viewer's zoom:
+- !!<format: text/x-yamlover> |
+  type: pdf
+  page: 12
+  x: 72
+  y: 540
+  w: 180
+  h: 36
+- >
+  The fragment also embeds a PNG crop of the region ([the crop sidecar](*::annotations:fragments:crop)).

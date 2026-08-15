@@ -1,0 +1,9 @@
+The scrollable URL
+description: a fragment's address in the browser - the in-page `#` rule
+- >
+  A fragment is addressable in the browser by the in-page `#` rule (see
+  `tools/server/README.md`): its node path `<material>/yo/fragments/<key>` becomes the
+  scrollable URL `<material-url>#yo/fragments/<key>` - the `#` standing in for the `/` after
+  the served material. Opening that URL (or clicking the fragment in the viewer's fragments
+  panel) scrolls text/PDF/djvu regions into view and pans image/map regions to fit, then
+  briefly flashes the region.

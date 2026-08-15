@@ -1,0 +1,11 @@
+The crop sidecar
+description: image-like fragments embed a PNG of the region
+- >
+  For **image / PDF / djvu** selections the fragment also carries an **`image`** field - a
+  **binary** crop (`format: image/png`) of the selected region, produced client-side from the
+  already-rendered canvas. Because inline binary is unsolved on the text surface, the bytes
+  live as a **sidecar blob file** referenced by a `*` pointer:
+- !!<format: text/x-yamlover> |
+  image: *::papers:fragments:mqdo07z1-owgrcv.png
+- >
+  Text and map fragments carry no crop.

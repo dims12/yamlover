@@ -1,0 +1,15 @@
+Image fragments
+description: a pixel rectangle on the image itself
+- >
+  An **image fragment** is a rectangle in the image's own **pixel coordinates**: `x`, `y` from the
+  image's top-left corner, `w`, `h` the rectangle's size, all at the image's natural (unzoomed)
+  resolution:
+- !!<format: text/x-yamlover> |
+  type: rect
+  x: 210
+  y: 148
+  w: 320
+  h: 96
+- >
+  Zooming and panning in the viewer never change the stored numbers - they name pixels of the
+  image, not of the screen. The fragment also embeds a PNG crop of the region ([the crop sidecar](*::annotations:fragments:crop)).

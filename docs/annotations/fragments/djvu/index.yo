@@ -1,0 +1,16 @@
+DjVu fragments
+description: a page number and a rectangle in the page's native pixels
+- >
+  A **djvu fragment** is the DjVu twin of the [PDF fragment](*::annotations:fragments:pdf): a
+  **page** (counted from 1) and a rectangle with `x`, `y` from the page's top-left corner - here in
+  the page's **native raster pixels** (the decoded page image's own resolution), zoom-independent
+  the same way:
+- !!<format: text/x-yamlover> |
+  type: djvu
+  page: 12
+  x: 340
+  y: 1210
+  w: 620
+  h: 140
+- >
+  The fragment also embeds a PNG crop of the region ([the crop sidecar](*::annotations:fragments:crop)).
