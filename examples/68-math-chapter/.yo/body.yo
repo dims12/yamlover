@@ -26,5 +26,4 @@ yo: fragments:
     prefix: ""
     suffix: " likes to hide "
     created: 2026-06-16T17:18:11.059Z
-    yamlover-annotations:
-    - *::yamlover:ontos:colors:green
+    &::yamlover:ontos:colors:green:-

@@ -1,5 +1,5 @@
-# SPEC-LEAD with the annotations family: the implementation still writes yamlover-annotations
-# arrays and the tags/ taxonomy; this chapter describes the target ontos/membership flow.
+# The inline fragment token (prose selections spelled in the text) is the one part still
+# pending - the client-first slice; everything else here is implemented.
 Annotating
 description: select a region, pick an onto - the flow shared by prose, images, maps, and PDFs
 - >

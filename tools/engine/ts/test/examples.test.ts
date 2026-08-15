@@ -64,7 +64,7 @@ test('67-pdf-tags: every tag membership pointer resolves (no dangling)', () => {
   assert.deepEqual(buildGraph(load('67-pdf-tags')).unresolved, []);
 });
 
-test('73-dev-board: tasks, board & workflow resolve; state is a ref edge into the workflow', () => {
+test('73-dev-board: tasks, board & workflow resolve; state is a membership bookmark into the workflow', () => {
   const doc = load('73-dev-board');
   // every pointer resolves: the board `workflow:` ref, each state's `next`/`initial`, and every
   // task's state annotation (TICKETS.md §2 — states-as-tags, transitions-as-refs).
@@ -84,7 +84,7 @@ test('73-dev-board: tasks, board & workflow resolve; state is a ref edge into th
   // board column (what /api/tagged surfaces). `refactor-parser` sits in the `ready` column.
   const into = s.relationships(':yamlover:ontos:workflow:dev:ready').in;
   assert.ok(
-    into.some((e) => e.kind === 'ref' && e.from.startsWith(':refactor-parser.yo')),
+    into.some((e) => (e.kind === 'back' || e.kind === 'ref') && e.from.startsWith(':refactor-parser.yo')),
     'the ready task annotates the ready state',
   );
   s.close();

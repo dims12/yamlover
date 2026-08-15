@@ -30,7 +30,7 @@ describe("the editor round-trip", () => {
     const h = createHandlers(root, { gitignore: false }); await h.ready;
     const read = () => fs.readFileSync(path.join(root, "doc", ".yo", "body.yo"), "utf8");
 
-    // annotate the first chunk (abs 1) — the overlay must survive the prose edit below
+    // file the first chunk (abs 1) under an onto — the bookmark must survive the prose edit below
     const tag = await callBody(h, "POST", "/api/tag", { name: "imp" });
     await callBody(h, "POST", "/api/annotate", { target: ":doc[1]", tag: tag.json.path });
 
@@ -41,7 +41,10 @@ describe("the editor round-trip", () => {
 
     // 2. the user: renames the title, edits chunk 0, splits chunk 1, deletes nothing
     model.title = "Renamed";
-    expect(model.chunks[0].editable).toBe(false); // annotated → omni marker → read-only (MINITODO 026)
+    // a FILED chunk stays a plain editable scalar — a bookmark is an edge, never an entry, so
+    // the old annotated→omni→read-only limitation (MINITODO 026) is gone
+    expect(model.chunks[0].editable).toBe(true);
+    model.chunks[0].text = "Hello **world** again";
     model.chunks[1].text = "one\ntwo";
     model.chunks.splice(2, 0, newProsePart("a fresh paragraph"));
 
@@ -54,9 +57,9 @@ describe("the editor round-trip", () => {
     const after: any = (await nodeJson(h, { path: ":doc", depth: "3" })).json;
     expect(after.title).toBe("Renamed");
     expect(read()).toContain("# a hand-written comment that must survive");
-    expect(read()).toContain("yamlover-annotations:");
+    expect(read()).toContain("&::ontos:imp:-"); // the membership bookmark survived the prose edit
     const b = (after.value.$yamloverMixed.entries as any[]).filter((e) => e.key == null).map((e) => e.value);
-    expect(b[0].$yamloverMixed.value).toBe("Hello **world**"); // annotated chunk, overlay intact
+    expect(b[0]).toBe("Hello **world** again"); // the filed chunk edited like any other
     expect(b[1]).toBe("one\ntwo");
     expect(b[2]).toBe("a fresh paragraph");
 

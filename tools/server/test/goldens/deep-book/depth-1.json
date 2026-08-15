@@ -1013,11 +1013,12 @@
                 "kind": "omni",
                 "type": "omni",
                 "valueType": "string",
-                "hasKeyed": true,
-                "hasOrdinal": false,
+                "hasKeyed": false,
+                "hasOrdinal": true,
                 "path": ":part-two:3",
-                "format": "text/marklower",
+                "format": "x-yamlover-chapter",
                 "concrete": "yamlover",
+                "title": "Annotated prose carries an overlay.",
                 "count": 1,
                 "value": "Annotated prose carries an overlay."
               }
@@ -1685,75 +1686,40 @@
   ":part-two:3": {
     "path": ":part-two:3",
     "type": "omni",
-    "format": "text/marklower",
+    "format": "x-yamlover-chapter",
     "valueType": "string",
-    "hasKeyed": true,
-    "hasOrdinal": false,
+    "hasKeyed": false,
+    "hasOrdinal": true,
     "concrete": "yamlover",
     "documentPath": ":part-two",
-    "title": null,
+    "title": "Annotated prose carries an overlay.",
     "description": null,
     "value": {
       "$yamloverMixed": {
         "kind": "omni",
         "entries": [
           {
-            "key": "yamlover-annotations",
+            "key": null,
             "value": {
               "$yamloverLink": {
-                "kind": "array",
-                "type": "array",
+                "kind": "object",
+                "type": "object",
                 "valueType": null,
-                "hasKeyed": false,
-                "hasOrdinal": true,
-                "path": ":part-two:3:yamlover-annotations",
+                "hasKeyed": true,
+                "hasOrdinal": false,
+                "path": ":part-two:ontos:important",
+                "format": "x-yamlover-onto",
                 "concrete": "yamlover",
-                "count": 1
+                "count": 1,
+                "color": "#d29922"
               }
             }
           }
         ],
-        "format": "text/marklower",
+        "format": "x-yamlover-chapter",
         "value": "Annotated prose carries an overlay."
       }
     },
-    "comments": {},
-    "relations": {
-      "..": {
-        "$yamloverRef": {
-          "text": "..",
-          "path": ":part-two"
-        }
-      }
-    }
-  },
-  ":part-two:3:yamlover-annotations": {
-    "path": ":part-two:3:yamlover-annotations",
-    "type": "array",
-    "format": null,
-    "valueType": null,
-    "hasKeyed": false,
-    "hasOrdinal": true,
-    "concrete": "yamlover",
-    "documentPath": ":part-two",
-    "title": null,
-    "description": null,
-    "value": [
-      {
-        "$yamloverLink": {
-          "kind": "object",
-          "type": "object",
-          "valueType": null,
-          "hasKeyed": true,
-          "hasOrdinal": false,
-          "path": ":part-two:ontos:important",
-          "format": "x-yamlover-onto",
-          "concrete": "yamlover",
-          "count": 1,
-          "color": "#d29922"
-        }
-      }
-    ],
     "comments": {
       "/0": {
         "pointer": ": ontos: important"
@@ -1763,7 +1729,7 @@
       "..": {
         "$yamloverRef": {
           "text": "..",
-          "path": ":part-two:3"
+          "path": ":part-two"
         }
       }
     }

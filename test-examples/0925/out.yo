@@ -1,33 +1,32 @@
 !!<*yamlover: $defs: board>
 workflow: *:: yamlover: ontos: workflow: dev
 add-board-view.yo: !!<*yamlover: $defs: task> Add the agile board renderer
+  &:: yamlover: ontos: colors: yellow: -
+  &:: yamlover: ontos: workflow: dev: ready: -
   description: Render a directory of tasks as kanban lanes with drag-to-retag.
   priority: normal
   assignee: claude
   estimate: 1d
   - Lanes come from the board's `workflow:` states; cards are the task members.
   - A drag DELETEs the old state annotation and POSTs the new one — reusing `/api/annotate`.
-  yamlover-annotations:
-    - *:: yamlover: ontos: colors: yellow
-    - *:: yamlover: ontos: workflow: dev: ready
 fix-flaky-test.yo: !!<*yamlover: $defs: task> Fix the flaky reconcile test
+  &:: yamlover: ontos: workflow: dev: ready: -
   description: `reconcile.test.ts` intermittently fails on the mtime-tiebreak path.
   priority: low
   - Reproduces ~1 in 20 runs locally; likely a same-second mtime collision in the manifest compare.
   - Pin the clock or compare on (size, hash) when mtimes tie.
-  yamlover-annotations:
-    - *:: yamlover: ontos: workflow: dev: ready
 refactor-parser.yo: !!<*yamlover: $defs: task> Split the pointer parser into scope + step phases
+  &:: yamlover: ontos: colors: yellow: -
+  &:: yamlover: ontos: workflow: dev: ready: -
   description: The parser conflates scope detection with step walking; the colon grammar needs them apart.
   priority: high
   assignee: claude
   estimate: 6h
   - The current `parsePointer` walks scopes and steps in one pass, so `::`/`:::` edge cases leak into step logic.
   - Target a two-phase parse — resolve the scope ladder first, then walk steps — so `docs/language/pointers/paths` rules live in one place.
-  yamlover-annotations:
-    - *:: yamlover: ontos: colors: yellow
-    - *:: yamlover: ontos: workflow: dev: ready
 ship-0-4-0.yo: !!<*yamlover: $defs: task> Ship yamlover 0.4.0
+  &:: yamlover: ontos: workflow: dev: done: -
+  &:: yamlover: ontos: colors: yellow: -
   description: Cut the 0.4.0 release once the board feature lands.
   priority: high
   assignee: dims
@@ -38,12 +37,8 @@ ship-0-4-0.yo: !!<*yamlover: $defs: task> Ship yamlover 0.4.0
     - The dual CI on version bump handles GitHub→npmjs (OIDC) and Forgejo→Nexus.
   - Write the announcement
     - A short note covering tasks/boards and the colon-grammar migration.
-  yamlover-annotations:
-    - *:: yamlover: ontos: workflow: dev: done
-    - *:: yamlover: ontos: colors: yellow
 write-migration-guide.yo: !!<*yamlover: $defs: task> Write a slash→colon migration guide
+  &:: yamlover: ontos: workflow: dev: cancelled: -
   description: A how-to for moving existing documents from the old `/` pointers to the colon grammar.
   priority: normal
   - Dropped — the re-emitter already rewrites legacy slash input as colon (IR-equal), so no manual guide is needed.
-  yamlover-annotations:
-    - *:: yamlover: ontos: workflow: dev: cancelled

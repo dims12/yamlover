@@ -320,7 +320,59 @@
                                       ]
                                     }
                                   },
-                                  "anchors": [],
+                                  "anchors": [
+                                    {
+                                      "base": {
+                                        "scope": "link",
+                                        "authority": "yamlover"
+                                      },
+                                      "steps": [
+                                        {
+                                          "sel": "key",
+                                          "name": "ontos"
+                                        },
+                                        {
+                                          "sel": "key",
+                                          "name": "fifth tag"
+                                        }
+                                      ],
+                                      "ordinal": true
+                                    },
+                                    {
+                                      "base": {
+                                        "scope": "link",
+                                        "authority": "yamlover"
+                                      },
+                                      "steps": [
+                                        {
+                                          "sel": "key",
+                                          "name": "ontos"
+                                        },
+                                        {
+                                          "sel": "key",
+                                          "name": "forth tag"
+                                        }
+                                      ],
+                                      "ordinal": true
+                                    },
+                                    {
+                                      "base": {
+                                        "scope": "link",
+                                        "authority": "yamlover"
+                                      },
+                                      "steps": [
+                                        {
+                                          "sel": "key",
+                                          "name": "ontos"
+                                        },
+                                        {
+                                          "sel": "key",
+                                          "name": "верхушка"
+                                        }
+                                      ],
+                                      "ordinal": true
+                                    }
+                                  ],
                                   "entries": [
                                     {
                                       "key": "type",
@@ -424,85 +476,6 @@
                                         "anchors": [],
                                         "entries": []
                                       }
-                                    },
-                                    {
-                                      "key": "yamlover-annotations",
-                                      "edge": "contain",
-                                      "value": {
-                                        "kind": "mapping",
-                                        "array": true,
-                                        "set": false,
-                                        "yo": false,
-                                        "anchors": [],
-                                        "entries": [
-                                          {
-                                            "key": null,
-                                            "edge": "ref",
-                                            "value": {
-                                              "ptr": {
-                                                "base": {
-                                                  "scope": "link",
-                                                  "authority": "yamlover"
-                                                },
-                                                "steps": [
-                                                  {
-                                                    "sel": "key",
-                                                    "name": "ontos"
-                                                  },
-                                                  {
-                                                    "sel": "key",
-                                                    "name": "fifth tag"
-                                                  }
-                                                ]
-                                              }
-                                            }
-                                          },
-                                          {
-                                            "key": null,
-                                            "edge": "ref",
-                                            "value": {
-                                              "ptr": {
-                                                "base": {
-                                                  "scope": "link",
-                                                  "authority": "yamlover"
-                                                },
-                                                "steps": [
-                                                  {
-                                                    "sel": "key",
-                                                    "name": "ontos"
-                                                  },
-                                                  {
-                                                    "sel": "key",
-                                                    "name": "forth tag"
-                                                  }
-                                                ]
-                                              }
-                                            }
-                                          },
-                                          {
-                                            "key": null,
-                                            "edge": "ref",
-                                            "value": {
-                                              "ptr": {
-                                                "base": {
-                                                  "scope": "link",
-                                                  "authority": "yamlover"
-                                                },
-                                                "steps": [
-                                                  {
-                                                    "sel": "key",
-                                                    "name": "ontos"
-                                                  },
-                                                  {
-                                                    "sel": "key",
-                                                    "name": "верхушка"
-                                                  }
-                                                ]
-                                              }
-                                            }
-                                          }
-                                        ]
-                                      }
                                     }
                                   ]
                                 }
@@ -533,7 +506,25 @@
                                       ]
                                     }
                                   },
-                                  "anchors": [],
+                                  "anchors": [
+                                    {
+                                      "base": {
+                                        "scope": "link",
+                                        "authority": "yamlover"
+                                      },
+                                      "steps": [
+                                        {
+                                          "sel": "key",
+                                          "name": "ontos"
+                                        },
+                                        {
+                                          "sel": "key",
+                                          "name": "fifth tag"
+                                        }
+                                      ],
+                                      "ordinal": true
+                                    }
+                                  ],
                                   "entries": [
                                     {
                                       "key": "type",
@@ -637,41 +628,6 @@
                                         "anchors": [],
                                         "entries": []
                                       }
-                                    },
-                                    {
-                                      "key": "yamlover-annotations",
-                                      "edge": "contain",
-                                      "value": {
-                                        "kind": "mapping",
-                                        "array": true,
-                                        "set": false,
-                                        "yo": false,
-                                        "anchors": [],
-                                        "entries": [
-                                          {
-                                            "key": null,
-                                            "edge": "ref",
-                                            "value": {
-                                              "ptr": {
-                                                "base": {
-                                                  "scope": "link",
-                                                  "authority": "yamlover"
-                                                },
-                                                "steps": [
-                                                  {
-                                                    "sel": "key",
-                                                    "name": "ontos"
-                                                  },
-                                                  {
-                                                    "sel": "key",
-                                                    "name": "fifth tag"
-                                                  }
-                                                ]
-                                              }
-                                            }
-                                          }
-                                        ]
-                                      }
                                     }
                                   ]
                                 }
@@ -702,7 +658,42 @@
                                       ]
                                     }
                                   },
-                                  "anchors": [],
+                                  "anchors": [
+                                    {
+                                      "base": {
+                                        "scope": "link",
+                                        "authority": "yamlover"
+                                      },
+                                      "steps": [
+                                        {
+                                          "sel": "key",
+                                          "name": "ontos"
+                                        },
+                                        {
+                                          "sel": "key",
+                                          "name": "fifth tag"
+                                        }
+                                      ],
+                                      "ordinal": true
+                                    },
+                                    {
+                                      "base": {
+                                        "scope": "link",
+                                        "authority": "yamlover"
+                                      },
+                                      "steps": [
+                                        {
+                                          "sel": "key",
+                                          "name": "ontos"
+                                        },
+                                        {
+                                          "sel": "key",
+                                          "name": "forth tag"
+                                        }
+                                      ],
+                                      "ordinal": true
+                                    }
+                                  ],
                                   "entries": [
                                     {
                                       "key": "type",
@@ -805,63 +796,6 @@
                                         "yo": false,
                                         "anchors": [],
                                         "entries": []
-                                      }
-                                    },
-                                    {
-                                      "key": "yamlover-annotations",
-                                      "edge": "contain",
-                                      "value": {
-                                        "kind": "mapping",
-                                        "array": true,
-                                        "set": false,
-                                        "yo": false,
-                                        "anchors": [],
-                                        "entries": [
-                                          {
-                                            "key": null,
-                                            "edge": "ref",
-                                            "value": {
-                                              "ptr": {
-                                                "base": {
-                                                  "scope": "link",
-                                                  "authority": "yamlover"
-                                                },
-                                                "steps": [
-                                                  {
-                                                    "sel": "key",
-                                                    "name": "ontos"
-                                                  },
-                                                  {
-                                                    "sel": "key",
-                                                    "name": "fifth tag"
-                                                  }
-                                                ]
-                                              }
-                                            }
-                                          },
-                                          {
-                                            "key": null,
-                                            "edge": "ref",
-                                            "value": {
-                                              "ptr": {
-                                                "base": {
-                                                  "scope": "link",
-                                                  "authority": "yamlover"
-                                                },
-                                                "steps": [
-                                                  {
-                                                    "sel": "key",
-                                                    "name": "ontos"
-                                                  },
-                                                  {
-                                                    "sel": "key",
-                                                    "name": "forth tag"
-                                                  }
-                                                ]
-                                              }
-                                            }
-                                          }
-                                        ]
                                       }
                                     }
                                   ]
@@ -1063,7 +997,25 @@
                                       ]
                                     }
                                   },
-                                  "anchors": [],
+                                  "anchors": [
+                                    {
+                                      "base": {
+                                        "scope": "link",
+                                        "authority": "yamlover"
+                                      },
+                                      "steps": [
+                                        {
+                                          "sel": "key",
+                                          "name": "ontos"
+                                        },
+                                        {
+                                          "sel": "key",
+                                          "name": "forth tag"
+                                        }
+                                      ],
+                                      "ordinal": true
+                                    }
+                                  ],
                                   "entries": [
                                     {
                                       "key": "type",
@@ -1166,41 +1118,6 @@
                                         "yo": false,
                                         "anchors": [],
                                         "entries": []
-                                      }
-                                    },
-                                    {
-                                      "key": "yamlover-annotations",
-                                      "edge": "contain",
-                                      "value": {
-                                        "kind": "mapping",
-                                        "array": true,
-                                        "set": false,
-                                        "yo": false,
-                                        "anchors": [],
-                                        "entries": [
-                                          {
-                                            "key": null,
-                                            "edge": "ref",
-                                            "value": {
-                                              "ptr": {
-                                                "base": {
-                                                  "scope": "link",
-                                                  "authority": "yamlover"
-                                                },
-                                                "steps": [
-                                                  {
-                                                    "sel": "key",
-                                                    "name": "ontos"
-                                                  },
-                                                  {
-                                                    "sel": "key",
-                                                    "name": "forth tag"
-                                                  }
-                                                ]
-                                              }
-                                            }
-                                          }
-                                        ]
                                       }
                                     }
                                   ]
@@ -1931,19 +1848,6 @@
                                         "anchors": [],
                                         "entries": []
                                       }
-                                    },
-                                    {
-                                      "key": "yamlover-annotations",
-                                      "edge": "contain",
-                                      "value": {
-                                        "kind": "scalar",
-                                        "value": null,
-                                        "array": false,
-                                        "set": false,
-                                        "yo": false,
-                                        "anchors": [],
-                                        "entries": []
-                                      }
                                     }
                                   ]
                                 }
@@ -2072,19 +1976,6 @@
                                       "value": {
                                         "kind": "scalar",
                                         "value": "2026-06-16T18:39:24.635Z",
-                                        "array": false,
-                                        "set": false,
-                                        "yo": false,
-                                        "anchors": [],
-                                        "entries": []
-                                      }
-                                    },
-                                    {
-                                      "key": "yamlover-annotations",
-                                      "edge": "contain",
-                                      "value": {
-                                        "kind": "scalar",
-                                        "value": null,
                                         "array": false,
                                         "set": false,
                                         "yo": false,
@@ -2225,19 +2116,6 @@
                                         "anchors": [],
                                         "entries": []
                                       }
-                                    },
-                                    {
-                                      "key": "yamlover-annotations",
-                                      "edge": "contain",
-                                      "value": {
-                                        "kind": "scalar",
-                                        "value": null,
-                                        "array": false,
-                                        "set": false,
-                                        "yo": false,
-                                        "anchors": [],
-                                        "entries": []
-                                      }
                                     }
                                   ]
                                 }
@@ -2366,19 +2244,6 @@
                                       "value": {
                                         "kind": "scalar",
                                         "value": "2026-06-16T18:50:07.365Z",
-                                        "array": false,
-                                        "set": false,
-                                        "yo": false,
-                                        "anchors": [],
-                                        "entries": []
-                                      }
-                                    },
-                                    {
-                                      "key": "yamlover-annotations",
-                                      "edge": "contain",
-                                      "value": {
-                                        "kind": "scalar",
-                                        "value": null,
                                         "array": false,
                                         "set": false,
                                         "yo": false,
@@ -2519,19 +2384,6 @@
                                         "anchors": [],
                                         "entries": []
                                       }
-                                    },
-                                    {
-                                      "key": "yamlover-annotations",
-                                      "edge": "contain",
-                                      "value": {
-                                        "kind": "scalar",
-                                        "value": null,
-                                        "array": false,
-                                        "set": false,
-                                        "yo": false,
-                                        "anchors": [],
-                                        "entries": []
-                                      }
                                     }
                                   ]
                                 }
@@ -2660,19 +2512,6 @@
                                       "value": {
                                         "kind": "scalar",
                                         "value": "2026-06-16T18:50:21.969Z",
-                                        "array": false,
-                                        "set": false,
-                                        "yo": false,
-                                        "anchors": [],
-                                        "entries": []
-                                      }
-                                    },
-                                    {
-                                      "key": "yamlover-annotations",
-                                      "edge": "contain",
-                                      "value": {
-                                        "kind": "scalar",
-                                        "value": null,
                                         "array": false,
                                         "set": false,
                                         "yo": false,

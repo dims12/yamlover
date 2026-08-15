@@ -23,19 +23,18 @@ describe("type facets in /api/json", () => {
     h.close();
   });
 
-  it("a TAGGED node stays an omni with its value facet intact (the renderer-breakage fix)", async () => {
-    // a markdown doc, then annotate it → it gains a `yamlover-annotations` key (becomes omni)
+  it("a FILED node keeps its exact shape — a membership bookmark adds nothing", async () => {
+    // a markdown doc, then file it under an onto → the bookmark is an edge, never an entry
     const root = tmpTree({ "note.yo": "!!<format: text/markdown>\nHello markdown\n", ...TAG_FILE });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
     expect((await callBody(h, "POST", "/api/annotate", { target: ":note.yo", tag: TAG })).status).toBe(201);
 
     const j = (await nodeJson(h, { path: ":note.yo" })).json;
-    expect(j.type).toBe("omni"); // the KIND flipped to omni…
-    expect(j.format).toBe("text/markdown"); // …but the value facet's format SURVIVES
-    expect(j.valueType).toBe("string"); // and its value type
-    expect(j.hasKeyed).toBe(true); // it now owns the yamlover-annotations element
-    // → the client's byFormat("text/markdown") matcher still claims it (see registry.test.ts)
+    expect(j.type).toBe("string"); // the kind is UNCHANGED — no renderer can be broken by filing
+    expect(j.format).toBe("text/markdown");
+    expect(j.valueType).toBe("string");
+    expect(j.hasKeyed).toBe(false); // no entries appeared
     h.close();
   });
 

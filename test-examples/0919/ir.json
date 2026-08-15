@@ -322,109 +322,81 @@
           "array": false,
           "set": false,
           "yo": false,
-          "anchors": [],
-          "entries": [
+          "anchors": [
             {
-              "key": "yamlover-annotations",
-              "edge": "contain",
-              "value": {
-                "kind": "mapping",
-                "array": true,
-                "set": false,
-                "yo": false,
-                "anchors": [],
-                "entries": [
-                  {
-                    "key": null,
-                    "edge": "ref",
-                    "value": {
-                      "ptr": {
-                        "base": {
-                          "scope": "document"
-                        },
-                        "steps": [
-                          {
-                            "sel": "key",
-                            "name": "ontos"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "field"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "earth-science"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "seismology"
-                          }
-                        ]
-                      }
-                    }
-                  },
-                  {
-                    "key": null,
-                    "edge": "ref",
-                    "value": {
-                      "ptr": {
-                        "base": {
-                          "scope": "document"
-                        },
-                        "steps": [
-                          {
-                            "sel": "key",
-                            "name": "ontos"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "genre"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "brevity"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "one-word-answer"
-                          }
-                        ]
-                      }
-                    }
-                  },
-                  {
-                    "key": null,
-                    "edge": "ref",
-                    "value": {
-                      "ptr": {
-                        "base": {
-                          "scope": "document"
-                        },
-                        "steps": [
-                          {
-                            "sel": "key",
-                            "name": "ontos"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "genre"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "humor"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "deadpan"
-                          }
-                        ]
-                      }
-                    }
-                  }
-                ]
-              }
+              "base": {
+                "scope": "document"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "ontos"
+                },
+                {
+                  "sel": "key",
+                  "name": "field"
+                },
+                {
+                  "sel": "key",
+                  "name": "earth-science"
+                },
+                {
+                  "sel": "key",
+                  "name": "seismology"
+                }
+              ],
+              "ordinal": true
+            },
+            {
+              "base": {
+                "scope": "document"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "ontos"
+                },
+                {
+                  "sel": "key",
+                  "name": "genre"
+                },
+                {
+                  "sel": "key",
+                  "name": "brevity"
+                },
+                {
+                  "sel": "key",
+                  "name": "one-word-answer"
+                }
+              ],
+              "ordinal": true
+            },
+            {
+              "base": {
+                "scope": "document"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "ontos"
+                },
+                {
+                  "sel": "key",
+                  "name": "genre"
+                },
+                {
+                  "sel": "key",
+                  "name": "humor"
+                },
+                {
+                  "sel": "key",
+                  "name": "deadpan"
+                }
+              ],
+              "ordinal": true
             }
-          ]
+          ],
+          "entries": []
         }
       },
       {
@@ -440,208 +412,160 @@
           "array": false,
           "set": false,
           "yo": false,
-          "anchors": [],
-          "entries": [
+          "anchors": [
             {
-              "key": "yamlover-annotations",
-              "edge": "contain",
-              "value": {
-                "kind": "mapping",
-                "array": true,
-                "set": false,
-                "yo": false,
-                "anchors": [],
-                "entries": [
-                  {
-                    "key": null,
-                    "edge": "ref",
-                    "value": {
-                      "ptr": {
-                        "base": {
-                          "scope": "document"
-                        },
-                        "steps": [
-                          {
-                            "sel": "key",
-                            "name": "ontos"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "field"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "physics"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "quantum"
-                          }
-                        ]
-                      }
-                    }
-                  },
-                  {
-                    "key": null,
-                    "edge": "ref",
-                    "value": {
-                      "ptr": {
-                        "base": {
-                          "scope": "document"
-                        },
-                        "steps": [
-                          {
-                            "sel": "key",
-                            "name": "ontos"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "field"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "physics"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "particle"
-                          }
-                        ]
-                      }
-                    }
-                  },
-                  {
-                    "key": null,
-                    "edge": "ref",
-                    "value": {
-                      "ptr": {
-                        "base": {
-                          "scope": "document"
-                        },
-                        "steps": [
-                          {
-                            "sel": "key",
-                            "name": "ontos"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "genre"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "brevity"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "one-word-answer"
-                          }
-                        ]
-                      }
-                    }
-                  },
-                  {
-                    "key": null,
-                    "edge": "ref",
-                    "value": {
-                      "ptr": {
-                        "base": {
-                          "scope": "document"
-                        },
-                        "steps": [
-                          {
-                            "sel": "key",
-                            "name": "ontos"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "genre"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "humor"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "deadpan"
-                          }
-                        ]
-                      }
-                    }
-                  },
-                  {
-                    "key": null,
-                    "edge": "ref",
-                    "value": {
-                      "ptr": {
-                        "base": {
-                          "scope": "link",
-                          "authority": "yamlover"
-                        },
-                        "steps": [
-                          {
-                            "sel": "key",
-                            "name": "ontos"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "fifth tag"
-                          }
-                        ]
-                      }
-                    }
-                  },
-                  {
-                    "key": null,
-                    "edge": "ref",
-                    "value": {
-                      "ptr": {
-                        "base": {
-                          "scope": "link",
-                          "authority": "yamlover"
-                        },
-                        "steps": [
-                          {
-                            "sel": "key",
-                            "name": "ontos"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "colors"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "yellow"
-                          }
-                        ]
-                      }
-                    }
-                  },
-                  {
-                    "key": null,
-                    "edge": "ref",
-                    "value": {
-                      "ptr": {
-                        "base": {
-                          "scope": "link",
-                          "authority": "yamlover"
-                        },
-                        "steps": [
-                          {
-                            "sel": "key",
-                            "name": "ontos"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "first tag"
-                          }
-                        ]
-                      }
-                    }
-                  }
-                ]
-              }
+              "base": {
+                "scope": "document"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "ontos"
+                },
+                {
+                  "sel": "key",
+                  "name": "field"
+                },
+                {
+                  "sel": "key",
+                  "name": "physics"
+                },
+                {
+                  "sel": "key",
+                  "name": "particle"
+                }
+              ],
+              "ordinal": true
+            },
+            {
+              "base": {
+                "scope": "document"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "ontos"
+                },
+                {
+                  "sel": "key",
+                  "name": "field"
+                },
+                {
+                  "sel": "key",
+                  "name": "physics"
+                },
+                {
+                  "sel": "key",
+                  "name": "quantum"
+                }
+              ],
+              "ordinal": true
+            },
+            {
+              "base": {
+                "scope": "document"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "ontos"
+                },
+                {
+                  "sel": "key",
+                  "name": "genre"
+                },
+                {
+                  "sel": "key",
+                  "name": "brevity"
+                },
+                {
+                  "sel": "key",
+                  "name": "one-word-answer"
+                }
+              ],
+              "ordinal": true
+            },
+            {
+              "base": {
+                "scope": "document"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "ontos"
+                },
+                {
+                  "sel": "key",
+                  "name": "genre"
+                },
+                {
+                  "sel": "key",
+                  "name": "humor"
+                },
+                {
+                  "sel": "key",
+                  "name": "deadpan"
+                }
+              ],
+              "ordinal": true
+            },
+            {
+              "base": {
+                "scope": "link",
+                "authority": "yamlover"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "ontos"
+                },
+                {
+                  "sel": "key",
+                  "name": "colors"
+                },
+                {
+                  "sel": "key",
+                  "name": "yellow"
+                }
+              ],
+              "ordinal": true
+            },
+            {
+              "base": {
+                "scope": "link",
+                "authority": "yamlover"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "ontos"
+                },
+                {
+                  "sel": "key",
+                  "name": "fifth tag"
+                }
+              ],
+              "ordinal": true
+            },
+            {
+              "base": {
+                "scope": "link",
+                "authority": "yamlover"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "ontos"
+                },
+                {
+                  "sel": "key",
+                  "name": "first tag"
+                }
+              ],
+              "ordinal": true
             }
-          ]
+          ],
+          "entries": []
         }
       },
       {
@@ -657,153 +581,115 @@
           "array": false,
           "set": false,
           "yo": false,
-          "anchors": [],
-          "entries": [
+          "anchors": [
             {
-              "key": "yamlover-annotations",
-              "edge": "contain",
-              "value": {
-                "kind": "mapping",
-                "array": true,
-                "set": false,
-                "yo": false,
-                "anchors": [],
-                "entries": [
-                  {
-                    "key": null,
-                    "edge": "ref",
-                    "value": {
-                      "ptr": {
-                        "base": {
-                          "scope": "document"
-                        },
-                        "steps": [
-                          {
-                            "sel": "key",
-                            "name": "ontos"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "field"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "chemistry"
-                          }
-                        ]
-                      }
-                    }
-                  },
-                  {
-                    "key": null,
-                    "edge": "ref",
-                    "value": {
-                      "ptr": {
-                        "base": {
-                          "scope": "document"
-                        },
-                        "steps": [
-                          {
-                            "sel": "key",
-                            "name": "ontos"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "genre"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "brevity"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "empty-body"
-                          }
-                        ]
-                      }
-                    }
-                  },
-                  {
-                    "key": null,
-                    "edge": "ref",
-                    "value": {
-                      "ptr": {
-                        "base": {
-                          "scope": "document"
-                        },
-                        "steps": [
-                          {
-                            "sel": "key",
-                            "name": "ontos"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "genre"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "humor"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "satire"
-                          }
-                        ]
-                      }
-                    }
-                  },
-                  {
-                    "key": null,
-                    "edge": "ref",
-                    "value": {
-                      "ptr": {
-                        "base": {
-                          "scope": "link",
-                          "authority": "yamlover"
-                        },
-                        "steps": [
-                          {
-                            "sel": "key",
-                            "name": "ontos"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "colors"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "yellow"
-                          }
-                        ]
-                      }
-                    }
-                  },
-                  {
-                    "key": null,
-                    "edge": "ref",
-                    "value": {
-                      "ptr": {
-                        "base": {
-                          "scope": "link",
-                          "authority": "yamlover"
-                        },
-                        "steps": [
-                          {
-                            "sel": "key",
-                            "name": "ontos"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "first tag"
-                          }
-                        ]
-                      }
-                    }
-                  }
-                ]
-              }
+              "base": {
+                "scope": "document"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "ontos"
+                },
+                {
+                  "sel": "key",
+                  "name": "field"
+                },
+                {
+                  "sel": "key",
+                  "name": "chemistry"
+                }
+              ],
+              "ordinal": true
+            },
+            {
+              "base": {
+                "scope": "document"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "ontos"
+                },
+                {
+                  "sel": "key",
+                  "name": "genre"
+                },
+                {
+                  "sel": "key",
+                  "name": "brevity"
+                },
+                {
+                  "sel": "key",
+                  "name": "empty-body"
+                }
+              ],
+              "ordinal": true
+            },
+            {
+              "base": {
+                "scope": "document"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "ontos"
+                },
+                {
+                  "sel": "key",
+                  "name": "genre"
+                },
+                {
+                  "sel": "key",
+                  "name": "humor"
+                },
+                {
+                  "sel": "key",
+                  "name": "satire"
+                }
+              ],
+              "ordinal": true
+            },
+            {
+              "base": {
+                "scope": "link",
+                "authority": "yamlover"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "ontos"
+                },
+                {
+                  "sel": "key",
+                  "name": "colors"
+                },
+                {
+                  "sel": "key",
+                  "name": "yellow"
+                }
+              ],
+              "ordinal": true
+            },
+            {
+              "base": {
+                "scope": "link",
+                "authority": "yamlover"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "ontos"
+                },
+                {
+                  "sel": "key",
+                  "name": "first tag"
+                }
+              ],
+              "ordinal": true
             }
-          ]
+          ],
+          "entries": []
         }
       },
       {
@@ -819,102 +705,74 @@
           "array": false,
           "set": false,
           "yo": false,
-          "anchors": [],
-          "entries": [
+          "anchors": [
             {
-              "key": "yamlover-annotations",
-              "edge": "contain",
-              "value": {
-                "kind": "mapping",
-                "array": true,
-                "set": false,
-                "yo": false,
-                "anchors": [],
-                "entries": [
-                  {
-                    "key": null,
-                    "edge": "ref",
-                    "value": {
-                      "ptr": {
-                        "base": {
-                          "scope": "document"
-                        },
-                        "steps": [
-                          {
-                            "sel": "key",
-                            "name": "ontos"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "field"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "mathematics"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "number-theory"
-                          }
-                        ]
-                      }
-                    }
-                  },
-                  {
-                    "key": null,
-                    "edge": "ref",
-                    "value": {
-                      "ptr": {
-                        "base": {
-                          "scope": "document"
-                        },
-                        "steps": [
-                          {
-                            "sel": "key",
-                            "name": "ontos"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "genre"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "brevity"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "shortest-paper"
-                          }
-                        ]
-                      }
-                    }
-                  },
-                  {
-                    "key": null,
-                    "edge": "ref",
-                    "value": {
-                      "ptr": {
-                        "base": {
-                          "scope": "link",
-                          "authority": "yamlover"
-                        },
-                        "steps": [
-                          {
-                            "sel": "key",
-                            "name": "ontos"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "fifth tag"
-                          }
-                        ]
-                      }
-                    }
-                  }
-                ]
-              }
+              "base": {
+                "scope": "document"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "ontos"
+                },
+                {
+                  "sel": "key",
+                  "name": "field"
+                },
+                {
+                  "sel": "key",
+                  "name": "mathematics"
+                },
+                {
+                  "sel": "key",
+                  "name": "number-theory"
+                }
+              ],
+              "ordinal": true
+            },
+            {
+              "base": {
+                "scope": "document"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "ontos"
+                },
+                {
+                  "sel": "key",
+                  "name": "genre"
+                },
+                {
+                  "sel": "key",
+                  "name": "brevity"
+                },
+                {
+                  "sel": "key",
+                  "name": "shortest-paper"
+                }
+              ],
+              "ordinal": true
+            },
+            {
+              "base": {
+                "scope": "link",
+                "authority": "yamlover"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "ontos"
+                },
+                {
+                  "sel": "key",
+                  "name": "fifth tag"
+                }
+              ],
+              "ordinal": true
             }
-          ]
+          ],
+          "entries": []
         }
       },
       {
@@ -930,109 +788,81 @@
           "array": false,
           "set": false,
           "yo": false,
-          "anchors": [],
-          "entries": [
+          "anchors": [
             {
-              "key": "yamlover-annotations",
-              "edge": "contain",
-              "value": {
-                "kind": "mapping",
-                "array": true,
-                "set": false,
-                "yo": false,
-                "anchors": [],
-                "entries": [
-                  {
-                    "key": null,
-                    "edge": "ref",
-                    "value": {
-                      "ptr": {
-                        "base": {
-                          "scope": "document"
-                        },
-                        "steps": [
-                          {
-                            "sel": "key",
-                            "name": "ontos"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "field"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "psychology"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "behavior-analysis"
-                          }
-                        ]
-                      }
-                    }
-                  },
-                  {
-                    "key": null,
-                    "edge": "ref",
-                    "value": {
-                      "ptr": {
-                        "base": {
-                          "scope": "document"
-                        },
-                        "steps": [
-                          {
-                            "sel": "key",
-                            "name": "ontos"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "genre"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "brevity"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "empty-body"
-                          }
-                        ]
-                      }
-                    }
-                  },
-                  {
-                    "key": null,
-                    "edge": "ref",
-                    "value": {
-                      "ptr": {
-                        "base": {
-                          "scope": "document"
-                        },
-                        "steps": [
-                          {
-                            "sel": "key",
-                            "name": "ontos"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "genre"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "humor"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "deadpan"
-                          }
-                        ]
-                      }
-                    }
-                  }
-                ]
-              }
+              "base": {
+                "scope": "document"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "ontos"
+                },
+                {
+                  "sel": "key",
+                  "name": "field"
+                },
+                {
+                  "sel": "key",
+                  "name": "psychology"
+                },
+                {
+                  "sel": "key",
+                  "name": "behavior-analysis"
+                }
+              ],
+              "ordinal": true
+            },
+            {
+              "base": {
+                "scope": "document"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "ontos"
+                },
+                {
+                  "sel": "key",
+                  "name": "genre"
+                },
+                {
+                  "sel": "key",
+                  "name": "brevity"
+                },
+                {
+                  "sel": "key",
+                  "name": "empty-body"
+                }
+              ],
+              "ordinal": true
+            },
+            {
+              "base": {
+                "scope": "document"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "ontos"
+                },
+                {
+                  "sel": "key",
+                  "name": "genre"
+                },
+                {
+                  "sel": "key",
+                  "name": "humor"
+                },
+                {
+                  "sel": "key",
+                  "name": "deadpan"
+                }
+              ],
+              "ordinal": true
             }
-          ]
+          ],
+          "entries": []
         }
       }
     ]

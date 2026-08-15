@@ -49,7 +49,7 @@ import { pointerToken, schemaTagToken, serializeYamlover } from "../../../parser
 import { renderPointer, parsePointer } from "../../../parser/ts/src/pointer.ts";
 import { pathOfSegs, segsOfPath, segToken } from "../../../parser/ts/src/pathseg.ts";
 import { anchorBody, seqMarkLen, stripSeqMark } from "../../../parser/ts/src/serialize-common.ts";
-import { appendAnnotation, upsertFragment, upsertThumbnail, removeAnnotation as removeAnnotationItem, annotationsRemain, removeMapEntry, keyToken, appendAnnotationAt, upsertMapEntryAt, removeAnnotationAt, removeMapEntryAt, annotationsRemainAt, pruneEmptyAnnotations, pruneEmptyAnnotationsAt, reachBodyAt, pruneEmptyKeyAt, pruneEmptyYo, type Region as EmbedRegion } from "./embed.js";
+import { upsertFragment, upsertThumbnail, removeMapEntry, keyToken, upsertMapEntryAt, removeMapEntryAt, pruneEmptyAnnotations, reachBodyAt, pruneEmptyKeyAt, pruneEmptyYo, appendBookmark, appendBookmarkAt, removeBookmark, removeBookmarkAt, bookmarksRemain, bookmarksRemainAt, type Region as EmbedRegion } from "./embed.js";
 import { BODY_FILE, INDEX_FILE, OVERLAY_DIR, dataFileConcrete, dirConcreteFor, interiorOf, isDirConcrete, isOverlayDirConcrete, overlaySegs, pointerSafeName, type DirConcrete } from "../concrete.js";
 import { classifyScalar, isDefaultRepr, type BlockQualifiers, type Repr, type ScalarStyle } from "../repr.js";
 import { renderThumbnail } from "./extract/thumbnails.js";
@@ -1670,7 +1670,6 @@ function firstChunkText(s: Store, p: string): string | null {
 
 const ONTO_FORMAT = "x-yamlover-onto";
 const FRAGMENT_FORMAT = "x-yamlover-fragment";
-const ANN_KEY = "yamlover-annotations";
 // Fragments nest under the reserved `yo:` key (docs/annotations/fragments): `yo: fragments: <slug>`.
 const YO_KEY = "yo";
 const FRAGS_SUBKEY = "fragments";
@@ -1720,26 +1719,14 @@ function displayNameOf(s: Store, p: string): string | null {
  *  entry straight to the tag) or a `{tag, …params}` object (a `contain` entry whose `tag` field
  *  refs the tag and whose scalar children are parameters). */
 function readAnnotations(s: Store, hostStore: string): { tag: ReturnType<typeof projectTag>; description?: string; params?: Record<string, unknown> }[] {
-  const arr = childPath(hostStore, ANN_KEY);
-  if (!s.node(arr)) return [];
+  // MEMBERSHIP BY BOOKMARK (docs/annotations/applications): the node's ordinal `&…:-` bookmarks
+  // are `back` edges FROM it INTO the onto — keyless (label null; a keyed bookmark is an alias,
+  // never an application). Parameters ride the fragment as plain fields, read by the caller.
   const out: { tag: ReturnType<typeof projectTag>; description?: string; params?: Record<string, unknown> }[] = [];
-  for (const e of s.entries(arr)) {
-    if (e.kind === "ref") {
-      const tag = projectTag(s, e.to);
-      if (tag) out.push({ tag });
-    } else if (e.kind === "contain") {
-      const tagEdge = s.relationships(e.to).out.find((o) => o.kind === "ref" && o.label === "tag");
-      const tag = tagEdge ? projectTag(s, tagEdge.to) : null;
-      if (!tag) continue;
-      const params: Record<string, unknown> = {};
-      let description: string | undefined;
-      for (const c of s.children(e.to)) {
-        const v = s.node(c.to)?.value;
-        if (c.label === "description") description = v == null ? undefined : String(v);
-        else if (c.label) params[c.label] = v;
-      }
-      out.push({ tag, description, params: Object.keys(params).length ? params : undefined });
-    }
+  for (const e of s.relationships(hostStore).out) {
+    if (e.kind !== "back" || e.label != null) continue;
+    const tag = projectTag(s, e.to);
+    if (tag) out.push({ tag });
   }
   return out;
 }
@@ -1748,21 +1735,26 @@ function readAnnotations(s: Store, hostStore: string): { tag: ReturnType<typeof 
  *  read from the `yo: fragments:` mapping. A TEXT fragment's quoted text is the member's
  *  SELF-VALUE (docs/annotations/fragments) — materialized onto the wire as `selector.exact`, so
  *  every consumer keeps the W3C shape. `image` is a `*` pointer (a ref edge) to the crop. */
-function readFragments(s: Store, hostStore: string): { slug: string; node: string; selector: Record<string, unknown>; imageUrl?: string }[] {
+function readFragments(s: Store, hostStore: string): { slug: string; node: string; selector: Record<string, unknown>; description?: string; imageUrl?: string }[] {
   const frags = childPath(childPath(hostStore, YO_KEY), FRAGS_SUBKEY);
   if (!s.node(frags)) return [];
-  const out: { slug: string; node: string; selector: Record<string, unknown>; imageUrl?: string }[] = [];
+  const out: { slug: string; node: string; selector: Record<string, unknown>; description?: string; imageUrl?: string }[] = [];
   for (const fc of s.children(frags)) {
     if (!fc.label) continue;
     const selector: Record<string, unknown> = {};
+    let description: string | undefined;
     const self = s.node(fc.to)?.value;
     if (self != null) selector.exact = String(self);
     for (const c of s.children(fc.to)) {
-      if (c.label && c.label !== ANN_KEY && c.label !== "created") selector[c.label] = s.node(c.to)?.value;
+      if (!c.label || c.label === "created") continue;
+      // open fragment data (docs/annotations/fragments): the selector locates; `description`
+      // (and future extras) are commentary, surfaced beside it rather than inside it
+      if (c.label === "description") { const v = s.node(c.to)?.value; description = v == null ? undefined : String(v); continue; }
+      selector[c.label] = s.node(c.to)?.value;
     }
     const imgEdge = s.relationships(fc.to).out.find((o) => o.kind === "ref" && o.label === "image");
     const imageUrl = imgEdge ? `/api/blob?path=${encodeURIComponent(segsToStr(storePathToSegs(imgEdge.to)))}` : undefined;
-    out.push({ slug: fc.label, node: fc.to, selector, imageUrl });
+    out.push({ slug: fc.label, node: fc.to, selector, description, imageUrl });
   }
   return out;
 }
@@ -1780,7 +1772,11 @@ function annotationsFor(dataRoot: string, s: Store, segs: Seg[]): unknown[] {
     for (const a of readAnnotations(s, hostStore)) out.push({ ...a, node: nodeClient });
     for (const f of readFragments(s, hostStore)) {
       for (const a of readAnnotations(s, f.node)) {
-        out.push({ ...a, node: nodeClient, selector: f.selector, fragmentSlug: f.slug, ...(f.imageUrl ? { imageUrl: f.imageUrl } : {}) });
+        out.push({
+          ...a, node: nodeClient, selector: f.selector, fragmentSlug: f.slug,
+          ...(f.description ? { description: f.description } : {}),
+          ...(f.imageUrl ? { imageUrl: f.imageUrl } : {}),
+        });
       }
     }
   };
@@ -1792,27 +1788,21 @@ function annotationsFor(dataRoot: string, s: Store, segs: Seg[]): unknown[] {
   return out;
 }
 
-/** The MATERIALS filed under a tag — the reverse of the forward `*::tag` pointers authored in
- *  `yamlover-annotations` arrays (a bare element's edge from the array, an object element's `tag`
- *  field, or a legacy direct `~`/`&` membership). Each is climbed to its owning material or
- *  fragment and deduped, ordered lexicographically by path. For an ARBITRARY node (any node can
- *  be a tag now) only annotation-array edges count — an ordinary pointer into it is not a
- *  tagging; the direct-membership read stays for x-yamlover-onto pages. */
+/** The MATERIALS filed under an onto — its MEMBERS (docs/annotations/derivation): every keyless
+ *  `&…:-` bookmark INTO it (a `back` edge from the member) plus every forward-authored keyless
+ *  `- *: member` row of its own. Keyed edges are aliases/links, never applications. Each member
+ *  is deduped and ordered lexicographically by path. */
 function taggedMaterials(dataRoot: string, s: Store, tagStorePath: string): unknown[] {
-  const legacyDirect = s.node(tagStorePath)?.format === ONTO_FORMAT;
   const seen = new Set<string>();
   const out: unknown[] = [];
-  const ins = s.relationships(tagStorePath).in
-    .filter((e) => (e.kind === "ref" || e.kind === "back") && e.from)
-    .sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0));
-  for (const e of ins) {
-    // strip the annotation ELEMENT's trailing positional segment (`:0`; the retired `[0]` too,
-    // for a pre-migration index) to reach the `yamlover-annotations` array itself
-    const arrOwner = e.from.replace(/(?::\d+|\[\d+\])$/, "").match(/^(.*):yamlover-annotations$/);
-    if (!arrOwner && !legacyDirect) continue; // an ordinary inbound ref is not a tag application
-    const owner = arrOwner ? arrOwner[1] || ":" : e.from; // an annotation array → its host; else a direct member
-    // skip the tag itself, dups, missing nodes, and any owner in the hidden `.yo` overlay
-    // subtree (e.g. settings.yo, whose `annotation-tag:` pointer back-references this tag)
+  const rel = s.relationships(tagStorePath);
+  const members = [
+    ...rel.in.filter((e) => e.kind === "back" && e.label == null && e.from).map((e) => e.from),
+    ...rel.out.filter((e) => e.kind === "ref" && e.label == null).map((e) => e.to),
+  ].sort();
+  for (const owner of members) {
+    // skip the onto itself, dups, missing nodes, and any member in the hidden `.yo` overlay
+    // subtree (e.g. settings.yo, whose `annotation-tag:` pointer back-references this onto)
     if (owner === tagStorePath || seen.has(owner) || !s.node(owner) || inHiddenSubtree(s, owner)) continue;
     seen.add(owner);
     out.push(linkMarker(dataRoot, s, storePathToSegs(owner)));
@@ -1929,17 +1919,6 @@ function hostFor(dataRoot: string, s: Store, segs: Seg[]): { bodyFile: string; w
   return { bodyFile: dirBodyFile(dataRoot), within: segs.map(String) };
 }
 
-/** One `yamlover-annotations` element's source lines at the list `indent`: a bare tag pointer when
- *  there are no parameters, else a `{tag, …}` object (block form). */
-function annotationItemLines(a: AnnotateInput, indent: number): string[] {
-  const pad = " ".repeat(indent);
-  const ptr = pointerToken(pointerRaw(a.tag));
-  const params: Record<string, unknown> = { ...(a.params ?? {}) };
-  if (a.description != null && a.description !== "") params.description = a.description;
-  const keys = Object.keys(params);
-  if (keys.length === 0) return [`${pad}- ${ptr}`];
-  return [`${pad}- tag: ${ptr}`, ...keys.map((k) => `${pad}  ${keyToken(k)}: ${yScalar(params[k])}`)];
-}
 
 /** A fragment's source lines at the fragments-map `indent` (`<slug>:` + selector + crop + created),
  *  tagged so it indexes as an x-yamlover-fragment node. A TEXT selector's `exact` is spelled as
@@ -1956,25 +1935,36 @@ function fragmentBlockLines(slug: string, selector: Record<string, unknown>, ima
   return lines;
 }
 
-/** Embed a tag application into the target's `yamlover-annotations` array (editing the target's
- *  host body in place — docs/annotations). */
+/** Whether a seg path names a fragment member (`…:yo:fragments:<slug>`). */
+const isFragmentSegs = (segs: Seg[]): boolean =>
+  segs.length >= 3 && segs[segs.length - 3] === YO_KEY && segs[segs.length - 2] === FRAGS_SUBKEY;
+
+/** File the target under an onto: ONE membership bookmark on the target (`&<onto>:-`, own-line,
+ *  top of the field block — docs/annotations/applications). An application carries no data of its
+ *  own; a `description`/params ride the target FRAGMENT as plain fields. */
 function embedAnnotation(dataRoot: string, s: Store, a: AnnotateInput): string {
   const segs = strToSegs(a.target || ":");
-  // A tag ON a chunk fragment (`:chapter[k]:yo:fragments:<slug>`) descends past a body index:
-  // reach the chunk field-region, then the fragment's own body, and append there.
+  const params: Record<string, unknown> = { ...(a.params ?? {}) };
+  if (a.description != null && a.description !== "") params.description = a.description;
+  if (Object.keys(params).length && !isFragmentSegs(segs)) {
+    throw new Error("annotation parameters live on a fragment (docs/annotations/applications)");
+  }
+  const tokens = [`&${pointerRaw(a.tag)}:-`, ...Object.entries(params).map(([k, v]) => `${keyToken(k)}: ${yScalar(v)}`)];
+  // A membership ON a chunk fragment (`:chapter[k]:yo:fragments:<slug>`) descends past a body
+  // index: reach the chunk field-region, then the fragment's own body, and bookmark there.
   if (isChunkTarget(s, segs)) {
     const { docSegs, bodyFile } = chapterSource(dataRoot, s, segs);
     const { indices, keys } = splitChunkWithin(segs.slice(docSegs.length));
     const lines = fs.readFileSync(bodyFile, "utf8").replace(/\n$/, "").split("\n");
     const region = reachBodyAt(lines, chunkFieldRegion(lines, indices, /*ensureOmni*/ true), keys);
-    appendAnnotationAt(lines, region, (indent) => annotationItemLines(a, indent));
+    appendBookmarkAt(lines, region, tokens);
     writeBody(dataRoot, s, bodyFile, lines.join("\n") + "\n");
     return bodyFile;
   }
   const { bodyFile, within } = hostFor(dataRoot, s, segs);
   mkdirInside(dataRoot, path.dirname(bodyFile), { recursive: true });
   const src = fs.existsSync(bodyFile) ? fs.readFileSync(bodyFile, "utf8") : "";
-  writeBody(dataRoot, s, bodyFile, appendAnnotation(src, within, (indent) => annotationItemLines(a, indent)));
+  writeBody(dataRoot, s, bodyFile, appendBookmark(src, within, tokens));
   return bodyFile;
 }
 
@@ -2084,24 +2074,29 @@ async function ensureThumbnail(dataRoot: string, s: Store, mode: SidecarLocation
  *  fragments and the host node are untouched. */
 function unembedAnnotation(dataRoot: string, s: Store, target: string, tag: string): string {
   const segs = strToSegs(target || ":");
+  // Match on the onto's colon-PATH, tolerating the bookmark's spelling (compact or spaced,
+  // project or graft scope). Strip whitespace on BOTH sides before the substring test — a
+  // spacey-named onto is a QUOTED key, and only the stripped forms compare equal.
   const needle = (":" + pointerRaw(tag).replace(/^:+/, "")).replace(/\s+/g, "");
-  // A tag ON a chunk fragment: reach the chunk field-region + the fragment's body, drop the tag, and
-  // — when that was its last — drop the emptied slug and collapse the chunk back to a plain block.
+  const pred = (line: string): boolean => {
+    const t = line.replace(/\s+/g, "");
+    return t.startsWith("&") && t.includes(needle) && /:-$/.test(t);
+  };
+  // A membership ON a chunk fragment: reach the chunk field-region + the fragment's body, drop
+  // the bookmark, and — when that was its last — drop the emptied slug and collapse the chunk.
   if (isChunkTarget(s, segs)) {
     const { docSegs, bodyFile } = chapterSource(dataRoot, s, segs);
     if (!fs.existsSync(bodyFile)) return bodyFile;
     const { indices, keys } = splitChunkWithin(segs.slice(docSegs.length));
     const lines = fs.readFileSync(bodyFile, "utf8").replace(/\n$/, "").split("\n");
     const fragRegion = () => reachBodyAt(lines, chunkFieldRegion(lines, indices, /*ensureOmni*/ false), keys);
-    removeAnnotationAt(lines, fragRegion, (t) => t.replace(/\s+/g, "").includes(needle));
-    if (keys.length >= 3 && keys[keys.length - 3] === YO_KEY && keys[keys.length - 2] === FRAGS_SUBKEY && !annotationsRemainAt(lines, fragRegion())) {
+    removeBookmarkAt(lines, fragRegion, pred);
+    if (isFragmentSegs(keys as Seg[]) && !bookmarksRemainAt(lines, fragRegion())) {
       removeMapEntryAt(lines, reachBodyAt(lines, chunkFieldRegion(lines, indices, false), keys.slice(0, -2)), FRAGS_SUBKEY, keys[keys.length - 1]);
       pruneEmptyKeyAt(lines, chunkFieldRegion(lines, indices, false), YO_KEY); // the emptied `yo:` husk
       collapseChunkOmni(lines, indices); // no fields left → back to a plain `- |` chunk
-    } else if (keys.length === 0 && !annotationsRemainAt(lines, fragRegion())) {
-      // the CHUNK's last whole-node tag: drop the emptied `yamlover-annotations:` husk and — when
-      // that was the omni's only field — collapse the chunk back to a plain block
-      pruneEmptyAnnotationsAt(lines, fragRegion());
+    } else if (keys.length === 0 && !bookmarksRemainAt(lines, fragRegion())) {
+      // the CHUNK's last whole-node membership: when the omni carries nothing else, collapse
       collapseChunkOmni(lines, indices);
     }
     writeBody(dataRoot, s, bodyFile, lines.join("\n") + "\n");
@@ -2109,25 +2104,18 @@ function unembedAnnotation(dataRoot: string, s: Store, target: string, tag: stri
   }
   const { bodyFile, within } = hostFor(dataRoot, s, segs);
   if (!fs.existsSync(bodyFile)) return bodyFile;
-  // Match on the tag's colon-PATH (`:ontos:…:name`), tolerating the pointer's spelling: an item may
-  // be project-scope (`*::ontos:…`), document-scope (`*: tags: …`, spaced), bare or an object form.
-  // Strip whitespace on BOTH sides before the substring test: the item's, to fold a spaced scope
-  // (`*: tags: …`), AND the needle's — a tag NAME with a space is a QUOTED key (`'fifth tag'`), so
-  // the stored item reads `'fifthtag'` once stripped; an unstripped needle (`'fifth tag'`) would
-  // then never match (every spacey-named tag was undeletable).
-  let src = removeAnnotationItem(fs.readFileSync(bodyFile, "utf8"), within, (itemText) => itemText.replace(/\s+/g, "").includes(needle));
+  let src = removeBookmark(fs.readFileSync(bodyFile, "utf8"), within, pred);
   // Host-key pruning applies only to an OVERLAY body (`.yo/body.yo` or `index.yo`) — its keys (a
   // filename spine) exist solely to host overlay entries. An in-place document's keys are the
-  // user's data: a pre-existing empty mapping must not vanish because a tag passed through it.
+  // user's data: a pre-existing empty mapping must not vanish because a membership passed through.
   const overlay = overlaidDir(bodyFile) !== null;
   // within = [...host, "yo", "fragments", "<slug>"] for a fragment target; drop it when emptied.
-  if (within.length >= 3 && within[within.length - 3] === YO_KEY && within[within.length - 2] === FRAGS_SUBKEY && !annotationsRemain(src, within)) {
+  if (isFragmentSegs(within as Seg[]) && !bookmarksRemain(src, within)) {
     src = removeMapEntry(src, within.slice(0, -2), FRAGS_SUBKEY, within[within.length - 1]);
     src = pruneEmptyYo(src, within.slice(0, -3)); // the emptied `yo:` husk
     src = pruneEmptyAnnotations(src, within.slice(0, -3), overlay); // the host may hold nothing else now
   } else {
-    // untagging the last tag: drop the emptied `yamlover-annotations:` husk (a null-valued orphan
-    // key otherwise) and, in an overlay, the host keys emptied with it
+    // a whole-node unfiling may empty an overlay host key (a filename spine) — prune it
     src = pruneEmptyAnnotations(src, within, overlay);
   }
   writeBody(dataRoot, s, bodyFile, src);
@@ -3526,9 +3514,25 @@ function assignAt(lines: string[], r: Region, seg: Seg | undefined, op: string, 
       : `${pad}- - ${tag ? tag + " " : ""}${next.scalar ?? '""'}`) + (headTrail ?? "");
     return;
   }
+  // THE MEMBERSHIP LAW (docs/annotations/applications): `&` bookmark lines are edges, never a
+  // facet a payload could carry — an emplace re-render carries them over unchanged; `replace`
+  // (the clean-slate verb) drops them with everything else.
+  const anchorLines = op === "emplace"
+    ? lines.slice(entry.start + 1, entry.end).filter((l) => isContentLine(l) && indentOf(l) === r.indent + 2 && l.trim().startsWith("&"))
+    : [];
   const rendered = renderNode(next, r.indent, marker(seg), tag);
   if (headTrail !== null && rendered.length > 0 && trailingCommentOf(rendered[0]) === null) rendered[0] += headTrail;
-  lines.splice(entry.start, entry.end - entry.start, ...rendered);
+  // …but a payload that spells anchors of its own (the yed anchor-row edit round-trips the whole
+  // node source) is EDITING them — it wins, and nothing is carried over.
+  const payloadHasAnchors = rendered.some((l) => isContentLine(l) && l.trim().startsWith("&"));
+  const carried = payloadHasAnchors ? [] : anchorLines;
+  if (carried.length && rendered.length > 1 && /[|>][+-]?\s*$/.test(rendered[0].replace(/\s+#.*$/, ""))) {
+    // a BLOCK-scalar entry keeps its anchors only in the OMNI layout — content one step deeper
+    // than the anchor column (the same shape convertChunkToOmni writes), else the `&` line would
+    // be absorbed as scalar content
+    for (let i = 1; i < rendered.length; i++) if (rendered[i].trim()) rendered[i] = "  " + rendered[i];
+  }
+  lines.splice(entry.start, entry.end - entry.start, ...rendered, ...carried);
 }
 
 // --- chunk fragments (docs/annotations/storage): a text fragment lives ON the chunk it was drawn in ----- //

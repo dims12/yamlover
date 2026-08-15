@@ -67,8 +67,8 @@ describe("GET /api/tagged", () => {
   it("dedups: two annotations applying the same tag to one material show it once", async () => {
     const h = createHandlers(tmpTree({ name: "Alice", ...TAG_FILE }), { gitignore: false });
     await h.ready;
-    await callBody(h, "POST", "/api/annotate", { target: ":name", tag: TAG, description: "first" });
-    await callBody(h, "POST", "/api/annotate", { target: ":name", tag: TAG, description: "second" });
+    await callBody(h, "POST", "/api/annotate", { target: ":name", tag: TAG });
+    await callBody(h, "POST", "/api/annotate", { target: ":name", tag: TAG });
 
     const r = call(h, "/api/tagged", { path: TAG });
     expect(r.json).toHaveLength(1);

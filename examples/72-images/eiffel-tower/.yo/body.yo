@@ -8,10 +8,9 @@
       h: 277
       image: *:.yo:fragments:mqee46pt-m1wdko.png
       created: 2026-06-14T23:03:07.266Z
-      yamlover-annotations:
-      - *::yamlover:ontos:'fifth tag'
-      - *::yamlover:ontos:'forth tag'
-      - *::yamlover:ontos:верхушка
+      &::yamlover:ontos:'fifth tag':-
+      &::yamlover:ontos:'forth tag':-
+      &::yamlover:ontos:верхушка:-
     mqgw3srv-bi70ib: !!<*::yamlover:$defs:fragment>
       type: "rect"
       x: 182
@@ -20,8 +19,7 @@
       h: 198
       image: *:.yo:fragments:mqgw3srv-bi70ib.png
       created: 2026-06-16T17:02:14.638Z
-      yamlover-annotations:
-      - *::yamlover:ontos:'fifth tag'
+      &::yamlover:ontos:'fifth tag':-
     mqgw40jq-18b8iw: !!<*::yamlover:$defs:fragment>
       type: "rect"
       x: 402
@@ -30,9 +28,8 @@
       h: 148
       image: *:.yo:fragments:mqgw40jq-18b8iw.png
       created: 2026-06-16T17:02:24.710Z
-      yamlover-annotations:
-      - *::yamlover:ontos:'fifth tag'
-      - *::yamlover:ontos:'forth tag'
+      &::yamlover:ontos:'fifth tag':-
+      &::yamlover:ontos:'forth tag':-
   yamlover-thumbnails:
     [512, 512]: *:.yo:thumbnails:xxh64-1b5282b9d3435166-512x512.jpg
     [256, 256]: *:.yo:thumbnails:xxh64-1b5282b9d3435166-256x256.jpg
@@ -49,8 +46,7 @@
       h: 390
       image: *:.yo:fragments:mqgw4p2e-2wif88.png
       created: 2026-06-16T17:02:56.487Z
-      yamlover-annotations:
-      - *::yamlover:ontos:'forth tag'
+      &::yamlover:ontos:'forth tag':-
 "IMG_20120725_194255.jpg":
   yamlover-thumbnails:
     [512, 512]: *:.yo:thumbnails:xxh64-e62188f8d066c01c-512x512.jpg

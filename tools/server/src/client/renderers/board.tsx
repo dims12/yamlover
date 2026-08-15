@@ -5,7 +5,7 @@ import { READ_ONLY } from "../base";
 import { useDropConfirm } from "../DropConfirm";
 import { memberItems } from "./explorer";
 import { touchesYamlover, useDiffBump } from "../live";
-import { resolveTagColor, tagFields, tagStyle } from "./tag";
+import { membershipsOf, resolveTagColor, tagFields, tagStyle } from "./tag";
 import { displayPath } from "../paths";
 import { fetchWorkflowStates, WorkflowState, stateDetail, moveState, targetPath } from "./workflow";
 import { AnnotationMenu } from "./annotate";
@@ -136,7 +136,7 @@ export function BoardView({
         const builtCards = await Promise.all(
           members.map(async (tp): Promise<Card> => {
             const tn = await fetchNode(tp, 2);
-            return { path: tp, title: tn.title ?? lastSeg(tp), priority: scalarField(tn.value, "priority"), assignee: scalarField(tn.value, "assignee"), due: scalarField(tn.value, "due"), tags: tagsInValue(tn.value) };
+            return { path: tp, title: tn.title ?? lastSeg(tp), priority: scalarField(tn.value, "priority"), assignee: scalarField(tn.value, "assignee"), due: scalarField(tn.value, "due"), tags: membershipsOf(tn) };
           }),
         );
         if (cancelled) return;

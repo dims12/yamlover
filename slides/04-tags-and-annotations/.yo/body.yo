@@ -21,7 +21,7 @@ description: Filing without choosing a folder, and marking up a region of anythi
     TODO — docs/annotations. Applying a tag writes an annotation on the document that
     points at the tag node. The edge is data, and it is visible in the source.
   - |
-    TODO — show the `yamlover-annotations` entry in the yamlover tab.
+    TODO — show the `&…:-` membership bookmark in the yamlover tab.
 - Sub-tags, because taxonomies grow
   notes: |
     TODO — a tag under a tag; querying the parent finds the children's members too.

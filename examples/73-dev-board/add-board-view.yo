@@ -6,6 +6,5 @@ assignee: claude
 estimate: 1d
 - Lanes come from the board's `workflow:` states; cards are the task members.
 - A drag DELETEs the old state annotation and POSTs the new one — reusing `/api/annotate`.
-yamlover-annotations:
-- *::yamlover:ontos:colors:yellow
-- *::yamlover:ontos:workflow:dev:ready
+&::yamlover:ontos:colors:yellow:-
+&::yamlover:ontos:workflow:dev:ready:-

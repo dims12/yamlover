@@ -280,8 +280,9 @@ test('schema propagation: `items: {anyOf:[chapter, chunk]}` routes container→c
     '  - deep chunk',
     '- - an untitled subchapter (no self-value, only body)',
     '- an annotated chunk stays a chunk',
-    '  yamlover-annotations:',
-    '  - a tag application',
+    '  yo:',
+    '    fragments:',
+    '      s1: chunk',
     '- !!yo',
     '  species: cat',
     '  - keyless',
@@ -429,28 +430,24 @@ test('schema propagation: `allOf:[chapter]` (task extends chapter) inherits body
   rmSync(root, { recursive: true, force: true });
 });
 
-test('67-pdf-tags (instance): omni-blobs (file + embedded annotations) + a tag taxonomy', () => {
+test('67-pdf-tags (instance): filed blobs (membership bookmarks) + an ontology', () => {
   const s = new Store(':memory:');
   s.indexDocument(walkDir(examples));
   const R = ':67-pdf-tags';
   // the tag taxonomy gets x-yamlover-onto propagated down the open-keyed tree
   assert.equal(s.node(R + ':ontos')?.format, 'x-yamlover-onto');
   assert.equal(s.node(R + ':ontos:field:mathematics:number-theory')?.format, 'x-yamlover-onto');
-  // a paper is the real file (a blob) AUGMENTED with an owned `yamlover-annotations` array — an
-  // omni-blob (binary value + a field), the EMBEDDED tagging model (docs/annotations).
+  // a paper is the real file (a blob) FILED by `&…:-` membership bookmarks — back edges into
+  // the ontos, never owned entries (docs/annotations/applications).
   const euler = R + ':S0002-9904-1966-11654-3.pdf';
   assert.equal(s.node(euler)?.type, 'blob');
   assert.equal(s.node(euler)?.format, 'application/pdf');
-  assert.ok(s.entries(euler).some((e) => e.kind === 'contain' && e.label === 'yamlover-annotations'));
-  // a tag application is a FORWARD ref from the paper's array straight to the leaf tag (no slug
-  // label) — the reverse direction of the old `&`-anchor membership.
-  const anns = euler + ':yamlover-annotations';
-  const tags = s.entries(anns).filter((e) => e.kind === 'ref').map((e) => e.to);
-  assert.ok(tags.includes(R + ':ontos:field:mathematics:number-theory'));
-  assert.ok(tags.includes(R + ':ontos:genre:brevity:shortest-paper'));
-  // the tag sees the paper's array as an incoming ref (the derived reverse → "materials under a tag")
+  const filed = s.relationships(euler).out.filter((e) => e.kind === 'back').map((e) => e.to);
+  assert.ok(filed.includes(R + ':ontos:field:mathematics:number-theory'));
+  assert.ok(filed.includes(R + ':ontos:genre:brevity:shortest-paper'));
+  // the onto sees the paper as an incoming back edge (its member — "materials under an onto")
   const nt = R + ':ontos:field:mathematics:number-theory';
-  assert.ok(s.relationships(nt).in.some((e) => e.kind === 'ref' && e.from === anns));
+  assert.ok(s.relationships(nt).in.some((e) => e.kind === 'back' && e.from === euler));
   s.close();
 });
 

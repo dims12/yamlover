@@ -13,6 +13,5 @@ assignee: dims
   - The dual CI on version bump handles GitHub→npmjs (OIDC) and Forgejo→Nexus.
 - Write the announcement
   - A short note covering tasks/boards and the colon-grammar migration.
-yamlover-annotations:
-- *::yamlover:ontos:workflow:dev:done
-- *::yamlover:ontos:colors:yellow
+&::yamlover:ontos:workflow:dev:done:-
+&::yamlover:ontos:colors:yellow:-

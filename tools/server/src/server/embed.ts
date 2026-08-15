@@ -229,6 +229,70 @@ export function pruneEmptyKeyAt(lines: string[], region: Region, key: string): b
   return true;
 }
 
+// --------------------------------------------------------------------------- //
+// MEMBERSHIP BOOKMARKS (docs/annotations/applications): applying an onto is one
+// own-line `&…:-` bookmark on the target — written at the TOP of the node's field
+// block (the canonical after-the-value position), removed by needle match.
+// Bookmark lines are not entries, so a scalar carrying only bookmarks stays a scalar.
+// --------------------------------------------------------------------------- //
+
+const isBookmarkLine = (line: string): boolean => line.trim().startsWith("&");
+
+/** Append a membership bookmark line (`tokens[0]`, e.g. `&::ontos:topic:math:-`) at the END of
+ *  the node's field block — the position the annotate flow has always grown a node from — plus
+ *  any further `tokens` (parameter field lines) right behind it. Mutates `lines`. */
+export function appendBookmarkAt(lines: string[], region: Region, tokens: string[]): void {
+  const at = trimBack(lines, region.lo - 1, region.hi);
+  lines.splice(at, 0, ...tokens.map((t) => `${" ".repeat(region.indent)}${t}`));
+}
+
+/** {@link appendBookmarkAt} by mapping-key path (creates missing keys). */
+export function appendBookmark(text: string, within: string[], tokens: string[]): string {
+  const lines = text.replace(/\n$/, "").split("\n");
+  appendBookmarkAt(lines, reachBody(lines, within), tokens);
+  return lines.join("\n") + "\n";
+}
+
+/** Remove every bookmark line of the node at `region` whose trimmed text matches `predicate`.
+ *  `region` is a thunk (splices shift indices). Returns whether anything was removed. */
+export function removeBookmarkAt(lines: string[], region: () => Region, predicate: (line: string) => boolean): boolean {
+  let removed = false;
+  for (;;) {
+    const r = region();
+    let hit = -1;
+    for (let i = r.lo; i < r.hi; i++) {
+      if (isContentLine(lines[i]) && indentOf(lines[i]) === r.indent && isBookmarkLine(lines[i]) && predicate(lines[i].trim())) { hit = i; break; }
+    }
+    if (hit < 0) break;
+    lines.splice(hit, 1);
+    removed = true;
+  }
+  return removed;
+}
+
+/** {@link removeBookmarkAt} by mapping-key path (read-only descent — absent path is a no-op). */
+export function removeBookmark(text: string, within: string[], predicate: (line: string) => boolean): string {
+  const lines = text.replace(/\n$/, "").split("\n");
+  const region = findBody(lines, within);
+  if (!region) return text;
+  return removeBookmarkAt(lines, () => findBody(lines, within) ?? region, predicate) ? lines.join("\n") + "\n" : text;
+}
+
+/** Whether the node at `region` still carries any membership bookmark line. */
+export function bookmarksRemainAt(lines: string[], region: Region): boolean {
+  for (let i = region.lo; i < region.hi; i++) {
+    if (isContentLine(lines[i]) && indentOf(lines[i]) === region.indent && isBookmarkLine(lines[i])) return true;
+  }
+  return false;
+}
+
+/** {@link bookmarksRemainAt} by mapping-key path (read-only). */
+export function bookmarksRemain(text: string, within: string[]): boolean {
+  const lines = text.replace(/\n$/, "").split("\n");
+  const region = findBody(lines, within);
+  return region !== null && bookmarksRemainAt(lines, region);
+}
+
 /** Drop an emptied `yo:` husk on the node at `within` (text-level twin of
  *  {@link pruneEmptyKeyAt}) — after the last fragment went, the reserved key must not linger. */
 export function pruneEmptyYo(text: string, within: string[]): string {

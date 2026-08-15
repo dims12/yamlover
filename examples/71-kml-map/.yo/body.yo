@@ -7,5 +7,4 @@
       e: 13.366348743438722
       w: 13.362057209014893
       created: 2026-06-14T23:02:38.975Z
-      yamlover-annotations:
-      - *::yamlover:ontos:'forth tag'
+      &::yamlover:ontos:'forth tag':-

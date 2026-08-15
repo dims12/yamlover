@@ -15,7 +15,6 @@ description: Data islands and spellings
   - one
   - two
 - Annotated prose carries an overlay.
-  yamlover-annotations:
     - *: ontos: important
 - *: data.csv
 - *: ontos

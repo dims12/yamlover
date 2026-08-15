@@ -123,7 +123,7 @@ describe("/api/tag (create)", () => {
     // with the tag written as a RAW (un-encoded) project-scoped pointer (spacey key quoted).
     const overlay = fs.readFileSync(path.join(root, "Санкт-Петербург", ".yo", "body.yo"), "utf8");
     expect(overlay).toContain('"img.txt":');
-    expect(overlay).toContain("*::ontos:'исаакиевский собор'");
+    expect(overlay).toContain("&::ontos:'исаакиевский собор':-");
 
     expect((await callBody(h, "POST", "/api/reindex", {})).status).toBe(200);
     const list = call(h, "/api/annotations", { path: target }).json;
@@ -208,24 +208,20 @@ describe("any node as a tag", () => {
   });
 });
 
-// docs/language/logical-graph/matching: tagging a node turns it OMNI — keyed tag applications laid over its own value — and
-// nothing about how it READS may change. A chapter's title is a keyed scalar child, so annotating it
-// gives that child a child of its own; reading the title by "a CHILDLESS scalar" lost it entirely.
-describe("annotating a node never changes how it reads", () => {
-  it("an annotated string stays a scalar — it just also has a child (an omni/variant node)", async () => {
+// docs/annotations/applications: a membership is a BOOKMARK — never an entry — so filing a node
+// changes NOTHING about its shape: a scalar stays a childless scalar, and every reader is unmoved.
+describe("filing a node never changes how it reads", () => {
+  it("a filed string stays a plain childless scalar — a bookmark is not an entry", async () => {
     const root = tmpTree({ "chap.yo": 'title: "T"\nother: "x"\n' });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
     const tag = await callBody(h, "POST", "/api/tag", { name: "important" });
     await callBody(h, "POST", "/api/annotate", { target: ":chap.yo:title", tag: tag.json.path });
 
-    // both matchers demand a `scalar` ROW (query.ts) — so the row kept its type and gained a child
     const q = (m: string): string[] => call(h, "/api/query", { q: `...:!!<type: ${m}>`, path: ":" }).json.results;
-    expect(q("string")).toContain(":chap.yo:title");
-    expect(q("variant")).toContain(":chap.yo:title"); // scalar + own child = omni (long alias reads forever)
-    expect(q("variant")).not.toContain(":chap.yo:other"); // an unannotated sibling is not
-    expect(q("omni")).toContain(":chap.yo:title"); // the ruled short spelling matches the same rows
-    expect(q("omni")).not.toContain(":chap.yo:other");
+    expect(q("string")).toContain(":chap.yo:title"); // still a plain string…
+    expect(q("variant")).not.toContain(":chap.yo:title"); // …and NOT an omni: the bookmark added no child
+    expect(q("omni")).not.toContain(":chap.yo:title");
   });
 
   it("a chapter keeps its title after the title itself is annotated", async () => {
@@ -607,7 +603,7 @@ describe("/api/paste (rich — an HTML selection: image chunks + heading subchap
 describe("agile board — drag = re-tag a task's state", () => {
   it("moves a task between state lanes and rewrites its on-disk annotation", async () => {
     const root = tmpTree({
-      "mytask.yo": ["!!<*yamlover:$defs:task>", "title: Wire the widget", "yamlover-annotations:", "- *::ontos:state:backlog", ""].join("\n"),
+      "mytask.yo": ["!!<*yamlover:$defs:task>", "title: Wire the widget", "&::ontos:state:backlog:-", ""].join("\n"),
       "ontos/.yo/body.yo": ["!!<*yamlover:$defs:onto>", "state: Lifecycle states", "  backlog: Captured", "  in-progress: Working", ""].join("\n"),
     });
     const h = createHandlers(root, { gitignore: false });
@@ -631,7 +627,7 @@ describe("agile board — drag = re-tag a task's state", () => {
     expect(column(":ontos:state:in-progress")).toContain(":mytask.yo");
     expect(column(":ontos:state:backlog")).not.toContain(":mytask.yo");
     const body = fs.readFileSync(path.join(root, "mytask.yo"), "utf8");
-    expect(body).toContain("*::ontos:state:in-progress");
+    expect(body).toContain("&::ontos:state:in-progress:-");
     expect(body).not.toContain("state:backlog");
   });
 });

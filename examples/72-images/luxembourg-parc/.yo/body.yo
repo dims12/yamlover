@@ -16,7 +16,6 @@
       h: 447
       image: *:.yo:fragments:mqgzjq12-09ktac.png
       created: 2026-06-16T18:38:36.423Z
-      yamlover-annotations:
     mqgzkr8b-o80pq1: !!<*::yamlover:$defs:fragment>
       type: "rect"
       x: 1255
@@ -25,7 +24,6 @@
       h: 239
       image: *:.yo:fragments:mqgzkr8b-o80pq1.png
       created: 2026-06-16T18:39:24.635Z
-      yamlover-annotations:
     mqgzkx76-qboh2g: !!<*::yamlover:$defs:fragment>
       type: "rect"
       x: 598
@@ -34,7 +32,6 @@
       h: 145
       image: *:.yo:fragments:mqgzkx76-qboh2g.png
       created: 2026-06-16T18:39:32.370Z
-      yamlover-annotations:
     mqgzyj5v-xxvd5w: !!<*::yamlover:$defs:fragment>
       type: "rect"
       x: 355
@@ -43,7 +40,6 @@
       h: 127
       image: *:.yo:fragments:mqgzyj5v-xxvd5w.png
       created: 2026-06-16T18:50:07.365Z
-      yamlover-annotations:
     mqgzyslc-dl2u4w: !!<*::yamlover:$defs:fragment>
       type: "rect"
       x: 733
@@ -52,7 +48,6 @@
       h: 115
       image: *:.yo:fragments:mqgzyslc-dl2u4w.png
       created: 2026-06-16T18:50:19.584Z
-      yamlover-annotations:
     mqgzyufk-uyulgv: !!<*::yamlover:$defs:fragment>
       type: "rect"
       x: 1141
@@ -61,7 +56,6 @@
       h: 102
       image: *:.yo:fragments:mqgzyufk-uyulgv.png
       created: 2026-06-16T18:50:21.969Z
-      yamlover-annotations:
 "IMG_20120725_112847.jpg":
   yamlover-thumbnails:
     [512, 512]: *:.yo:thumbnails:xxh64-a04cc4f5618fbf4d-512x512.jpg

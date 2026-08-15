@@ -5,9 +5,9 @@ import { createHandlers } from "./helpers";
 import { tmpTree } from "./helpers";
 import { call, callBody } from "./http";
 
-// The EMBEDDED tags/fragments model (docs/annotations): /api/annotate appends to a target's
-// `yamlover-annotations`; /api/fragment adds a `yo: fragments:` region; reads derive from
-// those forward `*::tag` edges. Synthetic temp trees only — never the repo.
+// The MEMBERSHIP model (docs/annotations): /api/annotate writes an own-line `&…:-` bookmark on
+// the target; /api/fragment adds a `yo: fragments:` region; reads derive from the back edges.
+// Synthetic temp trees only — never the repo.
 
 const TAG_FILE = { "ontos.yo": 'yellow: !!<*::yamlover:$defs:onto>\n  color: "#f9e2af"\n' };
 const TAG = ":ontos.yo:yellow";
@@ -18,19 +18,17 @@ describe("embedded annotations", () => {
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
 
-    const r = await callBody(h, "POST", "/api/annotate", { target: ":name", tag: TAG, description: "hi" });
+    const r = await callBody(h, "POST", "/api/annotate", { target: ":name", tag: TAG });
     expect(r.status).toBe(201);
 
-    // a scalar leaf file is NOT rewritten in place — its annotations live in the root overlay
+    // a scalar leaf file is NOT rewritten in place — its membership lives in the root overlay
     expect(fs.readFileSync(path.join(root, "name"), "utf8")).toBe("Alice");
     const overlay = fs.readFileSync(path.join(root, ".yo", "body.yo"), "utf8");
-    expect(overlay).toContain("yamlover-annotations:");
-    expect(overlay).toContain("*::ontos.yo:yellow");
+    expect(overlay).toContain("&::ontos.yo:yellow:-");
 
     const list = call(h, "/api/annotations", { path: ":name" }).json;
     expect(list).toHaveLength(1);
     expect(list[0].tag).toMatchObject({ path: TAG, name: "yellow", color: "#f9e2af" });
-    expect(list[0].description).toBe("hi");
     expect(list[0].selector).toBeUndefined();
     h.close();
   });
@@ -61,7 +59,7 @@ describe("embedded annotations", () => {
     expect(r.status).toBe(201);
     const overlay = fs.readFileSync(path.join(root, "docs", ".yo", "body.yo"), "utf8");
     expect(overlay).toContain('"pic.png":');
-    expect(overlay).toContain("*::ontos.yo:yellow");
+    expect(overlay).toContain("&::ontos.yo:yellow:-");
 
     const list = call(h, "/api/annotations", { path: ":docs:pic.png" }).json;
     expect(list).toHaveLength(1);
@@ -81,13 +79,14 @@ describe("embedded annotations", () => {
     expect(frag.status).toBe(201);
     expect(frag.json.slug).toBeTruthy();
 
-    const ann = await callBody(h, "POST", "/api/annotate", { target: frag.json.fragmentPath, tag: TAG });
+    const ann = await callBody(h, "POST", "/api/annotate", { target: frag.json.fragmentPath, tag: TAG, description: "hi" });
     expect(ann.status).toBe(201);
 
     const list = call(h, "/api/annotations", { path: ":docs:pic.png" }).json;
     expect(list).toHaveLength(1);
     expect(list[0].selector).toMatchObject({ type: "rect", x: 10, y: 20, w: 30, h: 40 });
     expect(list[0].fragmentSlug).toBe(frag.json.slug);
+    expect(list[0].description).toBe("hi"); // parameters live on the fragment
     expect(list[0].tag.name).toBe("yellow");
     h.close();
   });
@@ -133,11 +132,11 @@ describe("embedded annotations", () => {
     // tag one PDF with the other, then untag at once (the right-click → TOC-click → uncheck flow)
     await callBody(h, "POST", "/api/annotate", { target: ":docs:a.pdf", tag: ":docs:b.pdf" });
     const overlayFile = path.join(root, "docs", ".yo", "body.yo");
-    expect(fs.readFileSync(overlayFile, "utf8")).toContain("yamlover-annotations:");
+    expect(fs.readFileSync(overlayFile, "utf8")).toContain(":-");
     const del = await callBody(h, "DELETE", `/api/annotate?target=${encodeURIComponent(":docs:a.pdf")}&tag=${encodeURIComponent(":docs:b.pdf")}`, {});
     expect(del.status).toBe(200);
     const overlay = fs.readFileSync(overlayFile, "utf8");
-    expect(overlay).not.toContain("yamlover-annotations"); // no null-valued husk…
+    expect(overlay).not.toContain("&"); // no bookmark left…
     expect(overlay).not.toContain("a.pdf"); // …and no empty filename host key left behind either
     h.close();
   });
@@ -153,8 +152,7 @@ describe("embedded annotations", () => {
     await callBody(h, "POST", "/api/annotate", { target: ":name", tag: ":ontos.yo:green" });
     await callBody(h, "DELETE", `/api/annotate?target=${encodeURIComponent(":name")}&tag=${encodeURIComponent(":ontos.yo:yellow")}`, {});
     const overlay = fs.readFileSync(path.join(root, ".yo", "body.yo"), "utf8");
-    expect(overlay).toContain("yamlover-annotations:"); // one tag remains — nothing pruned
-    expect(overlay).toContain("green");
+    expect(overlay).toContain(":green:-"); // one membership remains — nothing pruned
     expect(call(h, "/api/annotations", { path: ":name" }).json).toHaveLength(1);
     h.close();
   });
@@ -166,25 +164,25 @@ describe("embedded annotations", () => {
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
     await callBody(h, "POST", "/api/annotate", { target: ":doc.yo:stub", tag: TAG });
-    expect(fs.readFileSync(path.join(root, "doc.yo"), "utf8")).toContain("yamlover-annotations:");
+    expect(fs.readFileSync(path.join(root, "doc.yo"), "utf8")).toContain("&::ontos.yo:yellow:-");
     await callBody(h, "DELETE", `/api/annotate?target=${encodeURIComponent(":doc.yo:stub")}&tag=${encodeURIComponent(TAG)}`, {});
     const doc = fs.readFileSync(path.join(root, "doc.yo"), "utf8");
-    expect(doc).not.toContain("yamlover-annotations"); // the husk is gone…
+    expect(doc).not.toContain("&"); // the bookmark is gone…
     expect(doc).toContain("stub:"); // …but the user's empty key is NOT swallowed with it
     expect(doc).toContain("keep: 1");
     h.close();
   });
 });
 
-// Removing a HAND-AUTHORED annotation whose pointer is spaced + document-scope (`*: ontos: …`) —
+// Removing a HAND-AUTHORED membership whose bookmark is spaced + document-scope (`&: ontos: …: -`) —
 // not the canonical project-scope form the server writes. The delete matcher normalizes whitespace
-// and matches the colon-path, so the explorer's right-click "untag" works on such pointers too.
-describe("DELETE /api/annotate — tolerant pointer matching", () => {
-  it("removes a spaced, document-scope `*: ontos: …` annotation", async () => {
+// and matches the colon-path, so the explorer's right-click "unfile" works on such bookmarks too.
+describe("DELETE /api/annotate — tolerant bookmark matching", () => {
+  it("removes a spaced, document-scope `&: ontos: …: -` membership", async () => {
     const root = tmpTree({
       "doc.md": "# hi",
       ".yo/body.yo":
-        '"doc.md":\n  yamlover-annotations:\n  - *: ontos: field: math\n  - *: ontos: genre: short\n' +
+        '"doc.md":\n  &: ontos: field: math: -\n  &: ontos: genre: short: -\n' +
         "ontos: !!<*yamlover:$defs:onto>\n  field:\n    math: Math\n  genre:\n    short: Short\n",
     });
     const h = createHandlers(root, { gitignore: false });

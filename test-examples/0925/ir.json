@@ -83,7 +83,54 @@
               ]
             }
           },
-          "anchors": [],
+          "anchors": [
+            {
+              "base": {
+                "scope": "link",
+                "authority": "yamlover"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "ontos"
+                },
+                {
+                  "sel": "key",
+                  "name": "colors"
+                },
+                {
+                  "sel": "key",
+                  "name": "yellow"
+                }
+              ],
+              "ordinal": true
+            },
+            {
+              "base": {
+                "scope": "link",
+                "authority": "yamlover"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "ontos"
+                },
+                {
+                  "sel": "key",
+                  "name": "workflow"
+                },
+                {
+                  "sel": "key",
+                  "name": "dev"
+                },
+                {
+                  "sel": "key",
+                  "name": "ready"
+                }
+              ],
+              "ordinal": true
+            }
+          ],
           "entries": [
             {
               "key": "description",
@@ -162,75 +209,6 @@
                 "anchors": [],
                 "entries": []
               }
-            },
-            {
-              "key": "yamlover-annotations",
-              "edge": "contain",
-              "value": {
-                "kind": "mapping",
-                "array": true,
-                "set": false,
-                "yo": false,
-                "anchors": [],
-                "entries": [
-                  {
-                    "key": null,
-                    "edge": "ref",
-                    "value": {
-                      "ptr": {
-                        "base": {
-                          "scope": "link",
-                          "authority": "yamlover"
-                        },
-                        "steps": [
-                          {
-                            "sel": "key",
-                            "name": "ontos"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "colors"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "yellow"
-                          }
-                        ]
-                      }
-                    }
-                  },
-                  {
-                    "key": null,
-                    "edge": "ref",
-                    "value": {
-                      "ptr": {
-                        "base": {
-                          "scope": "link",
-                          "authority": "yamlover"
-                        },
-                        "steps": [
-                          {
-                            "sel": "key",
-                            "name": "ontos"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "workflow"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "dev"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "ready"
-                          }
-                        ]
-                      }
-                    }
-                  }
-                ]
-              }
             }
           ]
         }
@@ -265,7 +243,33 @@
               ]
             }
           },
-          "anchors": [],
+          "anchors": [
+            {
+              "base": {
+                "scope": "link",
+                "authority": "yamlover"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "ontos"
+                },
+                {
+                  "sel": "key",
+                  "name": "workflow"
+                },
+                {
+                  "sel": "key",
+                  "name": "dev"
+                },
+                {
+                  "sel": "key",
+                  "name": "ready"
+                }
+              ],
+              "ordinal": true
+            }
+          ],
           "entries": [
             {
               "key": "description",
@@ -318,49 +322,6 @@
                 "anchors": [],
                 "entries": []
               }
-            },
-            {
-              "key": "yamlover-annotations",
-              "edge": "contain",
-              "value": {
-                "kind": "mapping",
-                "array": true,
-                "set": false,
-                "yo": false,
-                "anchors": [],
-                "entries": [
-                  {
-                    "key": null,
-                    "edge": "ref",
-                    "value": {
-                      "ptr": {
-                        "base": {
-                          "scope": "link",
-                          "authority": "yamlover"
-                        },
-                        "steps": [
-                          {
-                            "sel": "key",
-                            "name": "ontos"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "workflow"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "dev"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "ready"
-                          }
-                        ]
-                      }
-                    }
-                  }
-                ]
-              }
             }
           ]
         }
@@ -395,7 +356,54 @@
               ]
             }
           },
-          "anchors": [],
+          "anchors": [
+            {
+              "base": {
+                "scope": "link",
+                "authority": "yamlover"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "ontos"
+                },
+                {
+                  "sel": "key",
+                  "name": "colors"
+                },
+                {
+                  "sel": "key",
+                  "name": "yellow"
+                }
+              ],
+              "ordinal": true
+            },
+            {
+              "base": {
+                "scope": "link",
+                "authority": "yamlover"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "ontos"
+                },
+                {
+                  "sel": "key",
+                  "name": "workflow"
+                },
+                {
+                  "sel": "key",
+                  "name": "dev"
+                },
+                {
+                  "sel": "key",
+                  "name": "ready"
+                }
+              ],
+              "ordinal": true
+            }
+          ],
           "entries": [
             {
               "key": "description",
@@ -474,75 +482,6 @@
                 "anchors": [],
                 "entries": []
               }
-            },
-            {
-              "key": "yamlover-annotations",
-              "edge": "contain",
-              "value": {
-                "kind": "mapping",
-                "array": true,
-                "set": false,
-                "yo": false,
-                "anchors": [],
-                "entries": [
-                  {
-                    "key": null,
-                    "edge": "ref",
-                    "value": {
-                      "ptr": {
-                        "base": {
-                          "scope": "link",
-                          "authority": "yamlover"
-                        },
-                        "steps": [
-                          {
-                            "sel": "key",
-                            "name": "ontos"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "colors"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "yellow"
-                          }
-                        ]
-                      }
-                    }
-                  },
-                  {
-                    "key": null,
-                    "edge": "ref",
-                    "value": {
-                      "ptr": {
-                        "base": {
-                          "scope": "link",
-                          "authority": "yamlover"
-                        },
-                        "steps": [
-                          {
-                            "sel": "key",
-                            "name": "ontos"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "workflow"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "dev"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "ready"
-                          }
-                        ]
-                      }
-                    }
-                  }
-                ]
-              }
             }
           ]
         }
@@ -577,7 +516,54 @@
               ]
             }
           },
-          "anchors": [],
+          "anchors": [
+            {
+              "base": {
+                "scope": "link",
+                "authority": "yamlover"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "ontos"
+                },
+                {
+                  "sel": "key",
+                  "name": "colors"
+                },
+                {
+                  "sel": "key",
+                  "name": "yellow"
+                }
+              ],
+              "ordinal": true
+            },
+            {
+              "base": {
+                "scope": "link",
+                "authority": "yamlover"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "ontos"
+                },
+                {
+                  "sel": "key",
+                  "name": "workflow"
+                },
+                {
+                  "sel": "key",
+                  "name": "dev"
+                },
+                {
+                  "sel": "key",
+                  "name": "done"
+                }
+              ],
+              "ordinal": true
+            }
+          ],
           "entries": [
             {
               "key": "description",
@@ -711,75 +697,6 @@
                   }
                 ]
               }
-            },
-            {
-              "key": "yamlover-annotations",
-              "edge": "contain",
-              "value": {
-                "kind": "mapping",
-                "array": true,
-                "set": false,
-                "yo": false,
-                "anchors": [],
-                "entries": [
-                  {
-                    "key": null,
-                    "edge": "ref",
-                    "value": {
-                      "ptr": {
-                        "base": {
-                          "scope": "link",
-                          "authority": "yamlover"
-                        },
-                        "steps": [
-                          {
-                            "sel": "key",
-                            "name": "ontos"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "workflow"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "dev"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "done"
-                          }
-                        ]
-                      }
-                    }
-                  },
-                  {
-                    "key": null,
-                    "edge": "ref",
-                    "value": {
-                      "ptr": {
-                        "base": {
-                          "scope": "link",
-                          "authority": "yamlover"
-                        },
-                        "steps": [
-                          {
-                            "sel": "key",
-                            "name": "ontos"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "colors"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "yellow"
-                          }
-                        ]
-                      }
-                    }
-                  }
-                ]
-              }
             }
           ]
         }
@@ -814,7 +731,33 @@
               ]
             }
           },
-          "anchors": [],
+          "anchors": [
+            {
+              "base": {
+                "scope": "link",
+                "authority": "yamlover"
+              },
+              "steps": [
+                {
+                  "sel": "key",
+                  "name": "ontos"
+                },
+                {
+                  "sel": "key",
+                  "name": "workflow"
+                },
+                {
+                  "sel": "key",
+                  "name": "dev"
+                },
+                {
+                  "sel": "key",
+                  "name": "cancelled"
+                }
+              ],
+              "ordinal": true
+            }
+          ],
           "entries": [
             {
               "key": "description",
@@ -853,49 +796,6 @@
                 "yo": false,
                 "anchors": [],
                 "entries": []
-              }
-            },
-            {
-              "key": "yamlover-annotations",
-              "edge": "contain",
-              "value": {
-                "kind": "mapping",
-                "array": true,
-                "set": false,
-                "yo": false,
-                "anchors": [],
-                "entries": [
-                  {
-                    "key": null,
-                    "edge": "ref",
-                    "value": {
-                      "ptr": {
-                        "base": {
-                          "scope": "link",
-                          "authority": "yamlover"
-                        },
-                        "steps": [
-                          {
-                            "sel": "key",
-                            "name": "ontos"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "workflow"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "dev"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "cancelled"
-                          }
-                        ]
-                      }
-                    }
-                  }
-                ]
               }
             }
           ]

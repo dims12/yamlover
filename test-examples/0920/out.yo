@@ -18,9 +18,8 @@ A Pinch of Math
   \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
 yo: fragments:
   mqgwoar6-xbn407: !!<*:: yamlover: $defs: fragment> "Mathematics"
+    &:: yamlover: ontos: colors: green: -
     type: "text"
     prefix: ""
     suffix: " likes to hide "
     created: 2026-06-16T17:18:11.059Z
-    yamlover-annotations:
-      - *:: yamlover: ontos: colors: green

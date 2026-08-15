@@ -1,9 +1,9 @@
 # A heap of famously short / deadpan academic papers — the real files, with their real
 # (messy) names — organized by a tag taxonomy. This `.yo/body.yo` overlay turns the
 # bare directory into an instance: it adds the `tags` tree and gives each file (a blob) its tag
-# applications under `yamlover-annotations` (so a blob carries members). Spec: docs/annotations.
+# memberships as `&…:-` bookmarks (so a blob carries them). Spec: docs/annotations.
 #
-# Each paper is TAGGED by appending a bare tag pointer to its `yamlover-annotations` array — the
+# Each paper is FILED by an own-line `&…:-` membership bookmark — the
 # embedded model: the application lives ON the target (here a blob, via the omni overlay), and the
 # engine derives "the materials under a tag" as the reverse of those forward `*` edges. The tag
 # pointers are document-relative (`*: ontos: …` — `:` is this directory's root). Keys are bare; a
@@ -35,40 +35,35 @@ ontos: !!<*yamlover: $defs: onto> A small taxonomy for short / deadpan papers �
     annotation: A secondary / derivative edition of another paper
 
 # --- the papers: each is the real file (a blob) tagged by the leaf tags it belongs to, as bare
-#     pointers in its `yamlover-annotations` array (docs/annotations) ---
+#     `&…:-` membership bookmarks (docs/annotations) ---
 
 "S0002-9904-1966-11654-3.pdf":
-  yamlover-annotations:
-  - *: ontos: field: mathematics: number-theory
-  - *: ontos: genre: brevity: shortest-paper
-  - *::yamlover:ontos:'fifth tag'
+  &: ontos: field: mathematics: number-theory: -
+  &: ontos: genre: brevity: shortest-paper: -
+  &::yamlover:ontos:'fifth tag':-
 
 "jaba00061-0143a.pdf":
-  yamlover-annotations:
-  - *: ontos: field: psychology: behavior-analysis
-  - *: ontos: genre: brevity: empty-body
-  - *: ontos: genre: humor: deadpan
+  &: ontos: field: psychology: behavior-analysis: -
+  &: ontos: genre: brevity: empty-body: -
+  &: ontos: genre: humor: deadpan: -
 
 "Chemical-Free.pdf":
-  yamlover-annotations:
-  - *: ontos: field: chemistry
-  - *: ontos: genre: brevity: empty-body
-  - *: ontos: genre: humor: satire
-  - *::yamlover:ontos:colors:yellow
-  - *::yamlover:ontos:'first tag'
+  &: ontos: field: chemistry: -
+  &: ontos: genre: brevity: empty-body: -
+  &: ontos: genre: humor: satire: -
+  &::yamlover:ontos:colors:yellow:-
+  &::yamlover:ontos:'first tag':-
 
 "1110.2832v2.pdf":
-  yamlover-annotations:
-  - *: ontos: field: physics: quantum
-  - *: ontos: field: physics: particle
-  - *: ontos: genre: brevity: one-word-answer
-  - *: ontos: genre: humor: deadpan
-  - *::yamlover:ontos:'fifth tag'
-  - *::yamlover:ontos:colors:yellow
-  - *::yamlover:ontos:'first tag'
+  &: ontos: field: physics: quantum: -
+  &: ontos: field: physics: particle: -
+  &: ontos: genre: brevity: one-word-answer: -
+  &: ontos: genre: humor: deadpan: -
+  &::yamlover:ontos:'fifth tag':-
+  &::yamlover:ontos:colors:yellow:-
+  &::yamlover:ontos:'first tag':-
 
 "1105-2_abstract_Is the sequence of earthquake in southern California, with aftershocks removed, Poissonian.pdf":
-  yamlover-annotations:
-  - *: ontos: field: earth-science: seismology
-  - *: ontos: genre: brevity: one-word-answer
-  - *: ontos: genre: humor: deadpan
+  &: ontos: field: earth-science: seismology: -
+  &: ontos: genre: brevity: one-word-answer: -
+  &: ontos: genre: humor: deadpan: -

@@ -43,7 +43,7 @@ describe("untagging the last tag deletes the empty fragment", () => {
     // a hand-authored / race-duplicated annotation: the same tag listed twice on one node
     const root = tmpTree({
       ".yo/body.yo":
-        '"pic.png":\n  yamlover-annotations:\n  - *::yamlover:ontos:colors:yellow\n  - *::yamlover:ontos:colors:yellow\n',
+        '"pic.png":\n  &::yamlover:ontos:colors:yellow:-\n  &::yamlover:ontos:colors:yellow:-\n',
       "pic.png": "\x89PNG binary",
     });
     const h = createHandlers(root, { gitignore: false });
@@ -61,7 +61,7 @@ describe("untagging the last tag deletes the empty fragment", () => {
       "pics/.yo/body.yo":
         '"photo.png":\n  yo:\n    fragments:\n      abc123: !!<*::yamlover:$defs:fragment>\n' +
         "        type: \"rect\"\n        x: 1\n        y: 2\n        w: 3\n        h: 4\n" +
-        "        yamlover-annotations:\n        - *::yamlover:ontos:'fifth tag'\n        - *::yamlover:ontos:'forth tag'\n",
+        "        &::yamlover:ontos:'fifth tag':-\n        &::yamlover:ontos:'forth tag':-\n",
       "pics/photo.png": "\x89PNG binary",
       // a local taxonomy defining the two space-named tags so they resolve as tag nodes
       "ontos.yo": "'fifth tag': !!<*::yamlover:$defs:onto>\n'forth tag': !!<*::yamlover:$defs:onto>\n",

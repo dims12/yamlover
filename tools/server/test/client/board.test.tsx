@@ -75,7 +75,8 @@ describe("BoardView card drag (unified confirm popup)", () => {
         case ":board:t1.yo": // the card, currently tagged todo
           return Promise.resolve({
             path: p, type: "object", concrete: "file/yamlover", title: "Task One", description: null,
-            value: { "yamlover-annotations": [tagLink(":ontos:todo")] },
+            value: {},
+            comments: { "": { anchors: ["::ontos:todo:-"] } },
           });
         default:
           return Promise.reject(new Error("unexpected fetch: " + p));

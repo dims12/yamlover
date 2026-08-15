@@ -261,12 +261,16 @@ class Emitter {
       if (block !== null) {
         // block-scalar content sits DEEPER than any fields, so the fields'
         // dedent ends the block (the parser's rule) while staying deeper than the key
-        const inner = indent + STEP + (kept.length > 0 ? STEP : 0);
+        // anchors dedent-terminate the block exactly like fields do — content must sit deeper
+        const inner = indent + STEP + (kept.length > 0 || this.anchorTokens(value).length > 0 ? STEP : 0);
         this.out.push(joinLine(pad + head, [...parts, block.header]));
         for (const l of block.lines) this.out.push(l === '' ? '' : ' '.repeat(inner) + l);
         // (anchors follow below, after the block — the dedent ends the scalar)
       } else {
-        const tok = this.inline(value, /*needToken*/ kept.length > 0 || parts.length > 0);
+        // a NON-NULL value with anchors forces a TOKEN spelling too: an own-line `&…` sits deeper
+        // than the key, and a PLAIN scalar would absorb it as a continuation line on the next
+        // parse (a null keeps its bare `key:` spelling — nothing to continue)
+        const tok = this.inline(value, /*needToken*/ kept.length > 0 || parts.length > 0 || (value.value != null && this.anchorTokens(value).length > 0));
         this.out.push(joinLine(pad + head, tok === '' ? parts : [...parts, tok]));
       }
       this.anchorLines(value, indent + STEP);

@@ -49,7 +49,7 @@ describe("chunk text fragments (docs/annotations/storage)", () => {
     // the chunk became an omni node: block-scalar prose (indented one step deeper) + fields
     expect(src).toContain("fragments:");
     expect(src).toContain(':fragment> "word"'); // exact IS the member's self-value
-    expect(src).toContain("*::ontos.yo:yellow");
+    expect(src).toContain("&::ontos.yo:yellow:-");
     expect(src).not.toMatch(/^yo:/m); // NOT at the chapter root (column 0) — it hangs off the chunk
     expect(src).toMatch(/^ {2}yo:/m); // at the chunk's field indent (2)
 

@@ -1,5 +1,4 @@
-# SPEC-LEAD: the implementation still writes yamlover-annotations arrays; this family
-# specifies the target model - ontos + bookmark membership + yo: fragments:.
+# The annotation model: ontos + bookmark membership + yo: fragments:.
 Annotations - fragments and ontos
 description: how a user marks up a document - regions, and membership in ontologies
 - >
@@ -15,7 +14,7 @@ description: how a user marks up a document - regions, and membership in ontolog
   membership edge into the ontology - and everything an application used to say (a description,
   a parameter) lives on the **fragment**, which is an ordinary open node. This supersedes both
   earlier models: the per-file `/annotations/*.yo` applications, and the
-  `yamlover-annotations` array element.
+  `yamlover-annotations` array element (both retired).
 - *: fragments
 - *: ontos
 - *: applications

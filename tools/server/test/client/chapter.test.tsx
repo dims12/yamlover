@@ -194,7 +194,7 @@ describe("ChapterView", () => {
   // is peeled. Both shapes must render the prose.
   it("renders an ANNOTATED chunk as its prose, not as the overlay marker", () => {
     const annotated = {
-      $yamloverMixed: { kind: "omni", entries: [{ key: "yamlover-annotations", value: [] }], value: "a **bold** chunk" },
+      $yamloverMixed: { kind: "omni", entries: [{ key: "yo", value: {} }], value: "a **bold** chunk" },
     };
     const node = {
       path: ":doc", documentPath: ":doc", type: "kseq", format: "x-yamlover-chapter", concrete: "file/yamlover",

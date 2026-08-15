@@ -292,18 +292,16 @@
                         "kind": "omni",
                         "entries": [
                           {
-                            "key": "yamlover-annotations",
-                            "value": [
-                              {
-                                "$yamloverRef": {
-                                  "text": "*:: part-two: ontos: important",
-                                  "path": ":part-two:ontos:important"
-                                }
+                            "key": null,
+                            "value": {
+                              "$yamloverRef": {
+                                "text": "*:: part-two: ontos: important",
+                                "path": ":part-two:ontos:important"
                               }
-                            ]
+                            }
                           }
                         ],
-                        "format": "text/marklower",
+                        "format": "x-yamlover-chapter",
                         "value": "Annotated prose carries an overlay."
                       }
                     }
@@ -468,7 +466,7 @@
       "/part-two/2": {
         "tag": "!!set"
       },
-      "/part-two/3/yamlover-annotations/0": {
+      "/part-two/3/0": {
         "pointer": ": ontos: important"
       },
       "/part-two/ontos/important": {
@@ -1361,18 +1359,16 @@
                 "kind": "omni",
                 "entries": [
                   {
-                    "key": "yamlover-annotations",
-                    "value": [
-                      {
-                        "$yamloverRef": {
-                          "text": "*:: part-two: ontos: important",
-                          "path": ":part-two:ontos:important"
-                        }
+                    "key": null,
+                    "value": {
+                      "$yamloverRef": {
+                        "text": "*:: part-two: ontos: important",
+                        "path": ":part-two:ontos:important"
                       }
-                    ]
+                    }
                   }
                 ],
-                "format": "text/marklower",
+                "format": "x-yamlover-chapter",
                 "value": "Annotated prose carries an overlay."
               }
             }
@@ -1441,7 +1437,7 @@
       "/2": {
         "tag": "!!set"
       },
-      "/3/yamlover-annotations/0": {
+      "/3/0": {
         "pointer": ": ontos: important"
       },
       "/ontos/important": {
@@ -1898,67 +1894,32 @@
   ":part-two:3": {
     "path": ":part-two:3",
     "type": "omni",
-    "format": "text/marklower",
+    "format": "x-yamlover-chapter",
     "valueType": "string",
-    "hasKeyed": true,
-    "hasOrdinal": false,
+    "hasKeyed": false,
+    "hasOrdinal": true,
     "concrete": "yamlover",
     "documentPath": ":part-two",
-    "title": null,
+    "title": "Annotated prose carries an overlay.",
     "description": null,
     "value": {
       "$yamloverMixed": {
         "kind": "omni",
         "entries": [
           {
-            "key": "yamlover-annotations",
-            "value": [
-              {
-                "$yamloverRef": {
-                  "text": "*:: part-two: ontos: important",
-                  "path": ":part-two:ontos:important"
-                }
+            "key": null,
+            "value": {
+              "$yamloverRef": {
+                "text": "*:: part-two: ontos: important",
+                "path": ":part-two:ontos:important"
               }
-            ]
+            }
           }
         ],
-        "format": "text/marklower",
+        "format": "x-yamlover-chapter",
         "value": "Annotated prose carries an overlay."
       }
     },
-    "comments": {
-      "/yamlover-annotations/0": {
-        "pointer": ": ontos: important"
-      }
-    },
-    "relations": {
-      "..": {
-        "$yamloverRef": {
-          "text": "..",
-          "path": ":part-two"
-        }
-      }
-    }
-  },
-  ":part-two:3:yamlover-annotations": {
-    "path": ":part-two:3:yamlover-annotations",
-    "type": "array",
-    "format": null,
-    "valueType": null,
-    "hasKeyed": false,
-    "hasOrdinal": true,
-    "concrete": "yamlover",
-    "documentPath": ":part-two",
-    "title": null,
-    "description": null,
-    "value": [
-      {
-        "$yamloverRef": {
-          "text": "*:: part-two: ontos: important",
-          "path": ":part-two:ontos:important"
-        }
-      }
-    ],
     "comments": {
       "/0": {
         "pointer": ": ontos: important"
@@ -1968,7 +1929,7 @@
       "..": {
         "$yamloverRef": {
           "text": "..",
-          "path": ":part-two:3"
+          "path": ":part-two"
         }
       }
     }

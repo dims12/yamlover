@@ -1,49 +1,41 @@
 import { describe, it, expect } from "vitest";
-import { appendAnnotation, upsertFragment, removeAnnotation, keyToken } from "../src/server/embed";
+import { appendBookmark, upsertFragment, removeBookmark, bookmarksRemain, keyToken } from "../src/server/embed";
 
-// Surgical embedding of fragments + annotations into a yamlover host body (docs/annotations).
-// Pure string transforms — no fs / Store; the round-trip target is "parses back to the same data".
+// Surgical embedding of fragments + membership bookmarks into a yamlover host body
+// (docs/annotations). Pure string transforms — no fs / Store; the round-trip target is
+// "parses back to the same data".
 
-const TAG = "- *::ontos:colors:yellow";
-const tagLines = () => [TAG];
+const TAG = "&::ontos:colors:yellow:-";
 
-describe("appendAnnotation", () => {
-  it("creates yamlover-annotations on a fresh whole-document body", () => {
+describe("appendBookmark", () => {
+  it("files a fresh whole-document body — the bookmark rides after the value", () => {
     const src = "title: A Paper\n";
-    const out = appendAnnotation(src, [], (i) => [`${" ".repeat(i)}${TAG}`]);
-    expect(out).toBe("title: A Paper\nyamlover-annotations:\n- *::ontos:colors:yellow\n");
+    const out = appendBookmark(src, [], [TAG]);
+    expect(out).toBe("title: A Paper\n&::ontos:colors:yellow:-\n");
   });
 
-  it("appends to an existing yamlover-annotations sequence", () => {
-    const src = "title: A Paper\nyamlover-annotations:\n- *::ontos:colors:green\n";
-    const out = appendAnnotation(src, [], (i) => [`${" ".repeat(i)}${TAG}`]);
-    expect(out).toBe(
-      "title: A Paper\nyamlover-annotations:\n- *::ontos:colors:green\n- *::ontos:colors:yellow\n",
-    );
+  it("appends after an existing bookmark line", () => {
+    const src = "title: A Paper\n&::ontos:colors:green:-\n";
+    const out = appendBookmark(src, [], [TAG]);
+    expect(out).toBe("title: A Paper\n&::ontos:colors:green:-\n&::ontos:colors:yellow:-\n");
   });
 
-  it("creates a keyed file block in a fresh overlay, then its annotations", () => {
-    const src = "";
-    const fname = "S0002-9904.pdf";
-    const out = appendAnnotation(src, [fname], (i) => [`${" ".repeat(i)}${TAG}`]);
-    expect(out).toBe(
-      `"S0002-9904.pdf":\n  yamlover-annotations:\n  - *::ontos:colors:yellow\n`,
-    );
+  it("creates a keyed file block in a fresh overlay, then its bookmark", () => {
+    const out = appendBookmark("", ["S0002-9904.pdf"], [TAG]);
+    expect(out).toBe(`"S0002-9904.pdf":\n  &::ontos:colors:yellow:-\n`);
   });
 
-  it("appends under an existing keyed file block (indent preserved)", () => {
-    const src = `"a.pdf":\n  yamlover-annotations:\n  - *::ontos:colors:green\n`;
-    const out = appendAnnotation(src, ["a.pdf"], (i) => [`${" ".repeat(i)}${TAG}`]);
-    expect(out).toBe(
-      `"a.pdf":\n  yamlover-annotations:\n  - *::ontos:colors:green\n  - *::ontos:colors:yellow\n`,
-    );
+  it("bookmarks land at the END of an existing keyed block", () => {
+    const src = `"a.pdf":\n  size: 12\n`;
+    const out = appendBookmark(src, ["a.pdf"], [TAG]);
+    expect(out).toBe(`"a.pdf":\n  size: 12\n  &::ontos:colors:yellow:-\n`);
   });
 
-  it("targets a fragment's own annotations", () => {
+  it("targets a fragment's own memberships, parameter fields riding behind", () => {
     const src = `"a.pdf":\n  yo:\n    fragments:\n      slug1:\n        type: pdf\n        page: 1\n`;
-    const out = appendAnnotation(src, ["a.pdf", "yo", "fragments", "slug1"], (i) => [`${" ".repeat(i)}${TAG}`]);
+    const out = appendBookmark(src, ["a.pdf", "yo", "fragments", "slug1"], [TAG, `description: "hi"`]);
     expect(out).toBe(
-      `"a.pdf":\n  yo:\n    fragments:\n      slug1:\n        type: pdf\n        page: 1\n        yamlover-annotations:\n        - *::ontos:colors:yellow\n`,
+      `"a.pdf":\n  yo:\n    fragments:\n      slug1:\n        type: pdf\n        page: 1\n        &::ontos:colors:yellow:-\n        description: "hi"\n`,
     );
   });
 });
@@ -79,16 +71,24 @@ describe("upsertFragment", () => {
   });
 });
 
-describe("removeAnnotation", () => {
-  it("removes the matching tag element", () => {
-    const src = "yamlover-annotations:\n- *::ontos:colors:green\n- *::ontos:colors:yellow\n";
-    const out = removeAnnotation(src, [], (t) => t === "*::ontos:colors:green");
-    expect(out).toBe("yamlover-annotations:\n- *::ontos:colors:yellow\n");
+describe("removeBookmark", () => {
+  it("removes the matching membership line, keeping the others", () => {
+    const src = "title: T\n&::ontos:colors:green:-\n&::ontos:colors:yellow:-\n";
+    const out = removeBookmark(src, [], (t) => t.includes(":ontos:colors:green"));
+    expect(out).toBe("title: T\n&::ontos:colors:yellow:-\n");
+    expect(bookmarksRemain(out, [])).toBe(true);
   });
 
   it("is a no-op when nothing matches", () => {
-    const src = "yamlover-annotations:\n- *::ontos:colors:green\n";
-    expect(removeAnnotation(src, [], (t) => t === "nope")).toBe(src);
+    const src = "title: T\n&::ontos:colors:green:-\n";
+    expect(removeBookmark(src, [], (t) => t.includes("nope"))).toBe(src);
+  });
+
+  it("bookmarksRemain goes false once the last membership is gone", () => {
+    const src = "title: T\n&::ontos:colors:green:-\n";
+    const out = removeBookmark(src, [], () => true);
+    expect(out).toBe("title: T\n");
+    expect(bookmarksRemain(out, [])).toBe(false);
   });
 });
 

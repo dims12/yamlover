@@ -1,6 +1,8 @@
 import type { CSSProperties } from "react";
+import type { CommentMap } from "../api";
 import { asLink } from "../render";
-import { canonPath, strToSegs } from "../paths";
+import { canonPath, segsToStr, strToSegs } from "../paths";
+import { parsePointer } from "../../../../parser/ts/src/pointer.ts";
 
 export const ONTO_FORMAT = "x-yamlover-onto";
 
@@ -10,6 +12,26 @@ export const ONTO_FORMAT = "x-yamlover-onto";
  *  circular swatch wherever applied tags are listed, not as a name badge. */
 export function isColorTagPath(path: string): boolean {
   return /(^|:)ontos:colors:/.test(canonPath(path));
+}
+
+/** The onto client-paths a node is FILED under — its ordinal `&…:-` membership bookmarks, read
+ *  off the wire's root-bucket `anchors` deco (a bookmark is an edge, never a value entry —
+ *  docs/annotations/applications). Keyed bookmarks (aliases) don't count; an unparsable anchor
+ *  is not a membership. */
+export function membershipsOf(node: { comments?: CommentMap }): string[] {
+  const out: string[] = [];
+  const root = node.comments?.[""];
+  const anchors = root && !Array.isArray(root) ? root.anchors ?? [] : [];
+  for (const body of anchors) {
+    const t = body.trim();
+    if (!/(^|:)\s*-\s*$/.test(t)) continue; // only the ordinal `…:-` form is a membership
+    try {
+      const p = parsePointer(t.replace(/:\s*-\s*$/, "")) as { base?: { authority?: string }; steps?: { name?: unknown }[] };
+      const segs = [p.base?.authority, ...(p.steps ?? []).map((s) => s.name)].filter((s): s is string => typeof s === "string");
+      if (segs.length) out.push(segsToStr(segs));
+    } catch { /* not a membership */ }
+  }
+  return out;
 }
 
 /** Expose a tag's colour to CSS as `--tag`. Every chip/swatch/dot paints through it — CSS renders

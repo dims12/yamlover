@@ -30,7 +30,7 @@ const PAPERS = [
   '1105-2_abstract_Is the sequence of earthquake in southern California, with aftershocks removed, Poissonian.pdf',
 ];
 
-test('67-pdf-tags: an embedded-tagged PDF is an omni-blob (binary value + owned yamlover-annotations)', () => {
+test('67-pdf-tags: a filed PDF stays a plain blob — memberships are bookmarks, never entries', () => {
   const s = new Store(':memory:');
   s.indexDocument(walkDir(join(examples, '67-pdf-tags')));
   for (const file of PAPERS) {
@@ -38,11 +38,10 @@ test('67-pdf-tags: an embedded-tagged PDF is an omni-blob (binary value + owned 
     const row = s.node(p);
     assert.ok(row, `indexed ${file}`);
     assert.equal(row!.type, 'blob', `${file} stored type`); // the bytes are still a blob
-    // it OWNS a `yamlover-annotations` array (the embedded tag applications) → an omni-blob
-    const ents = s.entries(p);
-    assert.ok(ents.some((e) => e.kind === 'contain' && e.label === 'yamlover-annotations'), `${file}: owns yamlover-annotations`);
-    assert.equal(displayKind(s, p, row!), 'omni', `${file} displayKind`);
-    assert.equal(typeName(s, p, row!), 'omni', `${file} type`);
+    // its ontos are `&…:-` membership bookmarks — back edges OUT, never contain entries
+    assert.ok(!s.entries(p).some((e) => e.kind === 'contain'), `${file}: no owned entries`);
+    assert.ok(s.relationships(p).out.some((e) => e.kind === 'back'), `${file}: filed somewhere`);
+    assert.equal(displayKind(s, p, row!), 'binary', `${file} displayKind`);
   }
   s.close();
 });

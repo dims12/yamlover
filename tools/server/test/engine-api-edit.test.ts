@@ -201,26 +201,23 @@ describe("/api/edit — batch", () => {
 // A node has four FACETS: scalar value, keyed entries, ordinal entries, and its `!!<…>` meta tag.
 // `emplace` replaces only the facets its payload carries; `replace` drops them all.
 describe("/api/edit — facets", () => {
-  it("emplacing prose over an ANNOTATED chunk keeps its annotations (an omni overlay on the prose)", async () => {
+  it("emplacing prose over a FILED chunk keeps its membership bookmark", async () => {
     const { root, h } = await chapterHandlers();
     const tag = await callBody(h, "POST", "/api/tag", { name: "important" });
     await callBody(h, "POST", "/api/annotate", { target: ":doc[2]", tag: tag.json.path });
-    expect(bodyOf(root)).toContain("yamlover-annotations:");
+    expect(bodyOf(root)).toContain("&::ontos:important:-");
 
     const r = await callBody(h, "POST", "/api/edit", { path: ":doc[2]", op: "emplace", yamlover: "|-\n  edited prose" });
     expect(r.status).toBe(200);
-    expect(bodyOf(root)).toContain("yamlover-annotations:"); // the keyed facet stood
-    // the chunk is now an omni node — its prose under the annotation overlay
-    const chunk = body((await nodeJson(h, { path: ":doc", depth: "3" })).json)[0] as { $yamloverMixed: { value: string } };
-    expect(chunk.$yamloverMixed.value).toBe("edited prose");
+    expect(bodyOf(root)).toContain("&::ontos:important:-"); // the membership stood
   });
 
-  it("replacing that same chunk drops its annotations — replace is the clean-slate verb", async () => {
+  it("replacing that same chunk drops its membership — replace is the clean-slate verb", async () => {
     const { root, h } = await chapterHandlers();
     const tag = await callBody(h, "POST", "/api/tag", { name: "important" });
     await callBody(h, "POST", "/api/annotate", { target: ":doc[2]", tag: tag.json.path });
     await callBody(h, "POST", "/api/edit", { path: ":doc[2]", op: "replace", yamlover: '"clean"' });
-    expect(bodyOf(root)).not.toContain("yamlover-annotations:");
+    expect(bodyOf(root)).not.toContain("&::ontos:important:-");
   });
 
   it("emplace keeps an inline `!!<…>` tag; replace drops it; `meta` sets it; `meta: null` removes it", async () => {

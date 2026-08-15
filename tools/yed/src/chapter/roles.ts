@@ -31,7 +31,7 @@ export interface RoleEntry {
  *  docs/annotations/fragments) or a tag application laid OVER a value (docs/annotations).
  *  The overlay is the annotation layer's storage, never page content. */
 export const isOverlayKey = (k: string | null): boolean =>
-  k === "yamlover-annotations" || k === "yo";
+  k === "yo";
 
 export function entryRole(e: RoleEntry): EntryRole {
   if (e.anchored === true) return "body"; // row 5 — provenance, not a field
