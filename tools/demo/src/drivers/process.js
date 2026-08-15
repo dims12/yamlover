@@ -12,7 +12,51 @@ import { config, basePathFor, ga4EnvFor, GA4_DEMO_PATH } from "../config.js";
 import { log, captureLines } from "../log.js";
 
 const procs = new Map(); // id -> { hash, child, dir }
-let docsProc = null; // { id, child, port } — the always-on docs instance
+
+/** One always-on read-only child (docs or examples), serving `dir` in place. */
+function makeReadonlyProc({ dir, basePath, component }) {
+  let rec = null;
+  return {
+    async status() {
+      if (!rec) return null;
+      return { id: rec.id, port: rec.port, stale: false };
+    },
+    async start() {
+      const bp = basePath();
+      const { child, port } = await spawnYamlover(dir(), bp, ["--read-only"], {
+        env: ga4EnvFor(bp),
+        bindings: { component },
+      });
+      const id = `p${child.pid}`;
+      rec = { id, child, port };
+      child.on("exit", () => {
+        if (rec?.id === id) rec = null;
+      });
+      return { id, port };
+    },
+    async stop() {
+      const cur = rec;
+      rec = null;
+      try {
+        cur?.child.kill("SIGTERM");
+      } catch {
+        /* already gone */
+      }
+    },
+  };
+}
+
+const docsSite = makeReadonlyProc({
+  dir: () => config.docsDir,
+  basePath: () => config.docsBasePath,
+  component: "docs",
+});
+
+const examplesSite = makeReadonlyProc({
+  dir: () => config.examplesDir,
+  basePath: () => config.examplesSiteBasePath,
+  component: "examples",
+});
 
 /** An OS-assigned free TCP port on loopback (a hint; the actual bound port is read back). */
 function freePort() {
@@ -95,40 +139,15 @@ export const processDriver = {
     return { id, port };
   },
 
-  // --- the always-on docs instance ---------------------------------------- //
-  // Serves the repo's docs/ IN PLACE (no temp copy): `--read-only` means the child never
-  // writes user data, and its index under docs/.yo is exactly what a local yamlover would
-  // build anyway. There is no image, so nothing is ever stale.
-
-  async docsStatus() {
-    if (!docsProc) return null;
-    return { id: docsProc.id, port: docsProc.port, stale: false };
-  },
-
-  async startDocs() {
-    // Not collapsed, unlike a demo: docs/ is published content, so which chapter a visitor
-    // reaches is exactly the thing worth measuring, and its URL gives nothing away.
-    const { child, port } = await spawnYamlover(config.docsDir, config.docsBasePath, ["--read-only"], {
-      env: ga4EnvFor(config.docsBasePath),
-      bindings: { component: "docs" },
-    });
-    const id = `p${child.pid}`;
-    docsProc = { id, child, port };
-    child.on("exit", () => {
-      if (docsProc?.id === id) docsProc = null;
-    });
-    return { id, port };
-  },
-
-  async stopDocs() {
-    const rec = docsProc;
-    docsProc = null;
-    try {
-      rec?.child.kill("SIGTERM");
-    } catch {
-      /* already gone */
-    }
-  },
+  // Always-on sites serve the repo tree IN PLACE (no temp copy): `--read-only` means the
+  // child never writes user data, and its index under <dir>/.yo is exactly what a local
+  // yamlover would build anyway. There is no image, so nothing is ever stale.
+  docsStatus: () => docsSite.status(),
+  startDocs: () => docsSite.start(),
+  stopDocs: () => docsSite.stop(),
+  examplesStatus: () => examplesSite.status(),
+  startExamples: () => examplesSite.start(),
+  stopExamples: () => examplesSite.stop(),
 
   async stop(id) {
     const rec = procs.get(id);
@@ -151,6 +170,7 @@ export const processDriver = {
   // (the child list is in-memory), so leaving them would orphan real processes.
   async shutdown() {
     await this.stopDocs();
+    await this.stopExamples();
     for (const rec of procs.values()) {
       try {
         rec.child.kill("SIGTERM");

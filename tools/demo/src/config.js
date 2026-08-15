@@ -83,6 +83,14 @@ export const config = {
   docsRefreshMs: int("DOCS_REFRESH_MS", reapIntervalMs),
   docsDir: str("DOCS_DIR", resolve(repoRoot, "docs")), // process-driver content (served in place)
 
+  // --- the always-on examples instance (twin of docs: read-only, not a visitor demo) ---
+  // EXAMPLES_DIR below is the process-driver *content* for writable demos; these SITE_*
+  // knobs are the public /examples showcase and must not collide with that name.
+  examplesSiteEnabled: str("EXAMPLES_SITE_ENABLED", "1") !== "0",
+  examplesSiteBasePath: normBase(str("EXAMPLES_SITE_BASE_PATH", "/examples")),
+  examplesSiteImage: str("EXAMPLES_SITE_IMAGE", "dimskraft/yamlover-examples:latest"),
+  examplesSiteRefreshMs: int("EXAMPLES_SITE_REFRESH_MS", reapIntervalMs),
+
   // process driver (local dev)
   examplesDir: str("EXAMPLES_DIR", resolve(repoRoot, "examples")),
   yamloverBin: str("YAMLOVER_BIN", resolve(repoRoot, "tools/server/bin/yamlover.js")),

@@ -11,7 +11,6 @@ import { log, captureLines } from "../log.js";
 
 const run = promisify(execFile);
 const containerName = (hash) => `yld-${hash}`;
-const DOCS_NAME = "yld-docs"; // the single always-on docs container
 
 /** The host port a container publishes 5173 on, or null if it publishes none. */
 async function publishedPort(idOrName) {
@@ -23,8 +22,8 @@ async function publishedPort(idOrName) {
 // --- container log capture ------------------------------------------------- //
 // Containers are detached and `--rm`, so their stdout goes to the daemon's json-file log and
 // is deleted with the container. `docker logs -f` relays it into ours while it lives, which
-// keeps one pipeline for the whole system: the demo server, its children and the docs
-// instance all end up in the same journal, and the Ops Agent ships them together.
+// keeps one pipeline for the whole system: the demo server, its children and the
+// always-on sites all end up in the same journal, and the Ops Agent ships them together.
 //
 // IDEMPOTENT AND KEYED BY CONTAINER ID, because the call sites include the adoption paths —
 // a demo server restart leaves containers running, and they must pick their followers back
@@ -58,7 +57,106 @@ function unfollow(id) {
 /** `-e NAME=value` arguments for `docker run`, from an env object. */
 const envArgs = (env) => Object.entries(env).flatMap(([k, v]) => ["-e", `${k}=${v}`]);
 
-let docsId = null; // the docs container we are following, so stopDocs() can drop it
+/** One always-on read-only container (docs or examples). Label is never `yamlover-demo=1`,
+ *  so the reaper cannot touch it. `image` / `basePath` are functions so a refresh reads
+ *  the current config after a pull. */
+function makeAlwaysOn({ name, label, image, basePath, component }) {
+  let followedId = null;
+  return {
+    async prepare() {
+      if (!config.dockerPull) return;
+      const img = image();
+      try {
+        await run("docker", ["pull", img]);
+      } catch (e) {
+        log.warn(`${component} image pull failed, using local copy`, { err: e, image: img });
+      }
+    },
+    async status() {
+      const { stdout } = await run("docker", [
+        "ps",
+        "--no-trunc",
+        "--filter",
+        `label=${label}`,
+        "--format",
+        "{{.ID}}",
+      ]);
+      const id = stdout.trim().split("\n").filter(Boolean)[0];
+      if (!id) return null;
+      const img = image();
+      const [port, running, wanted] = await Promise.all([
+        publishedPort(id),
+        run("docker", ["inspect", "-f", "{{.Image}}", id]).then((r) => r.stdout.trim()),
+        run("docker", ["image", "inspect", "-f", "{{.Id}}", img])
+          .then((r) => r.stdout.trim())
+          .catch(() => null), // image not present locally (pull failed) → nothing to compare against
+      ]);
+      // Adoption path: this container may predate us, in which case start() never ran and
+      // this is the only place that learns its id.
+      follow(id, { component });
+      followedId = id;
+      return { id, port, stale: wanted != null && running !== wanted };
+    },
+    async start() {
+      // Clear any leftover of the same name (a stopped-but-not-removed or stale container)
+      // so the run below cannot fail on a name collision.
+      await run("docker", ["rm", "-f", name]).catch(() => {});
+      const bp = basePath();
+      const { stdout } = await run("docker", [
+        "run",
+        "-d",
+        "--rm",
+        "--init",
+        "--label",
+        label, // deliberately NOT yamlover-demo=1: the reaper must never touch this
+        "--name",
+        name,
+        "--memory",
+        config.dockerMemory,
+        "--cpus",
+        config.dockerCpus,
+        "-e",
+        `BASE_PATH=${bp}`,
+        // Not collapsed, unlike a demo: this is published content, so which node a visitor
+        // reaches is exactly the thing worth measuring, and its URL gives nothing away.
+        ...envArgs(ga4EnvFor(bp)),
+        "-p",
+        "127.0.0.1::5173",
+        image(),
+      ]);
+      const id = stdout.trim();
+      const port = await publishedPort(name);
+      if (!port) {
+        await run("docker", ["rm", "-f", name]).catch(() => {});
+        throw new Error(`could not read docker port mapping for the ${component} container`);
+      }
+      follow(id, { component });
+      followedId = id;
+      return { id, port };
+    },
+    async stop() {
+      if (followedId) unfollow(followedId);
+      followedId = null;
+      await run("docker", ["rm", "-f", name]).catch(() => {}); // --rm tears it down
+    },
+  };
+}
+
+const docsSite = makeAlwaysOn({
+  name: "yld-docs",
+  label: "yamlover-docs=1",
+  image: () => config.docsImage,
+  basePath: () => config.docsBasePath,
+  component: "docs",
+});
+
+const examplesSite = makeAlwaysOn({
+  name: "yld-examples",
+  label: "yamlover-examples=1",
+  image: () => config.examplesSiteImage,
+  basePath: () => config.examplesSiteBasePath,
+  component: "examples",
+});
 
 export const dockerDriver = {
   name: "docker",
@@ -82,88 +180,17 @@ export const dockerDriver = {
     }
   },
 
-  // Same rationale as prepare(), for the docs image. Separate so the docs refresh timer can
-  // re-pull it on its own cadence without disturbing the demo image.
-  async prepareDocs() {
-    if (!config.dockerPull) return;
-    try {
-      await run("docker", ["pull", config.docsImage]);
-    } catch (e) {
-      log.warn("docs image pull failed, using local copy", { err: e, image: config.docsImage });
-    }
-  },
+  // Same rationale as prepare(), for the always-on images. Separate so each refresh timer
+  // can re-pull on its own cadence without disturbing the demo image.
+  prepareDocs: () => docsSite.prepare(),
+  docsStatus: () => docsSite.status(),
+  startDocs: () => docsSite.start(),
+  stopDocs: () => docsSite.stop(),
 
-  /** The live docs container, if any: `{ id, port, stale }`. `stale` means it is running an
-   *  image other than the one `${config.docsImage}` now resolves to — i.e. CI pushed a new
-   *  build and the last `docker pull` fetched it, so the container should be recreated.
-   *  Compares image IDs, not tags: a moving tag like `:latest` never changes name. */
-  async docsStatus() {
-    const { stdout } = await run("docker", [
-      "ps",
-      "--no-trunc",
-      "--filter",
-      "label=yamlover-docs=1",
-      "--format",
-      "{{.ID}}",
-    ]);
-    const id = stdout.trim().split("\n").filter(Boolean)[0];
-    if (!id) return null;
-    const [port, running, wanted] = await Promise.all([
-      publishedPort(id),
-      run("docker", ["inspect", "-f", "{{.Image}}", id]).then((r) => r.stdout.trim()),
-      run("docker", ["image", "inspect", "-f", "{{.Id}}", config.docsImage])
-        .then((r) => r.stdout.trim())
-        .catch(() => null), // image not present locally (pull failed) → nothing to compare against
-    ]);
-    // Adoption path: this container may predate us, in which case startDocs() never ran and
-    // this is the only place that learns its id.
-    follow(id, { component: "docs" });
-    docsId = id;
-    return { id, port, stale: wanted != null && running !== wanted };
-  },
-
-  async startDocs() {
-    // Clear any leftover of the same name (a stopped-but-not-removed or stale container)
-    // so the run below cannot fail on a name collision.
-    await run("docker", ["rm", "-f", DOCS_NAME]).catch(() => {});
-    const { stdout } = await run("docker", [
-      "run",
-      "-d",
-      "--rm",
-      "--init",
-      "--label",
-      "yamlover-docs=1", // deliberately NOT yamlover-demo=1: the reaper must never touch this
-      "--name",
-      DOCS_NAME,
-      "--memory",
-      config.dockerMemory,
-      "--cpus",
-      config.dockerCpus,
-      "-e",
-      `BASE_PATH=${config.docsBasePath}`,
-      // Not collapsed, unlike a demo: docs/ is published content, so which chapter a visitor
-      // reaches is exactly the thing worth measuring, and its URL gives nothing away.
-      ...envArgs(ga4EnvFor(config.docsBasePath)),
-      "-p",
-      "127.0.0.1::5173",
-      config.docsImage,
-    ]);
-    const id = stdout.trim();
-    const port = await publishedPort(DOCS_NAME);
-    if (!port) {
-      await run("docker", ["rm", "-f", DOCS_NAME]).catch(() => {});
-      throw new Error("could not read docker port mapping for the docs container");
-    }
-    follow(id, { component: "docs" });
-    docsId = id;
-    return { id, port };
-  },
-
-  async stopDocs() {
-    if (docsId) unfollow(docsId);
-    docsId = null;
-    await run("docker", ["rm", "-f", DOCS_NAME]).catch(() => {}); // --rm tears it down
-  },
+  prepareExamples: () => examplesSite.prepare(),
+  examplesStatus: () => examplesSite.status(),
+  startExamples: () => examplesSite.start(),
+  stopExamples: () => examplesSite.stop(),
 
   async start(hash) {
     const name = containerName(hash);

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseDemoPath, isDocsPath } from "../src/router.js";
+import { parseDemoPath, isDocsPath, isExamplesPath, isSitePath } from "../src/router.js";
 
 test("parseDemoPath extracts hash + rest", () => {
   assert.deepEqual(parseDemoPath("/demo/abc123/"), { hash: "abc123", rest: "/" });
@@ -35,4 +35,19 @@ test("isDocsPath matches the prefix and its subtree only", () => {
 test("isDocsPath matches nothing when the prefix is empty (docs disabled)", () => {
   assert.equal(isDocsPath("/docs/", ""), false);
   assert.equal(isDocsPath("/", ""), false);
+});
+
+test("isExamplesPath matches the prefix and its subtree only", () => {
+  assert.equal(isExamplesPath("/examples", "/examples"), true);
+  assert.equal(isExamplesPath("/examples/", "/examples"), true);
+  assert.equal(isExamplesPath("/examples/types/map", "/examples"), true);
+  assert.equal(isExamplesPath("/examplessomething", "/examples"), false);
+  assert.equal(isExamplesPath("/docs/", "/examples"), false);
+  assert.equal(isExamplesPath("/demo/abc/", "/examples"), false);
+});
+
+test("isSitePath is the shared prefix check", () => {
+  assert.equal(isSitePath("/foo/bar", "/foo"), true);
+  assert.equal(isSitePath("/foobar", "/foo"), false);
+  assert.equal(isSitePath("/foo", ""), false);
 });

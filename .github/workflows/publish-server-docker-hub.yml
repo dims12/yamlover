@@ -1,8 +1,10 @@
-# Build the two runtime images from one server prod build and push them to Docker Hub:
-#   dimskraft/yamlover-demo — examples/ baked in, one throwaway container per visitor
-#   dimskraft/yamlover-docs — docs/ baked in, read-only, the always-on /docs instance
-# The design-vm demo server just `docker pull`s them; it re-pulls the docs image on a timer
-# (DOCS_REFRESH_MS), so a docs edit goes live from this push alone — no redeploy.
+# Build the three runtime images from one server prod build and push them to Docker Hub:
+#   dimskraft/yamlover-demo     — examples/ baked in, one throwaway container per visitor
+#   dimskraft/yamlover-docs     — docs/ baked in, read-only, the always-on /docs instance
+#   dimskraft/yamlover-examples — examples/ baked in, read-only, the always-on /examples instance
+# The design-vm demo server just `docker pull`s them; it re-pulls the docs/examples images
+# on a timer (DOCS_REFRESH_MS / EXAMPLES_SITE_REFRESH_MS), so an edit goes live from this
+# push alone — no redeploy.
 # GitHub counterpart of .forgejo/workflows/publish-server-docker-hub.yml.
 #
 # Unlike the Forgejo runner (which mounts calculon's host docker daemon and has to
@@ -99,3 +101,18 @@ jobs:
             dimskraft/yamlover-docs:latest
             dimskraft/yamlover-docs:${{ steps.v.outputs.version }}
             dimskraft/yamlover-docs:${{ steps.sha.outputs.short }}
+
+      # Same build, examples/ instead of docs/, served read-only. Shares this job's dist/
+      # and buildx layer cache, so it costs little on top of the other two images.
+      - name: Build, attest (SBOM + provenance), and push the examples image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: tools/demo/docker/examples.Dockerfile
+          push: true
+          provenance: true
+          sbom: true
+          tags: |
+            dimskraft/yamlover-examples:latest
+            dimskraft/yamlover-examples:${{ steps.v.outputs.version }}
+            dimskraft/yamlover-examples:${{ steps.sha.outputs.short }}

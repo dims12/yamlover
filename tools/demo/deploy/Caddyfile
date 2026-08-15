@@ -4,7 +4,7 @@
 # Because it's our own file, the shared Caddyfile's other sites are
 # never touched, and edits to this file actually propagate (no append-only drift).
 # Reuses the wildcard *.inthemoon.net cert already on the box and reverse-proxies the
-# whole app — the registration page, /docs/, AND every /demo/<hash>/ — to the demo server,
+# whole app — the registration page, /docs/, /examples/, AND every /demo/<hash>/ — to the demo server,
 # which fans out to the per-instance containers on loopback. Caddy flushes streamed
 # responses, so the yamlover SSE stream (/api/events) passes through live.
 

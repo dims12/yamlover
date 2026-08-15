@@ -1,8 +1,9 @@
-// The demo server's HTTP router. Three concerns:
+// The demo server's HTTP router. Four concerns:
 //   • registration   — GET / (the email form, plus the brand files it links to) and
 //                       POST /register (mint hash + email link)
 //   • demo proxying   — GET|* /demo/<hash>/... → provision-on-first-hit then reverse-proxy
-//   • docs proxying   — GET|* /docs/... → the single always-on read-only instance
+//   • docs proxying   — GET|* /docs/... → the always-on read-only docs instance
+//   • examples proxying — GET|* /examples/... → the always-on read-only examples instance
 // Anything else 404s. Friendly status pages for unknown/expired/at-capacity links.
 
 import { readFile } from "node:fs/promises";
@@ -36,31 +37,69 @@ export function parseDemoPath(pathname) {
   return { hash: decodeURIComponent(m[1]), rest: m[2] ?? null };
 }
 
-/** Is this request for the always-on docs instance (`/docs`, `/docs/…`)? Pure; tested directly. */
-export function isDocsPath(pathname, base = config.docsBasePath) {
+/** Is this request for an always-on site (`/docs`, `/examples`, …)? Pure; tested directly. */
+export function isSitePath(pathname, base) {
   return Boolean(base) && (pathname === base || pathname.startsWith(base + "/"));
 }
 
-export function makeRouter({ store, provision, rateLimit, docs }) {
+/** Is this request for the always-on docs instance (`/docs`, `/docs/…`)? */
+export function isDocsPath(pathname, base = config.docsBasePath) {
+  return isSitePath(pathname, base);
+}
+
+/** Is this request for the always-on examples instance (`/examples`, `/examples/…`)? */
+export function isExamplesPath(pathname, base = config.examplesSiteBasePath) {
+  return isSitePath(pathname, base);
+}
+
+/** Reverse-proxy one always-on site. Returns true if the request was handled. */
+async function proxySite(req, res, pathname, site, { enabled, basePath, kind, title, body }) {
+  if (!site || !enabled || !isSitePath(pathname, basePath)) return false;
+  if (pathname === basePath) {
+    res.writeHead(301, { Location: basePath + "/" }); // canonical trailing slash
+    res.end();
+    return true;
+  }
+  let port;
+  try {
+    // Cheap when the instance is already up; starts (or restarts) it otherwise, so a
+    // container that died between requests self-heals on the next hit.
+    port = await site.ensure();
+  } catch (e) {
+    log.error(`${kind} unavailable`, { err: e });
+    sendPage(res, 502, title, body);
+    return true;
+  }
+  proxy(req, res, port, () => site.invalidate());
+  return true;
+}
+
+export function makeRouter({ store, provision, rateLimit, docs, examples }) {
   return async function route(req, res) {
     const { pathname } = new URL(req.url, "http://localhost");
 
-    // --- the always-on docs instance ---------------------------------------- //
-    if (docs && config.docsEnabled && isDocsPath(pathname)) {
-      if (pathname === config.docsBasePath) {
-        res.writeHead(301, { Location: config.docsBasePath + "/" }); // canonical trailing slash
-        return res.end();
-      }
-      let port;
-      try {
-        // Cheap when the instance is already up; starts (or restarts) it otherwise, so a
-        // container that died between requests self-heals on the next hit.
-        port = await docs.ensure();
-      } catch (e) {
-        log.error("docs unavailable", { err: e });
-        return sendPage(res, 502, "Docs unavailable", "The documentation is starting up. Please retry in a moment.");
-      }
-      return proxy(req, res, port, () => docs.invalidate());
+    if (
+      await proxySite(req, res, pathname, docs, {
+        enabled: config.docsEnabled,
+        basePath: config.docsBasePath,
+        kind: "docs",
+        title: "Docs unavailable",
+        body: "The documentation is starting up. Please retry in a moment.",
+      })
+    ) {
+      return;
+    }
+
+    if (
+      await proxySite(req, res, pathname, examples, {
+        enabled: config.examplesSiteEnabled,
+        basePath: config.examplesSiteBasePath,
+        kind: "examples",
+        title: "Examples unavailable",
+        body: "The examples are starting up. Please retry in a moment.",
+      })
+    ) {
+      return;
     }
 
     // --- demo links --------------------------------------------------------- //
