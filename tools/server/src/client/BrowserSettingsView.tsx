@@ -11,6 +11,7 @@ import { previewSource, editText, type NodeJson, type Edit } from "./api";
 import { BROWSER_SETTINGS_PATH, browserSettingsSource, saveBrowserSettings } from "./browser-settings";
 import { Render } from "./render";
 import { EditingContext } from "./renderers/editing";
+import { displayType } from "../type-names";
 
 export function BrowserSettingsView({ onNavigate }: { onNavigate: (path: string) => void }) {
   const [node, setNode] = useState<NodeJson | null>(null);
@@ -56,7 +57,7 @@ export function BrowserSettingsView({ onNavigate }: { onNavigate: (path: string)
     <div className="nodeview">
       <div className="nodehead">
         <div className="nodemeta">
-          <span className="tag">{node.type}</span>
+          <span className="tag">{displayType(node.type)}</span>
           {node.concrete && <span className="tag dim">{node.concrete}</span>}
           <span className="tag dim" title="Stored in this browser's localStorage — not part of any project">this browser</span>
         </div>

@@ -11,13 +11,17 @@
 // SCANS the rendered pane rather than computing ids; the TOC never computes ids either.
 
 import { useEffect, useSyncExternalStore, type RefObject } from "react";
-import { canonPath } from "./paths";
+import { canonPath, segsToStr, strToSegs } from "./paths";
 
 export interface TocPresence {
   /** canonPath of the merged page's root; null = no merged view mounted (all rows plain). */
   base: string | null;
   /** canonPath → in-page anchor id, one entry per node VISIBLY rendered on the page. */
   anchors: ReadonlyMap<string, string>;
+  /** `anchors` closed over ancestors (and `base`) — the TOC's even gray. A rendered leaf
+   *  means its spine is on the page too; without this, only the stamped nodes shaded and
+   *  a flat row's continuation leaves sat a step darker than their parents. */
+  merged: ReadonlySet<string>;
   /** canonPath of the node the URL #fragment currently names (scroll spy / hash), or null. */
   currentPath: string | null;
   /** canonPaths of the nodes whose anchors are inside the pane's VIEWPORT right now — the
@@ -25,7 +29,18 @@ export interface TocPresence {
   visible: ReadonlySet<string>;
 }
 
-const EMPTY: TocPresence = { base: null, anchors: new Map(), currentPath: null, visible: new Set() };
+const EMPTY: TocPresence = { base: null, anchors: new Map(), merged: new Set(), currentPath: null, visible: new Set() };
+
+/** Every anchored path plus each of its ancestors — one gray for the whole shown spine. */
+function mergedOf(base: string, anchors: Map<string, string>): Set<string> {
+  const out = new Set<string>([canonPath(base)]);
+  for (const p of anchors.keys()) {
+    out.add(p);
+    const segs = strToSegs(p);
+    for (let i = 1; i < segs.length; i++) out.add(segsToStr(segs.slice(0, i)));
+  }
+  return out;
+}
 let state: TocPresence = EMPTY;
 let byId = new Map<string, string>(); // anchor id → canonPath (the reverse of `anchors`)
 let currentFragId: string | null = null; // the last published fragment id, pre-resolution
@@ -52,7 +67,7 @@ export function publishPresence(base: string, anchors: Map<string, string>): voi
     state.anchors.size === anchors.size &&
     [...anchors].every(([p, id]) => state.anchors.get(p) === id);
   if (same) return;
-  emit({ base, anchors, currentPath, visible: state.visible });
+  emit({ base, anchors, merged: mergedOf(base, anchors), currentPath, visible: state.visible });
 }
 
 /** The on-screen band: anchor IDS currently inside the pane's viewport, resolved to paths —
@@ -60,12 +75,13 @@ export function publishPresence(base: string, anchors: Map<string, string>): voi
  *  shading an ancestor whose heading has scrolled off puts yellow above a run of unshaded
  *  siblings — the "split yellow" report. Literal visibility keeps the band one contiguous run
  *  (TOC order is document order). Swaps the snapshot only when the set actually changed. */
-export function publishVisibleIds(ids: readonly string[]): void {
+export function publishVisibleIds(ids: readonly string[], extraPaths: readonly string[] = []): void {
   const visible = new Set<string>();
   for (const id of ids) {
     const p = byId.get(id);
     if (p !== undefined) visible.add(p);
   }
+  for (const p of extraPaths) visible.add(canonPath(p));
   if (visible.size === state.visible.size && [...visible].every((p) => state.visible.has(p))) return;
   emit({ ...state, visible });
 }
@@ -156,13 +172,25 @@ export function useTocPresencePublisher(root: RefObject<HTMLElement | null>, bas
     // internals) simply don't resolve. Runs after every scan and on scroll settle.
     const visScan = (): void => {
       const paneRect = (el.closest(".pane") ?? document.documentElement).getBoundingClientRect();
+      const inPane = (node: HTMLElement): boolean => {
+        const r = node.getBoundingClientRect();
+        return r.bottom >= paneRect.top && r.top <= paneRect.bottom && (r.height > 0 || r.width > 0);
+      };
       const ids: string[] = [];
       for (const a of el.querySelectorAll<HTMLElement>("[id]")) {
         if (a.closest("svg")) continue;
-        const r = a.getBoundingClientRect();
-        if (r.bottom >= paneRect.top && r.top <= paneRect.bottom && (r.height > 0 || r.width > 0)) ids.push(a.id);
+        if (inPane(a)) ids.push(a.id);
       }
-      publishVisibleIds(ids);
+      // a FLAT row (docs/language/flattening) writes several keys on ONE line; the official
+      // `#` id stamps once (first occurrence), so later repeats (`human1: age: 30`) would
+      // leave the prefix unshaded. The row lists every segment path; if the LINE is on
+      // screen they all yellow.
+      const extra: string[] = [];
+      for (const row of el.querySelectorAll<HTMLElement>("[data-flat-paths]")) {
+        if (!inPane(row)) continue;
+        for (const p of (row.dataset.flatPaths ?? "").split(/\s+/)) if (p) extra.push(p);
+      }
+      publishVisibleIds(ids, extra);
     };
     scan(); // effects run post-commit: synchronously-rendered content is already in the DOM
     visScan();

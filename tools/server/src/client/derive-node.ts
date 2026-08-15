@@ -88,8 +88,23 @@ function kindOf(node: Node, own: Own[]): Kind {
   return own.some((o) => o.e.key === null) ? "mix" : "object";
 }
 
-const typeNameOf = (k: Kind, self: unknown): string =>
-  k === "scalar" ? scalarType(self) : k === "mix" ? "kseq" : k;
+/** Twin of node-kind.ts `cubeName` — the lower-bound cube corner from actual presence. */
+function cubeName(
+  f: { valueType: string | null; hasKeyed: boolean; hasOrdinal: boolean },
+  empty: "map" | "seq",
+): string {
+  const v = f.valueType !== null;
+  if (v && f.hasKeyed && f.hasOrdinal) return "omni";
+  if (v && f.hasKeyed) return "vmap";
+  if (v && f.hasOrdinal) return "vseq";
+  if (f.hasKeyed && f.hasOrdinal) return "kseq";
+  if (f.hasKeyed) return "map";
+  if (f.hasOrdinal) return "seq";
+  return empty;
+}
+
+const typeNameOf = (k: Kind, self: unknown, f: { valueType: string | null; hasKeyed: boolean; hasOrdinal: boolean }, array: boolean): string =>
+  k === "scalar" ? scalarType(self) : k === "binary" ? "binary" : cubeName(f, array ? "seq" : "map");
 
 function facetsOf(node: Node, own: Own[]): { valueType: string | null; hasKeyed: boolean; hasOrdinal: boolean } {
   const ordinal = (o: Own): boolean => o.e.key === null || o.bucket.anchorKey !== undefined; // null label = keyless (the store's rule)
@@ -118,10 +133,11 @@ function mintLink(node: Node, segs: Seg[], own: Own[], bucket: SideBucket, dc: s
   const nonBack = own.filter((o) => !o.back);
   const k = kindOf(node, nonBack);
   const self = (node as { value?: unknown }).value;
+  const facets = facetsOf(node, nonBack);
   const info: Record<string, unknown> = {
     kind: k,
-    type: typeNameOf(k, self),
-    ...facetsOf(node, nonBack),
+    type: typeNameOf(k, self, facets, !!(node as { array?: boolean }).array),
+    ...facets,
     path: segsToStr(segs),
   };
   const format = bucket.format;
@@ -258,7 +274,7 @@ export function deriveNodeJson(content: Content, oldDepth?: number | null): Node
   const emptyRoot = r.kind === "scalar" && r.value === null && (r.raw ?? "") === "" && !(r.entries ?? []).length;
   const value = isBinaryTop
     ? { size: h.size, format: h.format ?? null }
-    : emptyRoot && h.type === "object"
+    : emptyRoot && (h.type === "object" || h.type === "map")
       ? {}
       : h.valueType === "binary"
         ? blobOmniValue(content, segs, depth, concrete)

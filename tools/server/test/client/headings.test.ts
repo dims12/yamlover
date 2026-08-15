@@ -68,4 +68,21 @@ describe("navigateToFragment × toc-presence", () => {
     expect(window.location.hash).toBe("#/x");
     expect(getTocPresence().currentPath).toBe(":x"); // the TOC shade moved regardless
   });
+
+  it("a `#/` navigation scrolls the pane to the origin — not to a root anchor after a banner", () => {
+    const pane = document.createElement("div");
+    pane.className = "pane";
+    pane.scrollTop = 400;
+    const root = document.createElement("span");
+    root.id = "/";
+    pane.appendChild(root);
+    document.body.appendChild(pane);
+    try {
+      navigateToFragment("/");
+      expect(window.location.hash).toBe("#/");
+      expect(pane.scrollTop).toBe(0);
+    } finally {
+      pane.remove();
+    }
+  });
 });

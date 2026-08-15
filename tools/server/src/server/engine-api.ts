@@ -1421,7 +1421,7 @@ function projectSchema(dataRoot: string, s: Store, segs: Seg[], depth: number, t
   const k = displayKind(s, p, row);
   if ((k === "object" || k === "array" || k === "mix" || k === "omni") && depth <= 0) return linkMarker(dataRoot, s, segs);
   if (k === "binary" && !top) return linkMarker(dataRoot, s, segs);
-  const schema: Record<string, unknown> = { type: typeName(s, p, row) }; // object|array|binary|kseq|omni|<scalar>
+  const schema: Record<string, unknown> = { type: typeName(s, p, row) }; // map|seq|kseq|vmap|vseq|omni|binary|<scalar>
   if (row.format) schema.format = row.format;
   const kids = downstreamEntries(s, p);
   const nullKeyed = nullKeyTargets(s, p);

@@ -10,7 +10,7 @@ description: the TOC tree, the breadcrumb, the node header, and the live event s
   |  open it     |  the node's value / rendered material         |
   +--------------+-----------------------------------------------+
 - !!<*yamlover: $defs: bullets>
-  - '**TOC tree (left).** The whole tree, lazily expanded. Click a row to open that node on the right; click the chevron to expand or collapse without navigating. Each row shows the node''s type icon and its title (or its key / `[index]`).'
+  - '**TOC tree (left).** The whole tree, lazily expanded. Click a row to open that node on the right; click the chevron to expand or collapse without navigating. Each row shows the node''s [type / format icon](*::server:ui:icons) and its title (or its key / `[index]`).'
   - '**Breadcrumb (top).** The path from the served root to the current node; click any segment to jump up. It is also the [query editor](*::server:query-editor) - every cell is click-to-edit.'
   - '**Node header.** A `[type]` chip (`object`, `array`, `variant`, `mixed`, a scalar type, a binary media type...), any **tag** chips the node is filed under (click to open the tag), and the **representation tabs**.'
   - '**Task strip (top bar).** While the server runs long work - indexing a big tree, background-hashing files - a chip per task shows its label, counts, and a progress bar, fed by the live event stream (`/api/tasks` + SSE task events). It disappears when the work is done.'

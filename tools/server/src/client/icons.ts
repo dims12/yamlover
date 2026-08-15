@@ -11,11 +11,24 @@ export interface Glyph {
 
 // Type → a monochrome glyph, colored by category (matches the value highlighting).
 const TYPE: Record<string, { glyph: string; cls: string }> = {
-  object: { glyph: "{}", cls: "t-struct" },
-  array: { glyph: "[]", cls: "t-struct" },
+  // cube corners (docs/meta/facets) — typeName emits the lower bound; JSON-Schema aliases read forever
+  map: { glyph: "{}", cls: "t-struct t-code" },
+  object: { glyph: "{}", cls: "t-struct t-code" },
+  seq: { glyph: "[]", cls: "t-struct t-code" },
+  array: { glyph: "[]", cls: "t-struct t-code" },
+  kseq: { glyph: "()", cls: "t-struct t-code" }, // flow fields — marklower `[…](…)` without the self-value
+  mixed: { glyph: "()", cls: "t-struct t-code" },
+  vmap: { glyph: "{=}", cls: "t-struct t-code" },
+  vseq: { glyph: "[=]", cls: "t-struct t-code" },
+  omni: { glyph: "[]()", cls: "t-struct t-code" }, // flow omni — `[]` self-value, `()` fields
+  variant: { glyph: "[]()", cls: "t-struct t-code" },
+  str: { glyph: "“”", cls: "t-str" },
   string: { glyph: "“”", cls: "t-str" },
+  int: { glyph: "#", cls: "t-num" },
   integer: { glyph: "#", cls: "t-num" },
+  float: { glyph: "½", cls: "t-num" },
   number: { glyph: "½", cls: "t-num" },
+  bool: { glyph: "◧", cls: "t-bool" },
   boolean: { glyph: "◧", cls: "t-bool" },
   null: { glyph: "∅", cls: "t-null" },
   binary: { glyph: "0110", cls: "t-bin binsq" }, // bits in a little square

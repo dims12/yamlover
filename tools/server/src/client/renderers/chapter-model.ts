@@ -77,7 +77,7 @@ export function isEditableChunkFormat(format: string | null | undefined): boolea
 /** A chunk marker the editor turns into an editable field — a string of an editable format. An
  *  image/pointer/diagram chunk is read-only. */
 function isEditableMarker(type: string | undefined, format: string | null | undefined): boolean {
-  return type === "string" && isEditableChunkFormat(format);
+  return (type === "string" || type === "str") && isEditableChunkFormat(format);
 }
 
 /** True for a body element whose (type, format) makes it a nested chapter/subtask — a subchapter. */

@@ -66,6 +66,7 @@ export type CommentBucket = {
                       // spanning lines (docs/language/concretes/00-storage/00-inlined). Present only where the
                       // switch HAPPENS; below it the language lock makes the concrete derivable, so
                       // a renderer reads it once and draws the whole subtree that way.
+  keyConcrete?: string; // `yamlover/key/flat` when this key was a flat-row segment (docs/language/flattening)
 };
 export type CommentMap = Record<string, CommentBucket | string[]>;
 

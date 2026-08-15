@@ -422,7 +422,19 @@ export function App() {
     (p: string, e: ReactMouseEvent) => {
       if (tocSession.active) { tocSession.pick(p); return; }
       if (e.detail >= 2) { selectFromToc(p); return; }
-      const id = getTocPresence().anchors.get(canonPath(p));
+      const presence = getTocPresence();
+      const key = canonPath(p);
+      let id = presence.anchors.get(key);
+      // a merged ancestor ON THIS PAGE (a flat-row spine) scrolls to its first stamped
+      // descendant. The project root is an ancestor of every path — without the base
+      // gate, clicking it while a child file is open would scroll in-page instead of
+      // navigating back to the root (the 01-tour.json report).
+      if (id === undefined && presence.base !== null
+          && (key === presence.base || isAncestorPath(presence.base, key))) {
+        for (const [ap, aid] of presence.anchors) {
+          if (isAncestorPath(key, ap)) { id = aid; break; }
+        }
+      }
       if (id !== undefined) { navigateToFragment(id); return; }
       selectFromToc(p);
     },

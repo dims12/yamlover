@@ -3,7 +3,7 @@ description: the layout, navigation, views, the unified interaction model, and e
 - >
   The `yamlover` server (`npx yamlover <root>`, or `npm start -- <root>` from the repo) serves a
   web app that browses a tree/DAG as a graph of nodes. This chapter covers how to drive that UI:
-  the [layout](*::server:ui:layout), the [representation tabs](*::server:ui:views), the unified
+  the [layout](*::server:ui:layout), the [icons](*::server:ui:icons), the [representation tabs](*::server:ui:views), the unified
   [pan/zoom/select interaction model](*::server:ui:interaction) for materials,
   [annotating](*::server:ui:annotating), [editing a chapter](*::server:ui:editing), and
   [upload](*::server:ui:upload).
@@ -14,6 +14,7 @@ description: the layout, navigation, views, the unified interaction model, and e
   **structurally**: a body element - a pointer to a media member, or a chunk that is one media URL -
   [inlines](*::documents:marklower:embeds) an image, a video, or an audio track as its own figure.)
 - *: layout
+- *: icons
 - *: views
 - *: interaction
 - *: annotating

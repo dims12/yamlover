@@ -16,6 +16,7 @@ import { DepthControl, viewDepth } from "./renderers/depth";
 import { MarkupWidthControl } from "./renderers/markup";
 import { useFragmentScrollSpy, useHashScroll } from "./renderers/headings";
 import { useTocPresencePublisher } from "./toc-presence";
+import { displayType } from "../type-names";
 
 // Renderers whose output is prose — they get the TEXT annotation layer (drag-select → palette →
 // highlight). Image and map renderers carry their OWN region annotation layer (drag-rectangle →
@@ -573,7 +574,7 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
       {dropConfirm.element}
       <div className="nodehead">
         <div className="nodemeta">
-          <span className="tag">{node.type}</span>
+          <span className="tag">{displayType(node.type)}</span>
           {node.concrete && <span className="tag dim">{node.concrete}</span>}
           {/* the tags this node is filed under, inline among the chips */}
           <TagBadges tags={tags} onNavigate={onNavigate} />

@@ -37,7 +37,7 @@ describe("/api/query", () => {
     expect(r.json.results.map((n: any) => n.path)).toEqual([":team.yo:alice", ":team.yo:bob"]);
     const alice = r.json.results[0];
     expect(alice.label).toBe("alice");
-    expect(alice.type).toBe("object");
+    expect(alice.type).toBe("map");
     expect(alice.hasChildren).toBe(true); // chevron: real children load lazily
     expect(alice.children).toEqual([]); // depth 0 — metadata only
   });

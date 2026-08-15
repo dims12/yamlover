@@ -235,9 +235,10 @@ abstract class HlLexerBase(
             }
             c == '-' && peek(1) == ':' && (tokenStart + 2 >= endOffset || buffer[tokenStart + 2].isSpaceOrEol()) -> {
                 // `-:` — the keyless flat-path segment (docs/language/flattening; also the legacy
-                // conversion sugar) reads as the SAME marker, two columns wide — never a key, so
-                // it must not colour like one (highlight.ts's `-:` dash arm)
-                tokenEnd = tokenStart + 2
+                // conversion sugar). Only the hyphen is the dash token — the colon is ordinary
+                // punct (highlight.ts's `-:` dash arm). Consuming both would paint the colon as
+                // the sequence marker.
+                tokenEnd = tokenStart + 1
                 tokenType = t.dash
             }
             c == ':' || c == ',' -> { tokenEnd = tokenStart + 1; tokenType = t.punct }

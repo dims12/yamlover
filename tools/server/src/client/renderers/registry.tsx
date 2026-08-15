@@ -621,7 +621,7 @@ export function renderersFor(node: NodeJson): Renderer[] {
 // A node whose members are worth browsing as icons: object / array / kseq / omni (an `omni`
 // is a scalar-PLUS-fields, so it has members). A plain scalar or a binary leaf has none.
 // The long aliases "mixed"/"variant" read forever (docs/meta/facets) beside the ruled names.
-const CONTAINER_TYPES = new Set(["object", "array", "mixed", "kseq", "variant", "omni"]);
+const CONTAINER_TYPES = new Set(["map", "seq", "object", "array", "kseq", "mixed", "vmap", "vseq", "omni", "variant"]);
 const isContainerNode = (src: FacetSource): boolean => !!src.type && CONTAINER_TYPES.has(src.type);
 
 /** Eligible for the explorer TAB family: a directory or a json/yaml-family node, AND a container. */

@@ -70,6 +70,12 @@ describe("Render", () => {
     expect(txt).toContain("# nested"); // nested leading
     expect(txt).toContain("# bye"); // tail
     expect(document.querySelector(".c")).toBeTruthy(); // rendered with the dimmed comment class
+    // `#/` leads the banner — a TOC click on the file must not land after the comments
+    const root = document.querySelector('.frag-anchor[id="/"]') as HTMLElement;
+    const banner = [...document.querySelectorAll(".c")].find((e) => e.textContent?.includes("banner"));
+    expect(root).toBeTruthy();
+    expect(banner).toBeTruthy();
+    expect(root.compareDocumentPosition(banner!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("renders a ref as its authored pointer token, an anchor, and a type tag (yaml)", () => {
@@ -516,6 +522,55 @@ describe("Render — a K&R (multi-line flow) value", () => {
 // rendered as block rows — the root's own `concrete` never left the server (its self bucket was
 // emitted only for a hand-kept list of five fields), so the view showed a shape the file did not
 // have. The bug was one layer down, but this is where it was visible.
+// FLAT ROWS in the READ-ONLY view (docs/language/flattening). The key concrete arrives per
+// entry as `comments[frag].keyConcrete === "yamlover/key/flat"` — the same sidecar channel
+// flow uses for `repr`. Without it the view nests a shape the file wrote flat.
+describe("Render — yamlover/key/flat", () => {
+  const show = (value: unknown, comments: Record<string, unknown>): string => {
+    const { container } = render(<Render value={value} syntax="yaml" onNavigate={() => {}} comments={comments as never} />);
+    return (container.textContent ?? "").replace(/›/g, "");
+  };
+  const flat = (frag: string) => ({ [frag]: { keyConcrete: "yamlover/key/flat" } });
+
+  it("a multi-child fold repeats the head — human1: name / human1: age", () => {
+    expect(show({ human1: { name: "Alice", age: 30 } }, { ...flat("/human1/name"), ...flat("/human1/age") }))
+      .toBe("human1: name: Alice\nhuman1: age: 30\n");
+  });
+
+  it("the nested twin without the concrete stays nested", () => {
+    expect(show({ human1: { name: "Alice", age: 30 } }, {})).toBe("human1:\n  name: Alice\n  age: 30\n");
+  });
+
+  it("a trailing -: append plus its block is one row, body one step under", () => {
+    const v = { human1: { pets: [{ name: "Whiskers", kind: "cat" }] } };
+    const c = { ...flat("/human1/pets"), ...flat("/human1/pets/0") };
+    expect(show(v, c)).toBe("human1: pets: -:\n  name: Whiskers\n  kind: cat\n");
+  });
+
+  it("a row of scalars is a repetition of trailing -: rows", () => {
+    expect(show({ scores: [7, 9] }, { ...flat("/scores/0"), ...flat("/scores/1") }))
+      .toBe("scores: -: 7\nscores: -: 9\n");
+  });
+
+  it("each flat row lists every segment path for the TOC in-view band", () => {
+    const { container } = render(
+      <Render
+        value={{ human1: { name: "Alice", age: 30 } }}
+        syntax="yaml"
+        onNavigate={() => {}}
+        comments={{ "/human1/name": { keyConcrete: "yamlover/key/flat" }, "/human1/age": { keyConcrete: "yamlover/key/flat" } }}
+        documentPath=":"
+        nodePath=":"
+      />,
+    );
+    const rows = [...container.querySelectorAll<HTMLElement>("[data-flat-paths]")];
+    expect(rows.map((r) => r.dataset.flatPaths)).toEqual([
+      ":human1 :human1:name",
+      ":human1 :human1:age",
+    ]);
+  });
+});
+
 describe("Render — a K&R DOCUMENT", () => {
   it("draws the whole document as written, at every level", () => {
     const value = [{ name: "Eurasia", children: [{ name: "Europe" }, { name: "Asia" }] }];

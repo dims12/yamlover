@@ -1,5 +1,6 @@
 import { useEffect, useRef, type RefObject } from "react";
 import { clearLanding, noteLandingAttempt, noteLandingDone } from "../landing-progress";
+import { ROOT_FRAGMENT } from "../paths";
 import { publishCurrentFragment } from "../toc-presence";
 
 /**
@@ -123,11 +124,19 @@ let lastRevealed: string | null = null;
  *  expects of an anchor, not a viewport-dependent centering. Returns whether it scrolled. */
 function scrollToId(id: string): boolean {
   const el = document.getElementById(id);
-  if (!el?.scrollIntoView) return false;
+  if (!el) return false;
   // stamped only when a scroll actually happens — a retry against a not-yet-landed anchor
   // must not stand the spy down (it would keep a stale hash pinned against real reading)
   hashScrolledAt = Date.now();
   lastRevealed = id;
+  // `#/` is the page top — not the first key after a $head banner. scrollIntoView on the
+  // root anchor would still leave a relations row / sticky-bar gap; the pane origin is the
+  // very top (the 08-flat.yo file-root click).
+  if (id === ROOT_FRAGMENT) {
+    const pane = el.closest(".pane") as HTMLElement | null;
+    if (pane) { pane.scrollTop = 0; return true; }
+  }
+  if (!el.scrollIntoView) return false;
   // The STICKY node bar overlays the pane's top, so a bare top-anchored scroll lands the
   // target beneath it. Measure the ACTUAL overlay — the bar's bottom relative to its
   // scroller's top, the same whether the bar is stuck or at rest, and robust to it wrapping
@@ -234,13 +243,17 @@ export function useFragmentScrollSpy(root: RefObject<HTMLElement | null>, dep: u
       if (userScrolledAt > hashScrolledAt) {
         const pane = paneOf(el);
         const paneRect = pane.getBoundingClientRect();
-        const line = paneRect.top + Math.min(pane.clientHeight * 0.3, 240); // the reading line
+        const line = paneRect.top + pane.clientHeight * 0.3; // true ⅓ — a 240px cap pinned the shade near the top on a tall pane
         let current: string | null = null;
         for (const a of el.querySelectorAll<HTMLElement>("[id]")) {
           // an embedded diagram's internal ids (xyflow arrow markers, SVG defs) are not reading
           // anchors — following one would write garbage like `#1__color=var(--fg)…` into the URL
           if (a.closest("svg")) continue;
-          if (a.getBoundingClientRect().top <= line) current = a.id; // document order — the last one above the line
+          const r = a.getBoundingClientRect();
+          // a collapsed empty span reports top=0 — always "above" the line, so the spy stuck
+          // on an earlier heading (the bold-yellow-on-flatten4 report)
+          if (!(r.height > 0 || r.width > 0)) continue;
+          if (r.top <= line) current = a.id; // document order — the last one above the line
           else break;
         }
         const now = decodeURIComponent(window.location.hash.slice(1));

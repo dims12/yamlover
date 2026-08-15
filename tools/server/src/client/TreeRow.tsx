@@ -9,6 +9,7 @@ import { TreeNode } from "./api";
 import { dragHasNode, endNodeDrag } from "./dnd";
 import { typeIcon } from "./icons";
 import { displayPath } from "./paths";
+import { displayType } from "../type-names";
 
 export interface TreeRowProps {
   node: TreeNode;
@@ -102,7 +103,7 @@ export function TreeRow({ node, depth, selected, match, highlighted, merged, inV
         <span className="toggle leaf" />
       ) : null}
       <span className={"icon " + ti.cls} title={ti.title}>{glyph}</span>
-      <span className="tree-label" onClick={onSelect} title={`${displayPath(node.path)} (${node.type})`} {...labelPeek.hoverProps}>
+      <span className="tree-label" onClick={onSelect} title={`${displayPath(node.path)} (${displayType(node.type)})`} {...labelPeek.hoverProps}>
         {labelChildren}
         {labelPeek.overlay}
       </span>

@@ -164,6 +164,26 @@ describe("App", () => {
     await waitFor(() => expect(window.location.pathname).toBe("/a"));
   });
 
+  it("a click on the PROJECT ROOT while a child file is open navigates home — not an in-page scroll", async () => {
+    vi.mocked(fetchTree).mockResolvedValue({
+      path: ":", label: "root", type: "object", format: null, concrete: null, hasChildren: true,
+      children: [{ path: ":01-tour.json", label: "01-tour.json", type: "object", format: null, concrete: "file/json", hasChildren: true, children: [] }],
+    });
+    render(<App />);
+    const left = () => document.querySelector(".left") as HTMLElement;
+    await within(left()).findByText("01-tour.json");
+    fireEvent.click(within(left()).getByText("01-tour.json"));
+    await waitFor(() => expect(window.location.pathname).toBe("/01-tour.json"));
+    // viewing the child file: its own anchors, the project root is only an ancestor
+    publishPresence(":01-tour.json", new Map([
+      [":01-tour.json", "/"],
+      [":01-tour.json:name", "/name"],
+    ]));
+    fireEvent.click(within(left()).getByText("root"));
+    await waitFor(() => expect(window.location.pathname).toBe("/"));
+    expect(window.location.hash).toBe(""); // a real navigation, not #/name
+  });
+
   it("a click OUTSIDE the merged set navigates as before", async () => {
     vi.mocked(fetchTree).mockResolvedValue({
       path: ":", label: "root", type: "object", format: null, concrete: null, hasChildren: true,

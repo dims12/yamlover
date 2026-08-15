@@ -40,6 +40,10 @@ export type CommentBucket = {
   block?: BlockQualifiers; // a literal/folded scalar's chomping / indent indicator, when not clip
   concrete?: string;      // an INLINE CONCRETE SWITCH (`NodeMeta.concrete`) — `json5p` for a flow
                           // token written K&R. Carried only where the switch HAPPENS.
+  keyConcrete?: string;   // the ENTRY's key representation (ir.ts EntryMeta.keyConcrete) —
+                          // `yamlover/key/flat` when this key was a flat-row segment after the
+                          // first. The renderer folds the row because this says the author wrote
+                          // one (docs/language/flattening). Sparse: absent means a normal key.
 };
 
 export type CommentMap = Record<string, CommentBucket | string[]>;
@@ -183,6 +187,7 @@ export function collectComments(doc: Document, segs: Seg[], depth: number): Comm
       // a blank line before the entry, or before its leading-comment block, is worth keeping
       const leadComment = e.meta?.comments?.find((c) => c.placement === "leading");
       if (e.meta?.blankBefore || leadComment?.blankBefore) bucket.blankBefore = true;
+      if (e.meta?.keyConcrete === "yamlover/key/flat") bucket.keyConcrete = e.meta.keyConcrete;
       if (isPointer(e.value)) bucket.pointer = renderPointer(e.value); // the authored `*…` token
       else {
         nodeDeco(bucket, e.value); // the value node's anchors + type tag

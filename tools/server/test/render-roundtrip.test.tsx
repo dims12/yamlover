@@ -131,6 +131,25 @@ describe("faithful-render round-trip (render → reparse → same IR)", () => {
     expect(text).not.toMatch(/5[^\n]*\n\s*\n/); // … with no blank line wrapped in after it
   });
 
+  it("flat rows stay flat — the renderer respects yamlover/key/flat", async () => {
+    const text = await roundTrip("human1: name: Alice\nhuman1: age: 30\n");
+    expect(text).toMatch(/^human1: name: Alice$/m);
+    expect(text).toMatch(/^human1: age: 30$/m);
+    expect(text).not.toMatch(/^  name:/m);
+  });
+
+  it("a nested twin without the concrete stays nested", async () => {
+    const text = await roundTrip("human1:\n  name: Alice\n  age: 30\n");
+    expect(text).toMatch(/^human1:$/m);
+    expect(text).toMatch(/^  name: Alice$/m);
+  });
+
+  it("a trailing -: append plus its block stays one flat row", async () => {
+    const text = await roundTrip("human1: pets: -:\n  name: Whiskers\n  kind: cat\n");
+    expect(text).toMatch(/^human1: pets: -:$/m);
+    expect(text).toMatch(/^  name: Whiskers$/m);
+  });
+
   it("a type tag (!!set) survives", async () => {
     await roundTrip("crew: !!set\n  - alpha\n  - beta\n");
   });

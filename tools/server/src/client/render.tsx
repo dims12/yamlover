@@ -1,6 +1,6 @@
 import { ReactNode, useState, Fragment } from "react";
 import { Chevron } from "./chevron";
-import { fragmentOf, isAncestorPath, ROOT_FRAGMENT } from "./paths";
+import { fragmentOf, isAncestorPath, ROOT_FRAGMENT, canonPath } from "./paths";
 import { segToken } from "../../../parser/ts/src/pathseg.ts";
 import type { CommentBucket, CommentMap } from "./api";
 import { isJsonFamily } from "../concrete";
@@ -324,10 +324,10 @@ export function Render({
   const tail = fileComments(comments, "$tail"); // leftover comments after the last entry
   return (
     <>
-      {head && <CommentBlock texts={head} syntax={syntax} />}
-      {/* the rendered ROOT's own anchor — entry rows stamp only their children, so without this
-          the page's own node is unaddressable (`#/` for the doc root, its continuation below) */}
+      {/* FIRST, before the $head banner: a TOC click on this file scrolls to `#/`, and that
+          must be the very top — after the comments, the banner scrolled off (08-flat.yo). */}
       <Anchor ctx={ctx} frag={base || ROOT_FRAGMENT} path={nodePath} />
+      {head && <CommentBlock texts={head} syntax={syntax} />}
       {syntax === "yaml" ? (
         <>
           <RootDeco ctx={ctx} frag={base} tag={rootTag} />
@@ -714,9 +714,188 @@ function YamlBody({ value, indent, ctx, frag, path, inlineHead = false }: { valu
   return <YamlArray items={value as unknown[]} indent={indent} ctx={ctx} frag={frag} path={path} inlineHead={inlineHead} />;
 }
 
+/** The children a yamlover value projects as rows — mixed entries, object keys, or array items. */
+function yamlKids(v: unknown): { key: string | null; keyNull?: boolean; value: unknown }[] {
+  if (asLink(v) || asRef(v) || asNum(v)) return [];
+  const mixed = asMixed(v);
+  if (mixed) return mixed.entries;
+  if (Array.isArray(v)) return v.map((value) => ({ key: null, value }));
+  if (isObj(v)) return Object.entries(v).map(([key, value]) => ({ key, value }));
+  return [];
+}
+
+/** Does `v` still emit as FLAT rows losslessly (serialize-yamlover `emitsFlat`)? Children must
+ *  all wear `yamlover/key/flat` on the sidecar, none decorated — the doc's silent-fallback list.
+ *  The renderer folds because the concrete says the author wrote a flat row. */
+function emitsFlatAt(v: unknown, ctx: Ctx, frag: string): boolean {
+  if (asRef(v) || asLink(v)) return false;
+  if (isFlowAt(ctx, frag) || isKrAt(ctx, frag)) return false;
+  const kids = yamlKids(v);
+  if (kids.length === 0) return false;
+  const d = commentsAt(ctx, frag);
+  if (d?.tag || (d?.anchors?.length ?? 0) > 0 || d?.concrete || d?.tail?.length || d?.valueTrailing?.length) return false;
+  const seen = new Set<string>();
+  for (let i = 0; i < kids.length; i++) {
+    const e = kids[i];
+    const cd = commentsAt(ctx, childFrag(frag, entrySeg(e, i)));
+    if (cd?.keyConcrete !== "yamlover/key/flat") return false;
+    if ((cd.leading?.length ?? 0) > 0 || (cd.trailing?.length ?? 0) > 0 || cd.blankBefore) return false;
+    if (e.keyNull === true) return false;
+    if (e.key !== null) {
+      if (seen.has(e.key)) return false;
+      seen.add(e.key);
+    }
+  }
+  return true;
+}
+
+type FlatSegInfo = { k: string | null; frag: string; path: string | null };
+
+/** One path segment of a flat row — a named key or the keyless `-`, plus its colon. The dash
+ *  keeps `.yaml-dash` (the hyphen only); the colon is ordinary punct. */
+function FlatSeg({ s, ctx, stamped }: { s: FlatSegInfo; ctx: Ctx; stamped: Set<string> }): ReactNode {
+  const stamp = !stamped.has(s.frag) && (stamped.add(s.frag), true);
+  return (
+    <>
+      {stamp ? <Anchor ctx={ctx} frag={s.frag} path={s.path} /> : null}
+      {s.k === null ? <span className="punct yaml-dash">{"-"}</span> : <span className="k">{s.k}</span>}
+      <span className="punct">:</span>
+    </>
+  );
+}
+
+/** A keyed entry whose value still folds (docs/language/flattening): emit each child as a flat
+ *  row with this key as the repeated prefix — `human1: name: Alice` / `human1: age: 30`. */
+function YamlFlatFold({ k, v, pad, indent, ctx, frag, path, noPad = false }: { k: string; v: unknown; pad: string; indent: number; ctx: Ctx; frag: string; path: string | null; noPad?: boolean }): ReactNode {
+  const blank = !noPad && commentsAt(ctx, frag)?.blankBefore ? "\n" : null;
+  const lead = noPad ? null : <LeadingComments ctx={ctx} frag={frag} pad={pad} syntax="yaml" />;
+  const stamped = new Set<string>();
+  const kids = yamlKids(v);
+  return (
+    <>
+      {blank}
+      {lead}
+      {kids.map((e, i) => (
+        <YamlFlatChild
+          key={i}
+          prefix={[{ k, frag, path }]}
+          e={e}
+          eFrag={childFrag(frag, entrySeg(e, i))}
+          ePath={childPath(path, entrySeg(e, i))}
+          indent={indent}
+          ctx={ctx}
+          pad={pad}
+          noPad={noPad && i === 0}
+          stamped={stamped}
+        />
+      ))}
+    </>
+  );
+}
+
+/** One FLAT segment: descend while the fold stays lossless, else emit the LEAF row — the
+ *  joined prefix through the ordinary pair machinery at the ROW's own indent (one-step law). */
+function YamlFlatChild({ prefix, e, eFrag, ePath, indent, ctx, pad, noPad, stamped }: {
+  prefix: FlatSegInfo[];
+  e: { key: string | null; keyNull?: boolean; value: unknown };
+  eFrag: string;
+  ePath: string | null;
+  indent: number;
+  ctx: Ctx;
+  pad: string;
+  noPad: boolean;
+  stamped: Set<string>;
+}): ReactNode {
+  const segs = [...prefix, { k: e.key, frag: eFrag, path: ePath }];
+  if (e.key !== null && emitsFlatAt(e.value, ctx, eFrag)) {
+    return (
+      <>
+        {yamlKids(e.value).map((c, i) => (
+          <YamlFlatChild
+            key={i}
+            prefix={segs}
+            e={c}
+            eFrag={childFrag(eFrag, entrySeg(c, i))}
+            ePath={childPath(ePath, entrySeg(c, i))}
+            indent={indent}
+            ctx={ctx}
+            pad={pad}
+            noPad={noPad && i === 0}
+            stamped={stamped}
+          />
+        ))}
+      </>
+    );
+  }
+  return <YamlFlatLeaf segs={segs} v={e.value} indent={indent} ctx={ctx} frag={eFrag} path={ePath} pad={pad} noPad={noPad} stamped={stamped} />;
+}
+
+/** Wrap one flat row's line so the TOC presence scan can yellow EVERY segment on it
+ *  (toc-presence.ts `[data-flat-paths]`). The official `#` id still stamps once (first
+ *  occurrence); later repeats of a prefix (`human1: age: 30`) would otherwise leave that
+ *  key unshaded while its own line is on screen. */
+function flatRowLine(segs: FlatSegInfo[], children: ReactNode): ReactNode {
+  const paths = segs.map((s) => s.path).filter((p): p is string => p != null).map(canonPath);
+  return <span className="yo-flat-row" data-flat-paths={paths.join(" ")}>{children}</span>;
+}
+
+/** The leaf of a flat row: `prefix: …: value` on one line, or `prefix: …:` plus a continuation
+ *  block one step under the row — the same value faces {@link YamlEntry} uses. */
+function YamlFlatLeaf({ segs, v, indent, ctx, frag, path, pad, noPad, stamped }: {
+  segs: FlatSegInfo[];
+  v: unknown;
+  indent: number;
+  ctx: Ctx;
+  frag: string;
+  path: string | null;
+  pad: string;
+  noPad: boolean;
+  stamped: Set<string>;
+}): ReactNode {
+  const [open, setOpen] = useState(true);
+  const trail = trailingComment(ctx, frag, "yaml");
+  const ptr = commentsAt(ctx, frag)?.pointer;
+  const deco = decoSpan(ctx, frag, "yaml");
+  const head = (
+    <>
+      {noPad ? null : pad}
+      {segs.map((s, i) => (
+        <Fragment key={i}>{i > 0 ? " " : null}<FlatSeg s={s} ctx={ctx} stamped={stamped} /></Fragment>
+      ))}
+    </>
+  );
+  if (bigScalar(v)) {
+    return (
+      <>
+        <FoldToggle open={open} onToggle={() => setOpen((o) => !o)} />
+        {flatRowLine(segs, <>{head}{deco}{" "}<BigScalarYaml v={asBinary(v) ?? (v as string)} indent={indent + 2} open={open} trail={trail} raw={commentsAt(ctx, frag)?.raw} format={tagFormat(commentsAt(ctx, frag)?.tag)} /></>)}
+      </>
+    );
+  }
+  if (!foldable(v)) return <>{flatRowLine(segs, <>{head}{deco}{inlineYamlValue(v, ctx, path, trail, ptr && fmtPointer(ptr, "yaml"), commentsAt(ctx, frag)?.raw, false)}</>)}{"\n"}</>;
+  const flowTok = flowOrKr(v, ctx, frag, path, indent);
+  if (flowTok) return <>{flatRowLine(segs, <>{head}{deco}{" "}{flowTok}{trail}</>)}{"\n"}</>;
+  const m = asMixed(v);
+  const inlineSelf = !!m && m.kind === "omni" && (m.selfAt ?? 0) === 0 && !bigScalar(m.value);
+  return (
+    <>
+      <FoldToggle open={open} onToggle={() => setOpen((o) => !o)} />
+      {flatRowLine(segs, <>{head}{deco}{!open ? <>{" "}<span className="fold-summary">{foldSummary(v)}</span>{trail}</> : inlineSelf ? <>{" "}<YamlBody value={v} indent={indent + 2} ctx={ctx} frag={frag} path={path} inlineHead /></> : trail}</>)}
+      {(!open || inlineSelf) ? "\n" : <>{"\n"}<YamlBody value={v} indent={indent + 2} ctx={ctx} frag={frag} path={path} /></>}
+    </>
+  );
+}
+
 function YamlObject({ entries, indent, ctx, frag, path, inlineHead = false }: { entries: [string, unknown][]; indent: number; ctx: Ctx; frag: string; path: string | null; inlineHead?: boolean }): ReactNode {
   const pad = " ".repeat(indent);
-  return <>{entries.map(([k, v], i) => <YamlEntry key={i} k={k} v={v} pad={pad} indent={indent} ctx={ctx} frag={childFrag(frag, k)} path={childPath(path, k)} noPad={inlineHead && i === 0} />)}</>;
+  return <>{entries.map(([k, v], i) => {
+    const cf = childFrag(frag, k);
+    const cp = childPath(path, k);
+    const noPad = inlineHead && i === 0;
+    return emitsFlatAt(v, ctx, cf)
+      ? <YamlFlatFold key={i} k={k} v={v} pad={pad} indent={indent} ctx={ctx} frag={cf} path={cp} noPad={noPad} />
+      : <YamlEntry key={i} k={k} v={v} pad={pad} indent={indent} ctx={ctx} frag={cf} path={cp} noPad={noPad} />;
+  })}</>;
 }
 
 function YamlArray({ items, indent, ctx, frag, path, inlineHead = false }: { items: unknown[]; indent: number; ctx: Ctx; frag: string; path: string | null; inlineHead?: boolean }): ReactNode {
@@ -793,6 +972,8 @@ function YamlMixed({ mixed, indent, ctx, frag, path, inlineHead = false }: { mix
               // a positional member with a derived storage anchor: a `- &key value` row — but the
               // frag/path stay KEYED (fragments, comment buckets and edits address `:key`, not the position)
               <YamlItem v={e.value} pad={pad} indent={indent} ctx={ctx} frag={childFrag(frag, e.key)} path={childPath(path, e.key)} noPad={noPad} anchorName={e.key} />
+            ) : emitsFlatAt(e.value, ctx, childFrag(frag, e.key)) && mixed.entries.filter((s) => s.key === e.key && s.keyNull !== true).length === 1 ? (
+              <YamlFlatFold k={e.key} v={e.value} pad={pad} indent={indent} ctx={ctx} frag={childFrag(frag, e.key)} path={childPath(path, e.key)} noPad={noPad} />
             ) : (
               <YamlEntry k={e.key} v={e.value} pad={pad} indent={indent} ctx={ctx} frag={childFrag(frag, e.key)} path={childPath(path, e.key)} noPad={noPad} />
             )}
@@ -929,14 +1110,15 @@ function YamlItem({ v, pad, indent, ctx, frag, path, noPad = false, anchorName }
 /** A non-foldable value following a `key:` / `- ` — a link, ref, empty container, or scalar,
  *  rendered inline with a leading space and a trailing newline. `path` is the value's own node path
  *  (for an editable scalar leaf); null when it has no addressable path. */
-function inlineYamlValue(v: unknown, ctx: Ctx, path: string | null, trail: ReactNode = null, ptr?: string, raw?: string): ReactNode {
+function inlineYamlValue(v: unknown, ctx: Ctx, path: string | null, trail: ReactNode = null, ptr?: string, raw?: string, nl = true): ReactNode {
+  const end = <>{trail}{nl ? "\n" : null}</>;
   const link = asLink(v);
-  if (link) return <>{" "}{linkNode(link, "yaml", ctx)}{trail}{"\n"}</>;
+  if (link) return <>{" "}{linkNode(link, "yaml", ctx)}{end}</>;
   const ref = asRef(v);
-  if (ref) return <>{" "}{refNode(ref, "yaml", ctx, ptr)}{trail}{"\n"}</>;
-  if (isObj(v) && Object.keys(v).length === 0) return <>{" "}<span className="punct">{"{}"}</span>{trail}{"\n"}</>;
-  if (Array.isArray(v) && v.length === 0) return <>{" "}<span className="punct">{"[]"}</span>{trail}{"\n"}</>;
-  return <>{" "}<ScalarLeaf value={v} syntax="yaml" path={path} editable={ctx.editable} concrete={ctx.concrete} raw={raw} />{trail}{"\n"}</>;
+  if (ref) return <>{" "}{refNode(ref, "yaml", ctx, ptr)}{end}</>;
+  if (isObj(v) && Object.keys(v).length === 0) return <>{" "}<span className="punct">{"{}"}</span>{end}</>;
+  if (Array.isArray(v) && v.length === 0) return <>{" "}<span className="punct">{"[]"}</span>{end}</>;
+  return <>{" "}<ScalarLeaf value={v} syntax="yaml" path={path} editable={ctx.editable} concrete={ctx.concrete} raw={raw} />{end}</>;
 }
 
 // --------------------------------------------------------------------------- //

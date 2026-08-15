@@ -75,6 +75,26 @@ test('a node that OWNS fields is an omni — 07-omni.yo', () => {
   assert.ok(row);
   assert.ok(s.entries(':').some((e) => e.kind !== 'back'), 'owns at least one forward/contain entry');
   assert.equal(displayKind(s, ':', row!), 'omni');
-  assert.equal(typeName(s, ':', row!), 'omni');
+  assert.equal(typeName(s, ':', row!), 'omni'); // self + keyed + ordinal — the top corner
   s.close();
+});
+
+test('typeName is the cube lower bound — map / seq / kseq / vmap / vseq / omni', () => {
+  const cases: [string, string, string][] = [
+    ['a: 1\nb: 2\n', 'object', 'map'],
+    ['- 1\n- 2\n', 'array', 'seq'],
+    ['a: 1\n- 2\n', 'mix', 'kseq'],
+    ['Hello\na: 1\n', 'omni', 'vmap'],
+    ['Hello\n- 1\n', 'omni', 'vseq'],
+    ['Hello\na: 1\n- 2\n', 'omni', 'omni'],
+  ];
+  for (const [src, kind, name] of cases) {
+    const s = new Store(':memory:');
+    s.indexDocument(parseYamlover(src, 't.yo'));
+    const row = s.node(':');
+    assert.ok(row, src);
+    assert.equal(displayKind(s, ':', row!), kind, `kind of ${JSON.stringify(src)}`);
+    assert.equal(typeName(s, ':', row!), name, `type of ${JSON.stringify(src)}`);
+    s.close();
+  }
 });

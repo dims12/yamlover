@@ -121,8 +121,13 @@ test('hl: FLAT rows - every path segment colours as a KEY, the `-:` segment as t
   assert.deepEqual(kinds('a: a: a: 12\n'), [
     ['key', 'a'], ['punct', ':'], ['key', 'a'], ['punct', ':'], ['key', 'a'], ['punct', ':'], ['number', '12'],
   ]);
-  // the keyless segment `-:` keeps the sequence-marker colour, never a key's
+  // the keyless `-` keeps the sequence-marker colour; its colon is ordinary punct, never a key
   assert.deepEqual(kinds('human1: pets: -: 1\n'), [
-    ['key', 'human1'], ['punct', ':'], ['key', 'pets'], ['punct', ':'], ['dash', '-:'], ['number', '1'],
+    ['key', 'human1'], ['punct', ':'], ['key', 'pets'], ['punct', ':'], ['dash', '-'], ['punct', ':'], ['number', '1'],
+  ]);
+  // docs/language/flattening: trailing append and middle `-` — both colons after `-` are punct
+  assert.deepEqual(kinds('key1: key2: -: scalar\nkey1: -: key3: 100\n'), [
+    ['key', 'key1'], ['punct', ':'], ['key', 'key2'], ['punct', ':'], ['dash', '-'], ['punct', ':'], ['plain', 'scalar'],
+    ['key', 'key1'], ['punct', ':'], ['dash', '-'], ['punct', ':'], ['key', 'key3'], ['punct', ':'], ['number', '100'],
   ]);
 });

@@ -196,10 +196,10 @@ class YamloverLexerTest {
 
     @Test
     fun `the keyless flat segment dash-colon is a DASH, never a key`() {
-        // highlight.ts's `-:` arm: the two-column marker (the keyless flat-path segment)
+        // highlight.ts's `-:` arm: the hyphen is the dash; the colon is ordinary punct
         val src = "human1: pets: -: 1\n"
         assertEquals(listOf("human1", "pets"), ofType(src, "YAMLOVER_KEY"))
-        assertTrue("`-:` is the dash: ${ofType(src, "YAMLOVER_DASH")}", ofType(src, "YAMLOVER_DASH").contains("-:"))
+        assertEquals(listOf("-"), ofType(src, "YAMLOVER_DASH"))
         // `-:x` (no trailing space) is NOT the marker — it starts a word, exactly the TS rule
         assertTrue(ofType("-:x\n", "YAMLOVER_DASH").isEmpty())
     }

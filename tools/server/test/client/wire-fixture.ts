@@ -219,6 +219,7 @@ function entriesFrom(
       ...(e.anchor === true && e.key != null ? { anchorKey: e.key } : {}),
       ...(entryComments.length > 0 ? { comments: entryComments } : {}),
       ...(bucket.blankBefore === true ? { blankBefore: true } : {}),
+      ...(bucket.keyConcrete === "yamlover/key/flat" ? { keyConcrete: "yamlover/key/flat" as const } : {}),
     };
     return {
       key: keyless ? null : e.key,

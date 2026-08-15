@@ -60,15 +60,32 @@ export function displayKind(s: Store, p: string, row: NodeRow): Kind {
   return ents.some((e) => e.label === null) ? "mix" : "object";
 }
 
+/** The cube corner from actual presence — the LOWER BOUND (docs/meta/facets). An untagged
+ *  node is never promoted to `omni` (the top) just because it has a self-value; self+keyed
+ *  is `vmap`, self+ordinal is `vseq`, both member kinds + self is `omni`. Empty containers
+ *  keep the `{}` / `[]` serialization hint. */
+export function cubeName(
+  f: { valueType: string | null; hasKeyed: boolean; hasOrdinal: boolean },
+  empty: "map" | "seq",
+): string {
+  const v = f.valueType !== null;
+  if (v && f.hasKeyed && f.hasOrdinal) return "omni";
+  if (v && f.hasKeyed) return "vmap";
+  if (v && f.hasOrdinal) return "vseq";
+  if (f.hasKeyed && f.hasOrdinal) return "kseq";
+  if (f.hasKeyed) return "map";
+  if (f.hasOrdinal) return "seq";
+  return empty;
+}
+
 // Internal kind → the `type:` name shown in the header/TOC and the schema view — the ruled
-// yamlover spellings (docs/meta/facets): `mix` → "kseq", `omni` → "omni"; the long JSON-Schema
-// aliases ("mixed", "variant") read forever on input but are no longer emitted. Scalars
-// resolve to their JSON-ish primitive type.
+// yamlover spellings (docs/meta/facets). Scalars resolve to their JSON-ish primitive type.
+// Untagged containers use {@link cubeName} (lower bound); `object`/`array` are no longer emitted.
 export function typeName(s: Store, p: string, row: NodeRow): string {
   const k = displayKind(s, p, row);
   if (k === "scalar") return scalarType(row.value);
-  if (k === "mix") return "kseq";
-  return k; // object | array | binary | omni
+  if (k === "binary") return "binary";
+  return cubeName(facetsOf(s, p, row), row.is_array ? "seq" : "map");
 }
 
 export function scalarType(v: unknown): string {

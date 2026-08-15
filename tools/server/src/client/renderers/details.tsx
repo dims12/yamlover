@@ -3,6 +3,7 @@ import type { ExplorerItem } from "./explorer";
 import { Annotation, fetchAnnotations } from "../api";
 import { typeIcon } from "../icons";
 import { displayPath } from "../paths";
+import { displayType } from "../../type-names";
 import { isColorTagPath, resolveTagColor, TagSwatch, tagStyle } from "./tag";
 import { TagTip } from "./tagtip";
 import { touchesYamlover, useDiffPaths } from "../live";
@@ -15,7 +16,7 @@ function kindLabel(it: ExplorerItem): string {
   if (!l) return "scalar";
   if (l.format) return l.format.replace(/^x-yamlover-/, "").replace(/^.*\//, "");
   if (isDirConcrete(l.concrete)) return "folder";
-  return l.type ?? l.kind ?? "";
+  return displayType(l.type ?? l.kind ?? "");
 }
 
 // A member's SIZE/COUNT column: a container shows its member count, a blob its byte size.

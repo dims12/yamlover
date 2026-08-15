@@ -8,7 +8,7 @@
 /* cells: ONE closed set, TWO renderings. Prod (`y2-plain`) is clean source text; debug
    (`y2-debug`) frames and titles every cell. Same DOM either way — a MODE, not a fork. */
 .y2-editor {
-  font-family: var(--font, ui-monospace, "SF Mono", "JetBrains Mono", "Fira Code", Menlo, Consolas, monospace);
+  font-family: var(--mono, ui-monospace, "SF Mono", "JetBrains Mono", "Fira Code", Menlo, Consolas, monospace);
   line-height: 1.55;
   tab-size: 36; /* the renderer's trailing-comment tab stop */
 }

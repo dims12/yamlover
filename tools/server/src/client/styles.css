@@ -19,7 +19,8 @@
   --toc-merged: #1c1f2e;
   --toc-inview: #3b3828; /* the on-screen band — a dimmer step of --toc-current */
   --toc-current: #5c5433;
-  --font: ui-monospace, "SF Mono", "JetBrains Mono", "Fira Code", Menlo, Consolas, monospace;
+  --font: system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Fira Code", Menlo, Consolas, monospace;
 
   /* semantic states + surface effects — themed (the raw values assumed a dark bg) */
   --danger: #f38ba8; /* invalid input / failed save */
@@ -121,8 +122,8 @@ body {
   background: var(--bg);
   color: var(--fg);
   font-family: var(--font);
-  /* base reading size — TOC labels, breadcrumb, and rendered prose all inherit it.
-     14px sits closer to the larger default size of the PDF/DjVu page renderers. */
+  /* base reading size — TOC, breadcrumb, and chapter/markup prose inherit the
+     proportional stack. Code views (.code, .plaintext, yed) set --mono themselves. */
   font-size: 14px;
 }
 
@@ -624,6 +625,16 @@ body {
   flex: 0 0 auto;
   font-size: 12px;
 }
+/* flow brackets (`{}` `[]` `()` `[]()`) — mono so they stay distinct on the
+   proportional TOC/explorer face; emoji format/folder icons keep the UI stack */
+.icon.t-code,
+.dirview-icon.t-code {
+  font-family: var(--mono);
+}
+.icon.t-code {
+  width: auto;
+  min-width: 1.6em;
+}
 .t-struct {
   color: var(--key);
 }
@@ -648,7 +659,7 @@ body {
 .icon.binsq,
 .dirview-icon.binsq {
   width: auto;
-  font-family: var(--mono, monospace);
+  font-family: var(--mono);
   font-size: 6px;
   font-weight: 700;
   line-height: 1;
@@ -915,7 +926,7 @@ button.tab:last-of-type {
   tab-size: 36;
   overflow-x: auto;
   line-height: 1.55;
-  font-family: var(--font);
+  font-family: var(--mono);
   /* the fold gutter: `padding-left` must clear the 20px `.toggle` (pulled left by `.fold-gutter`),
      or `overflow-x` would clip the chevron; a negative margin then slides the whole block left into
      the pane's padding so the gutter sits a few px from the window border. */
@@ -993,6 +1004,11 @@ pre.code.chapter-data {
 /* a node's `#`-fragment anchor: zero-width in the text flow, but a scroll-margin so a node reached
    via <doc>#/cont lands a little below the top rather than flush against it */
 .frag-anchor {
+  display: inline-block; /* a measurable box: empty inline spans collapse to 0×0, and the
+                            scroll spy / in-view band then skip them or read top=0 */
+  width: 0;
+  height: 1em;
+  vertical-align: baseline;
   scroll-margin-top: 12px;
 }
 /* an external (off-tree) marklower link — solid underline marks it leaves the app */
@@ -1180,7 +1196,7 @@ pre.code.chapter-data {
    prose font and was invisible as markup. The selector catches the read `<code>` and the
    editor's atomic `<code class="mlw-atom">` alike, so locked and unlocked look the same. */
 .chapter-prose code {
-  font-family: var(--font);
+  font-family: var(--mono);
   font-size: 0.92em;
   background: var(--bg-alt);
   border: 1px solid var(--border, rgba(127, 127, 127, 0.25));
@@ -1414,7 +1430,7 @@ textarea.chapter-latex-src {
   box-sizing: border-box;
   resize: none;
   overflow: hidden;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--mono);
   font-size: 13px;
   line-height: 1.5;
   color: var(--fg);
@@ -1483,12 +1499,12 @@ textarea.chapter-latex-src {
   color: var(--fg);
 }
 .parse-error-file {
-  font-family: var(--mono, monospace);
+  font-family: var(--mono);
   color: var(--danger);
 }
 .parse-error-msg {
   margin-top: 4px;
-  font-family: var(--mono, monospace);
+  font-family: var(--mono);
   font-size: 0.9em;
   color: var(--dim);
   white-space: pre-wrap;
@@ -1693,7 +1709,7 @@ textarea.chapter-latex-src {
   color: var(--accent);
 }
 .markup code {
-  font-family: var(--mono, monospace);
+  font-family: var(--mono);
   background: var(--bg-alt);
   padding: 1px 4px;
   border-radius: 3px;
@@ -1764,7 +1780,7 @@ textarea.chapter-latex-src {
   margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
-  font-family: var(--font);
+  font-family: var(--mono);
   font-size: 13px;
   line-height: 1.55;
   color: var(--fg);
@@ -2221,7 +2237,7 @@ textarea.chapter-latex-src {
   direction: rtl; /* keep the RIGHT tail visible, ellipsis on the left (the <bdi> keeps text order) */
   font-size: 12px;
   color: var(--dim);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--mono);
 }
 /* the <bdi> keeps the path readable (left-to-right) while the rtl parent moves the ellipsis to the
    LEFT — the standard "truncate a path from the left" pattern. `isolate` (bdi's default) is the
@@ -2574,7 +2590,7 @@ mark.yo-inline-fragment {
 
 /* ---- fb2 ebook renderer -------------------------------------------------- */
 .fb2-body {
-  font-family: var(--mono, monospace);
+  font-family: var(--font);
 }
 .fb2-cover {
   max-width: 320px;
@@ -2664,6 +2680,10 @@ mark.yo-inline-fragment {
   flex: none;
   width: 22px;
   text-align: center;
+}
+.dirview-icon.t-code {
+  width: auto;
+  min-width: 22px;
 }
 .dirview-label {
   white-space: nowrap;

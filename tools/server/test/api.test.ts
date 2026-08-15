@@ -107,7 +107,7 @@ describe("api endpoints (engine-backed)", () => {
     const h = createHandlers(tmpTree({ ".yo/body.yo": "markup:\n- x: 1\n  y: 2\n- x: 3\n  y: 4\n" }), { gitignore: false });
     await h.ready;
     const { json } = (await nodeJson(h, { path: ":" }));
-    expect(json.type).toBe("object");
+    expect(json.type).toBe("map");
     expect(json.value.markup.$yamloverLink.kind).toBe("array");
   });
 
@@ -122,10 +122,10 @@ describe("api endpoints (engine-backed)", () => {
     }), { gitignore: false });
     await h.ready;
     const { json } = (await nodeJson(h, { path: ":pic.png", binary: "1" }));
-    // the png owns embedded overlay entries (fragments), so it reads as `omni` — but its
-    // binary VALUE facet is intact, so ?binary=1 still streams the bytes. The omni projection is
-    // KEPT: the bytes fill the mixed marker's self-value slot, alongside the overlay entries.
-    expect(json.type).toBe("omni");
+    // the png owns embedded overlay entries (fragments), so it reads as `vmap` (binary self +
+    // keyed `yo`) — but its binary VALUE facet is intact, so ?binary=1 still streams the bytes.
+    // The omni-shaped projection is KEPT: the bytes fill the mixed marker's self-value slot.
+    expect(json.type).toBe("vmap");
     const mixed = json.value.$yamloverMixed;
     expect(mixed.value.$yamloverBinary.format).toBe("image/png");
     expect(Buffer.from(mixed.value.$yamloverBinary.base64, "base64").toString()).toBe("pretend-png-bytes");
@@ -136,7 +136,7 @@ describe("api endpoints (engine-backed)", () => {
     const h = createHandlers(tmpExample("50-dir"), { gitignore: false });
     await h.ready;
     const { json } = call(h, "/api/schema", { path: ":" });
-    expect(json.type).toBe("object");
+    expect(json.type).toBe("map");
     expect(json.properties.name.const).toBe("Alice");
   });
 
@@ -261,7 +261,7 @@ describe("reverse positional membership (~-) projection", () => {
     const h = createHandlers(tree(), { gitignore: false });
     await h.ready;
     const { json } = (await nodeJson(h, { path: ":member", depth: "2" }));
-    expect(json.type).toBe("object");
+    expect(json.type).toBe("map");
     expect(json.value.name).toBe("m");
   });
 });

@@ -279,9 +279,10 @@ export function tokenize(text: string, lang: HlLang = 'yamlover'): HlToken[] {
       continue;
     }
     if (c === '-' && (i + 1 >= end || isSpaceOrEol(text[i + 1]))) { push('dash', i, i + 1); continue; }
-    // the `-:` conversion sugar reads as the SAME marker, two columns wide (serialize-common's
-    // seqMarkLen) — never as a key, so it must not colour like one
-    if (c === '-' && text[i + 1] === ':' && (i + 2 >= end || isSpaceOrEol(text[i + 2]))) { push('dash', i, i + 2); continue; }
+    // `-:` is the same marker (serialize-common's seqMarkLen, width 2) — never a key, so the
+    // hyphen must not fall through to consumeWord. Only the `-` is the dash token: bundling
+    // the colon in would stretch it under `.yaml-dash` (scaleX + bold). The `:` is ordinary punct.
+    if (c === '-' && text[i + 1] === ':' && (i + 2 >= end || isSpaceOrEol(text[i + 2]))) { push('dash', i, i + 1); continue; }
     if (c === ':' || c === ',') { push('punct', i, i + 1); continue; }
     consumeWord();
   }

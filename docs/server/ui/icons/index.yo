@@ -1,0 +1,204 @@
+Icons
+description: TOC and tab glyphs - Unicode, a few drawn SVGs, picked by format then type
+- >
+  The TOC row and the matching representation tab share one mark, so a chapter in the tree
+  and the `chapter` tab read as the same thing. Almost every mark is a **Unicode character**
+  (emoji or a punctuation glyph) in `tools/server/src/client/icons.ts` - the OS emoji font
+  draws it, so macOS and Windows look different. A handful of tab views have **no** fitting
+  character; those are line-style SVGs in `tools/server/src/client/tab-icons.tsx` (graph,
+  thumbnails, large/small icons, details). A fragment is a CSS-drawn selection box
+  (`.frag-icon`), not a character.
+- >
+  Pick order: a node's `format` wins, then a directory
+  [concrete](*::language:concretes) (`dir` / `dir/.yo`), else its
+  [type](*::language:logical-graph:values). An untagged node's type is the
+  [cube](*::meta:facets) **lower bound** from what is actually there - a self-value plus
+  keyed fields is `vmap`, not `omni`. `omni` is only the top corner (self + both member kinds).
+- Types
+  - >
+    The self-value types from [values](*::language:logical-graph:values), plus the
+    [cube](*::meta:facets) / [members](*::language:logical-graph:members) corners. Structure
+    glyphs are the yamlover flow brackets (`{}` `[]` `()` `[]()`), drawn monospaced.
+  - !!<*yamlover: $defs: table>
+    header:
+      - Icon
+      - Type
+      - Notes
+        width: 2
+    - - '{}'
+      - map
+      - 'Keyed members only. Alias `object`.'
+    - - '[]'
+      - seq
+      - 'Ordinal members only. Alias `array`.'
+    - - '()'
+      - kseq
+      - 'Keyed + ordinal, no self - flow fields (`!!mix`).'
+    - - '{=}'
+      - vmap
+      - 'Self-value + keyed members, no ordinal.'
+    - - '[=]'
+      - vseq
+      - 'Self-value + ordinal members, no keyed.'
+    - - '[]()'
+      - omni
+      - 'Self-value + both member kinds - flow omni (`[self](fields)`).'
+    - - '“”'
+      - str
+      - 'Unicode text. Alias `string`. A format (below) replaces this.'
+    - - '#'
+      - int
+      - 'A whole number. Alias `integer`.'
+    - - ½
+      - float
+      - 'Any number. Alias `number`.'
+    - - ◧
+      - bool
+      - '`true` / `false`. Alias `boolean`.'
+    - - ∅
+      - 'null'
+      - 'The singleton.'
+    - - 0110
+      - binary
+      - 'Opaque bytes - drawn as bits in a little square, not an emoji.'
+- Directories
+  - !!<*yamlover: $defs: table>
+    header:
+      - Icon
+      - Concrete
+      - Notes
+        width: 2
+    - - 📁
+      - '`dir`'
+      - 'A plain OS folder - no `.yo/` overlay.'
+    - - 🗂️
+      - '`dir/.yo` · `dir/index.yo`'
+      - 'A yamlover entity stored as a directory.'
+- JSON Schema formats
+  - >
+    Exact names from JSON Schema's `format` vocabulary. Same glyph is reused across aliases
+    (`uri` / `iri` / `url` are all 🔗).
+  - !!<*yamlover: $defs: table>
+    header:
+      - Icon
+      - Format
+    - - 🕑
+      - '`date-time` · `time`'
+    - - 📅
+      - '`date`'
+    - - ⏳
+      - '`duration`'
+    - - ✉️
+      - '`email` · `idn-email`'
+    - - 🖥️
+      - '`hostname` · `idn-hostname`'
+    - - 🌐
+      - '`ipv4` · `ipv6`'
+    - - 🔗
+      - '`uri` · `iri` · `url` · `*-reference` · `uri-template`'
+    - - 🆔
+      - '`uuid`'
+    - - 🔣
+      - '`regex`'
+    - - 📍
+      - '`json-pointer` · `relative-json-pointer`'
+    - - 🔑
+      - '`password`'
+    - - 🎨
+      - '`color`'
+- Media and yamlover formats
+  - >
+    MIME types and `x-yamlover-*` names - prefix match unless listed exact. The
+    [format chapter](*::language:logical-graph:format) is what the name *means*; this table is
+    only the mark the TOC shows.
+  - !!<*yamlover: $defs: table>
+    header:
+      - Icon
+      - Format
+      - Notes
+        width: 2
+    - - §
+      - '`x-yamlover-chapter`'
+      - 'A chapter - the section sign, also the tab.'
+    - - 🏷️
+      - '`x-yamlover-onto`'
+      - 'A tag / taxonomy node.'
+    - - 🧩
+      - other '`x-yamlover-*`'
+      - 'A custom renderer the tables above did not name.'
+    - - (box)
+      - '`x-yamlover-fragment`'
+      - 'Drawn `.frag-icon` - a handled selection with a centre plus.'
+    - - 📕
+      - '`application/pdf`'
+      - ''
+    - - 📘
+      - '`application/x-fictionbook+xml`'
+      - FB2
+    - - 📗
+      - '`application/epub+zip`'
+      - EPUB
+    - - 📓
+      - '`image/vnd.djvu`'
+      - DjVu
+    - - 🖼️
+      - '`image/*`'
+      - 'Any other image.'
+    - - 📝
+      - '`text/markdown`'
+      - ''
+    - - 📃
+      - '`text/asciidoc`'
+      - ''
+    - - ▦
+      - '`text/csv` · TSV · xls · xlsx'
+      - 'A table / workbook.'
+    - - 📊
+      - '`text/x-plantuml`'
+      - 'Source that compiles to a diagram.'
+    - - 📄
+      - '`text/*` · rtf · doc · docx'
+      - 'Plain or office prose the rows above did not claim.'
+    - - 🗺️
+      - KML · KMZ
+      - 'A map overlay.'
+    - - 🔊
+      - '`audio/*`'
+      - ''
+    - - 🎬
+      - '`video/*`'
+      - ''
+    - - 💾
+      - '`int32/le` · `float64` · …'
+      - 'A packed numeric concrete, shown when it still rides as a format.'
+- Tabs only
+  - >
+    A few representation tabs add a mark the TOC never uses, or replace the Unicode one with
+    a drawn SVG. Source: `registry.tsx` `icon:` and `tab-icons.tsx`.
+  - !!<*yamlover: $defs: table>
+    header:
+      - Icon
+      - Tab
+      - Notes
+        width: 2
+    - - ☑
+      - task
+      - '`x-yamlover-task` - a chapter with a planning strip.'
+    - - ✍
+      - marklower
+      - 'The default chapter-chunk prose.'
+    - - ∑
+      - latex
+      - ''
+    - - ⌨
+      - plaintext
+      - 'Verbatim bytes / encoding picker.'
+    - - ▥
+      - tag board
+      - 'The board explorer.'
+    - - (svg)
+      - graph
+      - 'Drawn DAG - boxes and ranks, `GraphIcon`.'
+    - - (svg)
+      - thumbnails · large icons · small icons · details
+      - 'The explorer family - `ThumbnailsIcon`, `LargeIconsIcon`, `SmallIconsIcon`, `DetailsIcon`.'

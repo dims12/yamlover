@@ -3,9 +3,20 @@ import { typeIcon } from "../../src/client/icons";
 
 describe("typeIcon", () => {
   it("picks an icon by type when there is no format", () => {
-    expect(typeIcon("object", null).glyph).toBe("{}");
+    expect(typeIcon("map", null).glyph).toBe("{}");
+    expect(typeIcon("object", null).glyph).toBe("{}"); // JSON-Schema alias
+    expect(typeIcon("seq", null).glyph).toBe("[]");
     expect(typeIcon("array", null).glyph).toBe("[]");
+    expect(typeIcon("kseq", null).glyph).toBe("()");
+    expect(typeIcon("vmap", null).glyph).toBe("{=}");
+    expect(typeIcon("vseq", null).glyph).toBe("[=]");
+    expect(typeIcon("omni", null).glyph).toBe("[]()");
+    expect(typeIcon("str", null).glyph).toBe("“”");
+    expect(typeIcon("string", null).glyph).toBe("“”");
+    expect(typeIcon("int", null).glyph).toBe("#");
     expect(typeIcon("integer", null).glyph).toBe("#");
+    expect(typeIcon("float", null).glyph).toBe("½");
+    expect(typeIcon("bool", null).cls).toBe("t-bool");
     expect(typeIcon("boolean", null).cls).toBe("t-bool");
   });
 

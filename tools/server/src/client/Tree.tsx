@@ -58,13 +58,14 @@ export const Tree = memo(function Tree({ node, current, onSelect, onLoadChildren
   const rowRef = useRef<HTMLDivElement>(null);
   // TOC PRESENCE (toc-presence.ts): each branch subscribes for ITSELF — no prop rides through
   // the memo'd chain, so SSE churn still bails at `memo` while presence changes re-render
-  // exactly the subscribed branches. `merged` = visibly rendered on the content pane;
+  // exactly the subscribed branches. `merged` = on the content pane (anchors closed over
+  // ancestors, so a rendered leaf shades its whole spine one gray);
   // `fragCurrent` = the reading line. The reading line may name a node DEEPER than any TOC
   // row (the spy anchors every rendered line; the tree only holds loaded branches) — then
   // the nearest row that cannot hand off to a visible child carries the shade.
   const presence = useTocPresence();
   const key = canonPath(node.path);
-  const merged = presence.base !== null && (presence.anchors.has(key) || presence.base === key);
+  const merged = presence.merged.has(key);
   const inView = presence.visible.has(key); // the on-screen band (yellowish)
   const cur = presence.currentPath;
   const onFragPath = cur !== null && isAncestorPath(node.path, cur);

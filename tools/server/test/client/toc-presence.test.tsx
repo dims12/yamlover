@@ -17,6 +17,20 @@ afterEach(() => {
 });
 
 describe("the store", () => {
+  it("merged closes over ancestors — a rendered leaf shades its whole spine one gray", () => {
+    publishPresence(":08-flat.yo", new Map([
+      [":08-flat.yo:flatten2:human1:pets:0:name", "/flatten2/human1/pets/0/name"],
+    ]));
+    const m = getTocPresence().merged;
+    expect(m.has(":08-flat.yo")).toBe(true);
+    expect(m.has(":08-flat.yo:flatten2")).toBe(true);
+    expect(m.has(":08-flat.yo:flatten2:human1")).toBe(true);
+    expect(m.has(":08-flat.yo:flatten2:human1:pets")).toBe(true);
+    expect(m.has(":08-flat.yo:flatten2:human1:pets:0")).toBe(true);
+    expect(m.has(":08-flat.yo:flatten2:human1:pets:0:name")).toBe(true);
+    expect(m.has(":08-flat.yo:flatten1")).toBe(false); // a sibling spine is not implied
+  });
+
   it("swaps the snapshot only when something actually changed", () => {
     publishPresence(":", new Map([[":a", "/a"]]));
     const s1 = getTocPresence();
@@ -102,6 +116,29 @@ describe("the publisher's scan", () => {
     window.history.replaceState(null, "", "/#/a");
     render(<Publisher base=":" html={'<span class="frag-anchor" id="/a" data-node-path=":a"></span>'} />);
     expect(getTocPresence().currentPath).toBe(":a");
+  });
+
+  it("a flat row's data-flat-paths all count as in-view — every segment on the line", () => {
+    // jsdom's getBoundingClientRect is 0×0; visScan requires a measurable box
+    const box = { top: 0, bottom: 20, left: 0, right: 80, height: 20, width: 80, x: 0, y: 0, toJSON() {} };
+    const orig = HTMLElement.prototype.getBoundingClientRect;
+    HTMLElement.prototype.getBoundingClientRect = function () { return box as DOMRect; };
+    try {
+      render(
+        <Publisher
+          base=":"
+          html={
+            '<span class="frag-anchor" id="/human1" data-node-path=":human1"></span>' +
+            '<span class="yo-flat-row" data-flat-paths=":human1 :human1:age">human1: age: 30</span>'
+          }
+        />,
+      );
+      const v = getTocPresence().visible;
+      expect(v.has(":human1")).toBe(true);
+      expect(v.has(":human1:age")).toBe(true); // the prefix on a LATER flat row, not just the first stamp
+    } finally {
+      HTMLElement.prototype.getBoundingClientRect = orig;
+    }
   });
 
   it("base null publishes nothing; unmount clears", () => {
