@@ -22,7 +22,7 @@ describe("untagging the last tag deletes the empty fragment", () => {
     const f2 = await callBody(h, "POST", "/api/fragment", { target: ":docs:pic.png", selector: { type: "rect", x: 9, y: 9, w: 5, h: 5 } });
     await callBody(h, "POST", "/api/annotate", { target: f2.json.fragmentPath, tag: TAG });
 
-    const fragNode = (slug: string) => nodeJson(h, { path: `:docs:pic.png:yamlover-fragments:${slug}` });
+    const fragNode = (slug: string) => nodeJson(h, { path: `:docs:pic.png:yo:fragments:${slug}` });
 
     // remove ONE of f1's two tags → f1 still exists (one tag left)
     await callBody(h, "DELETE", `/api/annotate?target=${encodeURIComponent(f1.json.fragmentPath)}&tag=${encodeURIComponent(":yamlover:ontos:colors:yellow")}`, {});
@@ -59,16 +59,16 @@ describe("untagging the last tag deletes the empty fragment", () => {
     // quoted pointers (`*::yamlover:ontos:'fifth tag'`).
     const root = tmpTree({
       "pics/.yo/body.yo":
-        '"photo.png":\n  yamlover-fragments:\n    abc123: !!<*::yamlover:$defs:fragment>\n' +
-        "      type: \"rect\"\n      x: 1\n      y: 2\n      w: 3\n      h: 4\n" +
-        "      yamlover-annotations:\n      - *::yamlover:ontos:'fifth tag'\n      - *::yamlover:ontos:'forth tag'\n",
+        '"photo.png":\n  yo:\n    fragments:\n      abc123: !!<*::yamlover:$defs:fragment>\n' +
+        "        type: \"rect\"\n        x: 1\n        y: 2\n        w: 3\n        h: 4\n" +
+        "        yamlover-annotations:\n        - *::yamlover:ontos:'fifth tag'\n        - *::yamlover:ontos:'forth tag'\n",
       "pics/photo.png": "\x89PNG binary",
       // a local taxonomy defining the two space-named tags so they resolve as tag nodes
       "ontos.yo": "'fifth tag': !!<*::yamlover:$defs:onto>\n'forth tag': !!<*::yamlover:$defs:onto>\n",
     });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
-    const FRAG = ":pics:photo.png:yamlover-fragments:abc123";
+    const FRAG = ":pics:photo.png:yo:fragments:abc123";
     const tagged = () => call(h, "/api/annotations", { path: ":pics:photo.png" }).json.filter((a: { tag?: unknown }) => a.tag);
     expect(tagged()).toHaveLength(2);
 
@@ -84,14 +84,14 @@ describe("untagging the last tag deletes the empty fragment", () => {
     h.close();
   });
 
-  it("removing the only fragment's last tag drops the yamlover-fragments key entirely", async () => {
+  it("removing the only fragment's last tag drops the yo: fragments: keys entirely", async () => {
     const root = tmpTree({ "docs/pic.png": "\x89PNG binary" });
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
     const f = await callBody(h, "POST", "/api/fragment", { target: ":docs:pic.png", selector: { type: "rect", x: 1, y: 1, w: 5, h: 5 } });
     await callBody(h, "POST", "/api/annotate", { target: f.json.fragmentPath, tag: TAG });
     await callBody(h, "DELETE", `/api/annotate?target=${encodeURIComponent(f.json.fragmentPath)}&tag=${encodeURIComponent(":yamlover:ontos:colors:yellow")}`, {});
-    expect((await nodeJson(h, { path: ":docs:pic.png:yamlover-fragments" })).status).toBe(404);
+    expect((await nodeJson(h, { path: ":docs:pic.png:yo:fragments" })).status).toBe(404);
     h.close();
   });
 });

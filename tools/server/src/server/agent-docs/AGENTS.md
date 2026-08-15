@@ -237,7 +237,7 @@ see §10).
 
 The human marks up documents in the UI. These live **on the target node**, not in side files:
 
-- **`yamlover-fragments`** — a mapping of slug → selector (a text span, image/PDF rectangle, or
+- **`yo: fragments:`** — a mapping of slug → selector (a text span, image/PDF rectangle, or
   map box) identifying a region within the node.
 - **`yamlover-annotations`** — a sequence; each element applies a tag to the node (or a
   fragment). An element is either a bare **tag pointer** or an object with a `tag:` field plus
@@ -252,7 +252,7 @@ The human marks up documents in the UI. These live **on the target node**, not i
   parse error.)
 
 Prefer letting the human create these through the UI. If you must touch them by hand, keep the
-exact key names (`yamlover-fragments`, `yamlover-annotations`) and the tag-pointer form, and do
+exact key names (`yo: fragments:`, `yamlover-annotations`) and the tag-pointer form, and do
 not renumber or reorder fragment slugs.
 
 ---

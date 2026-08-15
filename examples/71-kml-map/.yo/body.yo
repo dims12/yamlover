@@ -1,5 +1,5 @@
 "sample.kml":
-  yamlover-fragments:
+  yo: fragments:
     mqee3kvz-mzzggs: !!<*::yamlover:$defs:fragment>
       type: "map"
       n: 52.51767025395278

@@ -345,7 +345,7 @@ describe("bodyKindOf — inlined containers", () => {
   it("an ANNOTATED chunk stays a chunk — overlay keys are not body (docs/documents/chapter)", () => {
     const annotated = (key: string) => ({ $yamloverMixed: { kind: "omni", value: "a **bold** chunk", entries: [{ key, value: [] }] } });
     expect(bodyKindOf(annotated("yamlover-annotations"))).toBe("chunk");
-    expect(bodyKindOf(annotated("yamlover-fragments"))).toBe("chunk");
+    expect(bodyKindOf(annotated("yo"))).toBe("chunk");
     // …but a real body entry alongside the overlay DOES make it a subchapter
     const both = { $yamloverMixed: { kind: "omni", value: "T", entries: [{ key: "yamlover-annotations", value: [] }, { key: null, value: "body" }] } };
     expect(bodyKindOf(both)).toBe("subchapter");

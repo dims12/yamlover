@@ -235,11 +235,11 @@ export async function createAnnotation(
 
 /** The host node path that carries a tag application: the node the annotation lives ON (`ann.node`
  *  — a CHUNK for a chunk fragment, else the material), and — when it marks a region — that node's
- *  fragment path (`…:yamlover-fragments:<slug>`). */
+ *  fragment path (`…:yo:fragments:<slug>`). */
 function annotationTarget(materialPath: string, ann: Annotation): string {
   const host = ann.node ?? materialPath;
   if (!ann.fragmentSlug) return host;
-  return (host === ":" ? "" : host) + ":yamlover-fragments:" + ann.fragmentSlug;
+  return (host === ":" ? "" : host) + ":yo:fragments:" + ann.fragmentSlug;
 }
 
 /** Read-only fetch of a material's annotations; `bump` (a changing number) forces a refetch.
@@ -1043,7 +1043,7 @@ function capture(sel: Selection): { exact: string; prefix: string; suffix: strin
 }
 
 /** (Re)apply highlight marks for the text annotations in `container`. `materialPath` lets a
- *  fragment mark carry its `#/yamlover-fragments/<slug>` anchor id so the RHS panel / a shared link
+ *  fragment mark carry its `#/yo/fragments/<slug>` anchor id so the RHS panel / a shared link
  *  can scroll-to-&-flash it. `preview` is the popup's not-yet-tagged selection, drawn as a mark in
  *  the neutral color so it survives the popup taking the browser's selection. */
 function highlight(container: HTMLElement, anns: Annotation[], materialPath: string, preview?: { selector: Record<string, unknown>; color: string; node?: string } | null): void {

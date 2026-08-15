@@ -6,7 +6,7 @@ import { tmpTree } from "./helpers";
 import { call, callBody } from "./http";
 
 // The EMBEDDED tags/fragments model (docs/annotations): /api/annotate appends to a target's
-// `yamlover-annotations`; /api/fragment adds a `yamlover-fragments` region; reads derive from
+// `yamlover-annotations`; /api/fragment adds a `yo: fragments:` region; reads derive from
 // those forward `*::tag` edges. Synthetic temp trees only — never the repo.
 
 const TAG_FILE = { "ontos.yo": 'yellow: !!<*::yamlover:$defs:onto>\n  color: "#f9e2af"\n' };

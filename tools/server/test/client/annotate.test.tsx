@@ -159,7 +159,7 @@ describe("region window (title from the fragment path)", () => {
     act(() => menu.openEdit({ selector: { type: "rect" }, tag: { path: ":t", name: "t", color: null }, fragmentSlug: "abc123" }, { x: 5, y: 5 }));
     await waitFor(() => expect(container.querySelector(".annotate-titlebar")).not.toBeNull());
     const title = container.querySelector(".annotate-title")!.textContent!;
-    expect(title).toContain("yamlover-fragments"); // the fragment's node path, not blank
+    expect(title).toContain("yo"); // the fragment's node path, not blank
     expect(title).toContain("abc123");
     // the close ✕ sits at the top-right, OUTSIDE the path cell (a sibling in the top bar)
     expect(container.querySelector(".annotate-topbar button.close")).not.toBeNull();

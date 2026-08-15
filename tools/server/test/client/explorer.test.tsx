@@ -237,7 +237,7 @@ describe("ExplorerView (a tag)", () => {
     mTagged.mockResolvedValue([
       link({
         kind: "object", type: "object", format: "x-yamlover-fragment",
-        path: ":72-images:eiffel-tower:IMG.jpg:yamlover-fragments:abc", count: 7, preview: crop,
+        path: ":72-images:eiffel-tower:IMG.jpg:yo:fragments:abc", count: 7, preview: crop,
       }),
     ]);
     render(<ExplorerView node={tag} view="large" onNavigate={() => {}} />);

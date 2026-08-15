@@ -85,11 +85,11 @@ describe("client paths", () => {
     expect(window.location.search).toBe("?format=pdf");
   });
 
-  it("fragmentAnchorId is the material-relative tail, leading-slashed like chunk anchors (#/yamlover-fragments/<slug>)", () => {
+  it("fragmentAnchorId is the material-relative tail, leading-slashed like chunk anchors (#/yo/fragments/<slug>)", () => {
     // mirrors the chunk anchors (`<doc>#/chunks[n]`) so the `#` reads the same for both
     expect(fragmentAnchorId(":72-images:eiffel-tower:IMG.jpg", "mr0zbe2l-rqyow7"))
-      .toBe("/yamlover-fragments/mr0zbe2l-rqyow7");
+      .toBe("/yo/fragments/mr0zbe2l-rqyow7");
     // root material: still leading-slashed
-    expect(fragmentAnchorId(":", "abc")).toBe("/yamlover-fragments/abc");
+    expect(fragmentAnchorId(":", "abc")).toBe("/yo/fragments/abc");
   });
 });

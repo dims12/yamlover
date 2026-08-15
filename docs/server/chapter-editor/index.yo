@@ -39,7 +39,7 @@ description: the chapter projection's states - titles, prose, lists, tables, ato
   - 'the title test is `hasSelfValue` - ANY scalar self titles the chapter;'
   - 'a LEGACY keyed `title:` entry is the heading (an editable title line at the entry);'
   - 'a body-positioned MEMBER is body whatever its storage name (`anchorKey` is provenance, never a field - a member named `description` stays a chunk);'
-  - 'the annotation overlay keys (`yamlover-annotations`/`yamlover-fragments`) are hidden; an annotated scalar chunk stays the prose it is (never a spurious subchapter).'
+  - 'the annotation overlay keys (`yamlover-annotations`/`yo`) are hidden; an annotated scalar chunk stays the prose it is (never a spurious subchapter).'
 - >
   The states below reuse the source machine's pseudo-states (`nop`, `error_flash`, the focus
   walks) and reach its pointer states (`pointer_pick_editing`) from atoms; `format_switched` is

@@ -4,9 +4,9 @@ import { fragmentAnchorId } from "./paths";
 import { READ_ONLY } from "./base";
 import { TagBadges, TagLink } from "./renderers/tag";
 
-/** A fragment's own node path (`<material>:yamlover-fragments:<slug>`) — the delete target. */
+/** A fragment's own node path (`<material>:yo:fragments:<slug>`) — the delete target. */
 function fragmentNodePath(materialPath: string, slug: string): string {
-  return (materialPath === ":" ? "" : materialPath) + ":yamlover-fragments:" + slug;
+  return (materialPath === ":" ? "" : materialPath) + ":yo:fragments:" + slug;
 }
 
 /** One row of the fragments panel: a tagged region of the current material, gathered across the
@@ -58,7 +58,7 @@ function fragmentLabel(g: FragmentGroup): string {
 }
 
 /** The RHS pane: the current entity's fragments, each with its tags. Clicking a row sets the URL
- *  hash to the fragment's `#/yamlover-fragments/<slug>` anchor — the shared hash-scroll
+ *  hash to the fragment's `#/yo/fragments/<slug>` anchor — the shared hash-scroll
  *  (headings.ts) and the Leaflet renderers then scroll/pan to and flash the region. Clicking a tag
  *  badge navigates to that tag; the ✕ DELETES the whole fragment (drops every tag — the server then
  *  removes the now-empty fragment node), which is also how an un-clickable phantom annotation gets

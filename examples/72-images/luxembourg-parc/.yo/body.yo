@@ -7,7 +7,7 @@
 "IMG_20120725_112417.jpg":
   yamlover-thumbnails:
     [512, 512]: *:.yo:thumbnails:xxh64-2190e1055bd36022-512x512.jpg
-  yamlover-fragments:
+  yo: fragments:
     mqgzjq12-09ktac: !!<*::yamlover:$defs:fragment>
       type: "rect"
       x: 684

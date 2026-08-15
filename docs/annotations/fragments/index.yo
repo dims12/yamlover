@@ -1,8 +1,8 @@
 Fragments
 description: a selected region, stored as a selector under the node's `yo: fragments:` key
 - >
-  *The implementation still writes the legacy `yamlover-fragments` key; this chapter specifies
-  the target `yo: fragments:` shape.*
+  *The implementation stores fragments as specified here; tagging still writes the legacy
+  `yamlover-annotations` arrays until the membership rework lands.*
 - >
   A **fragment** is a selected region inside a supported node: a text span, an image/PDF/djvu
   rectangle, a map box. A fragment holds **only what locates/highlights the region** - no

@@ -40,10 +40,10 @@ describe("appendAnnotation", () => {
   });
 
   it("targets a fragment's own annotations", () => {
-    const src = `"a.pdf":\n  yamlover-fragments:\n    slug1:\n      type: pdf\n      page: 1\n`;
-    const out = appendAnnotation(src, ["a.pdf", "yamlover-fragments", "slug1"], (i) => [`${" ".repeat(i)}${TAG}`]);
+    const src = `"a.pdf":\n  yo:\n    fragments:\n      slug1:\n        type: pdf\n        page: 1\n`;
+    const out = appendAnnotation(src, ["a.pdf", "yo", "fragments", "slug1"], (i) => [`${" ".repeat(i)}${TAG}`]);
     expect(out).toBe(
-      `"a.pdf":\n  yamlover-fragments:\n    slug1:\n      type: pdf\n      page: 1\n      yamlover-annotations:\n      - *::ontos:colors:yellow\n`,
+      `"a.pdf":\n  yo:\n    fragments:\n      slug1:\n        type: pdf\n        page: 1\n        yamlover-annotations:\n        - *::ontos:colors:yellow\n`,
     );
   });
 });
@@ -55,26 +55,26 @@ describe("upsertFragment", () => {
     `${" ".repeat(i + 2)}page: 1`,
   ];
 
-  it("creates yamlover-fragments + the slug on a fresh file block", () => {
+  it("creates yo: fragments: + the slug on a fresh file block", () => {
     const out = upsertFragment("", ["a.pdf"], "slug1", frag);
     expect(out).toBe(
-      `"a.pdf":\n  yamlover-fragments:\n    slug1:\n      type: pdf\n      page: 1\n`,
+      `"a.pdf":\n  yo:\n    fragments:\n      slug1:\n        type: pdf\n        page: 1\n`,
     );
   });
 
   it("adds a second slug into an existing fragments map", () => {
-    const src = `"a.pdf":\n  yamlover-fragments:\n    slug0:\n      type: pdf\n`;
+    const src = `"a.pdf":\n  yo:\n    fragments:\n      slug0:\n        type: pdf\n`;
     const out = upsertFragment(src, ["a.pdf"], "slug1", frag);
     expect(out).toBe(
-      `"a.pdf":\n  yamlover-fragments:\n    slug0:\n      type: pdf\n    slug1:\n      type: pdf\n      page: 1\n`,
+      `"a.pdf":\n  yo:\n    fragments:\n      slug0:\n        type: pdf\n      slug1:\n        type: pdf\n        page: 1\n`,
     );
   });
 
   it("replaces an existing slug block", () => {
-    const src = `"a.pdf":\n  yamlover-fragments:\n    slug1:\n      type: pdf\n      page: 9\n`;
+    const src = `"a.pdf":\n  yo:\n    fragments:\n      slug1:\n        type: pdf\n        page: 9\n`;
     const out = upsertFragment(src, ["a.pdf"], "slug1", frag);
     expect(out).toBe(
-      `"a.pdf":\n  yamlover-fragments:\n    slug1:\n      type: pdf\n      page: 1\n`,
+      `"a.pdf":\n  yo:\n    fragments:\n      slug1:\n        type: pdf\n        page: 1\n`,
     );
   });
 });

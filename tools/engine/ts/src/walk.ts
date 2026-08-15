@@ -1079,7 +1079,7 @@ function applySchemas(root: Node, defsRoot: string, builtinDefs?: Map<string, No
   // scalar and a FILE-backed scalar stay leaves — chunks, which ARE title-only content
   // (docs/documents/chapter). The overlay keys an annotated chunk gains (docs/annotations) are not body —
   // a scalar with only those stays a chunk.
-  const OVERLAY_KEYS = new Set(['yamlover-annotations', 'yamlover-fragments']);
+  const OVERLAY_KEYS = new Set(['yamlover-annotations', 'yo']);
   const elemIsContainer = (el: Node): boolean =>
     el.kind === 'mapping' ||
     (el.meta as { dirBacked?: boolean } | undefined)?.dirBacked === true ||

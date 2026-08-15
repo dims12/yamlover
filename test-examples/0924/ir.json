@@ -275,7 +275,7 @@
                 "anchors": [],
                 "entries": [
                   {
-                    "key": "yamlover-fragments",
+                    "key": "yo",
                     "edge": "contain",
                     "value": {
                       "kind": "mapping",
@@ -285,570 +285,583 @@
                       "anchors": [],
                       "entries": [
                         {
-                          "key": "mqee46pt-m1wdko",
+                          "key": "fragments",
                           "edge": "contain",
                           "value": {
                             "kind": "mapping",
                             "array": false,
                             "set": false,
                             "yo": false,
-                            "schema": {
-                              "ptr": {
-                                "base": {
-                                  "scope": "link",
-                                  "authority": "yamlover"
-                                },
-                                "steps": [
-                                  {
-                                    "sel": "key",
-                                    "name": "$defs"
-                                  },
-                                  {
-                                    "sel": "key",
-                                    "name": "fragment"
-                                  }
-                                ]
-                              }
-                            },
                             "anchors": [],
                             "entries": [
                               {
-                                "key": "type",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": "rect",
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "x",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": 588,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "y",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": 653,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "w",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": 227,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "h",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": 277,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "image",
-                                "edge": "ref",
-                                "value": {
-                                  "ptr": {
-                                    "base": {
-                                      "scope": "document"
-                                    },
-                                    "steps": [
-                                      {
-                                        "sel": "key",
-                                        "name": ".yo"
-                                      },
-                                      {
-                                        "sel": "key",
-                                        "name": "fragments"
-                                      },
-                                      {
-                                        "sel": "key",
-                                        "name": "mqee46pt-m1wdko.png"
-                                      }
-                                    ]
-                                  }
-                                }
-                              },
-                              {
-                                "key": "created",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": "2026-06-14T23:03:07.266Z",
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "yamlover-annotations",
+                                "key": "mqee46pt-m1wdko",
                                 "edge": "contain",
                                 "value": {
                                   "kind": "mapping",
-                                  "array": true,
+                                  "array": false,
                                   "set": false,
                                   "yo": false,
+                                  "schema": {
+                                    "ptr": {
+                                      "base": {
+                                        "scope": "link",
+                                        "authority": "yamlover"
+                                      },
+                                      "steps": [
+                                        {
+                                          "sel": "key",
+                                          "name": "$defs"
+                                        },
+                                        {
+                                          "sel": "key",
+                                          "name": "fragment"
+                                        }
+                                      ]
+                                    }
+                                  },
                                   "anchors": [],
                                   "entries": [
                                     {
-                                      "key": null,
+                                      "key": "type",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": "rect",
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "x",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": 588,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "y",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": 653,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "w",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": 227,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "h",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": 277,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "image",
                                       "edge": "ref",
                                       "value": {
                                         "ptr": {
                                           "base": {
-                                            "scope": "link",
-                                            "authority": "yamlover"
+                                            "scope": "document"
                                           },
                                           "steps": [
                                             {
                                               "sel": "key",
-                                              "name": "ontos"
+                                              "name": ".yo"
                                             },
                                             {
                                               "sel": "key",
-                                              "name": "fifth tag"
+                                              "name": "fragments"
+                                            },
+                                            {
+                                              "sel": "key",
+                                              "name": "mqee46pt-m1wdko.png"
                                             }
                                           ]
                                         }
                                       }
                                     },
                                     {
-                                      "key": null,
-                                      "edge": "ref",
+                                      "key": "created",
+                                      "edge": "contain",
                                       "value": {
-                                        "ptr": {
-                                          "base": {
-                                            "scope": "link",
-                                            "authority": "yamlover"
-                                          },
-                                          "steps": [
-                                            {
-                                              "sel": "key",
-                                              "name": "ontos"
-                                            },
-                                            {
-                                              "sel": "key",
-                                              "name": "forth tag"
-                                            }
-                                          ]
-                                        }
+                                        "kind": "scalar",
+                                        "value": "2026-06-14T23:03:07.266Z",
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
                                       }
                                     },
                                     {
-                                      "key": null,
-                                      "edge": "ref",
+                                      "key": "yamlover-annotations",
+                                      "edge": "contain",
                                       "value": {
-                                        "ptr": {
-                                          "base": {
-                                            "scope": "link",
-                                            "authority": "yamlover"
-                                          },
-                                          "steps": [
-                                            {
-                                              "sel": "key",
-                                              "name": "ontos"
-                                            },
-                                            {
-                                              "sel": "key",
-                                              "name": "верхушка"
+                                        "kind": "mapping",
+                                        "array": true,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": [
+                                          {
+                                            "key": null,
+                                            "edge": "ref",
+                                            "value": {
+                                              "ptr": {
+                                                "base": {
+                                                  "scope": "link",
+                                                  "authority": "yamlover"
+                                                },
+                                                "steps": [
+                                                  {
+                                                    "sel": "key",
+                                                    "name": "ontos"
+                                                  },
+                                                  {
+                                                    "sel": "key",
+                                                    "name": "fifth tag"
+                                                  }
+                                                ]
+                                              }
                                             }
-                                          ]
-                                        }
+                                          },
+                                          {
+                                            "key": null,
+                                            "edge": "ref",
+                                            "value": {
+                                              "ptr": {
+                                                "base": {
+                                                  "scope": "link",
+                                                  "authority": "yamlover"
+                                                },
+                                                "steps": [
+                                                  {
+                                                    "sel": "key",
+                                                    "name": "ontos"
+                                                  },
+                                                  {
+                                                    "sel": "key",
+                                                    "name": "forth tag"
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          },
+                                          {
+                                            "key": null,
+                                            "edge": "ref",
+                                            "value": {
+                                              "ptr": {
+                                                "base": {
+                                                  "scope": "link",
+                                                  "authority": "yamlover"
+                                                },
+                                                "steps": [
+                                                  {
+                                                    "sel": "key",
+                                                    "name": "ontos"
+                                                  },
+                                                  {
+                                                    "sel": "key",
+                                                    "name": "верхушка"
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
                                       }
                                     }
                                   ]
                                 }
-                              }
-                            ]
-                          }
-                        },
-                        {
-                          "key": "mqgw3srv-bi70ib",
-                          "edge": "contain",
-                          "value": {
-                            "kind": "mapping",
-                            "array": false,
-                            "set": false,
-                            "yo": false,
-                            "schema": {
-                              "ptr": {
-                                "base": {
-                                  "scope": "link",
-                                  "authority": "yamlover"
-                                },
-                                "steps": [
-                                  {
-                                    "sel": "key",
-                                    "name": "$defs"
-                                  },
-                                  {
-                                    "sel": "key",
-                                    "name": "fragment"
-                                  }
-                                ]
-                              }
-                            },
-                            "anchors": [],
-                            "entries": [
-                              {
-                                "key": "type",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": "rect",
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
                               },
                               {
-                                "key": "x",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": 182,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "y",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": 1040,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "w",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": 225,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "h",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": 198,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "image",
-                                "edge": "ref",
-                                "value": {
-                                  "ptr": {
-                                    "base": {
-                                      "scope": "document"
-                                    },
-                                    "steps": [
-                                      {
-                                        "sel": "key",
-                                        "name": ".yo"
-                                      },
-                                      {
-                                        "sel": "key",
-                                        "name": "fragments"
-                                      },
-                                      {
-                                        "sel": "key",
-                                        "name": "mqgw3srv-bi70ib.png"
-                                      }
-                                    ]
-                                  }
-                                }
-                              },
-                              {
-                                "key": "created",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": "2026-06-16T17:02:14.638Z",
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "yamlover-annotations",
+                                "key": "mqgw3srv-bi70ib",
                                 "edge": "contain",
                                 "value": {
                                   "kind": "mapping",
-                                  "array": true,
+                                  "array": false,
                                   "set": false,
                                   "yo": false,
+                                  "schema": {
+                                    "ptr": {
+                                      "base": {
+                                        "scope": "link",
+                                        "authority": "yamlover"
+                                      },
+                                      "steps": [
+                                        {
+                                          "sel": "key",
+                                          "name": "$defs"
+                                        },
+                                        {
+                                          "sel": "key",
+                                          "name": "fragment"
+                                        }
+                                      ]
+                                    }
+                                  },
                                   "anchors": [],
                                   "entries": [
                                     {
-                                      "key": null,
+                                      "key": "type",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": "rect",
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "x",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": 182,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "y",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": 1040,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "w",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": 225,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "h",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": 198,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "image",
                                       "edge": "ref",
                                       "value": {
                                         "ptr": {
                                           "base": {
-                                            "scope": "link",
-                                            "authority": "yamlover"
+                                            "scope": "document"
                                           },
                                           "steps": [
                                             {
                                               "sel": "key",
-                                              "name": "ontos"
+                                              "name": ".yo"
                                             },
                                             {
                                               "sel": "key",
-                                              "name": "fifth tag"
+                                              "name": "fragments"
+                                            },
+                                            {
+                                              "sel": "key",
+                                              "name": "mqgw3srv-bi70ib.png"
                                             }
                                           ]
                                         }
+                                      }
+                                    },
+                                    {
+                                      "key": "created",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": "2026-06-16T17:02:14.638Z",
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "yamlover-annotations",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "mapping",
+                                        "array": true,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": [
+                                          {
+                                            "key": null,
+                                            "edge": "ref",
+                                            "value": {
+                                              "ptr": {
+                                                "base": {
+                                                  "scope": "link",
+                                                  "authority": "yamlover"
+                                                },
+                                                "steps": [
+                                                  {
+                                                    "sel": "key",
+                                                    "name": "ontos"
+                                                  },
+                                                  {
+                                                    "sel": "key",
+                                                    "name": "fifth tag"
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
                                       }
                                     }
                                   ]
                                 }
-                              }
-                            ]
-                          }
-                        },
-                        {
-                          "key": "mqgw40jq-18b8iw",
-                          "edge": "contain",
-                          "value": {
-                            "kind": "mapping",
-                            "array": false,
-                            "set": false,
-                            "yo": false,
-                            "schema": {
-                              "ptr": {
-                                "base": {
-                                  "scope": "link",
-                                  "authority": "yamlover"
-                                },
-                                "steps": [
-                                  {
-                                    "sel": "key",
-                                    "name": "$defs"
-                                  },
-                                  {
-                                    "sel": "key",
-                                    "name": "fragment"
-                                  }
-                                ]
-                              }
-                            },
-                            "anchors": [],
-                            "entries": [
-                              {
-                                "key": "type",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": "rect",
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
                               },
                               {
-                                "key": "x",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": 402,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "y",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": 1342,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "w",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": 225,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "h",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": 148,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "image",
-                                "edge": "ref",
-                                "value": {
-                                  "ptr": {
-                                    "base": {
-                                      "scope": "document"
-                                    },
-                                    "steps": [
-                                      {
-                                        "sel": "key",
-                                        "name": ".yo"
-                                      },
-                                      {
-                                        "sel": "key",
-                                        "name": "fragments"
-                                      },
-                                      {
-                                        "sel": "key",
-                                        "name": "mqgw40jq-18b8iw.png"
-                                      }
-                                    ]
-                                  }
-                                }
-                              },
-                              {
-                                "key": "created",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": "2026-06-16T17:02:24.710Z",
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "yamlover-annotations",
+                                "key": "mqgw40jq-18b8iw",
                                 "edge": "contain",
                                 "value": {
                                   "kind": "mapping",
-                                  "array": true,
+                                  "array": false,
                                   "set": false,
                                   "yo": false,
+                                  "schema": {
+                                    "ptr": {
+                                      "base": {
+                                        "scope": "link",
+                                        "authority": "yamlover"
+                                      },
+                                      "steps": [
+                                        {
+                                          "sel": "key",
+                                          "name": "$defs"
+                                        },
+                                        {
+                                          "sel": "key",
+                                          "name": "fragment"
+                                        }
+                                      ]
+                                    }
+                                  },
                                   "anchors": [],
                                   "entries": [
                                     {
-                                      "key": null,
+                                      "key": "type",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": "rect",
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "x",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": 402,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "y",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": 1342,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "w",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": 225,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "h",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": 148,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "image",
                                       "edge": "ref",
                                       "value": {
                                         "ptr": {
                                           "base": {
-                                            "scope": "link",
-                                            "authority": "yamlover"
+                                            "scope": "document"
                                           },
                                           "steps": [
                                             {
                                               "sel": "key",
-                                              "name": "ontos"
+                                              "name": ".yo"
                                             },
                                             {
                                               "sel": "key",
-                                              "name": "fifth tag"
+                                              "name": "fragments"
+                                            },
+                                            {
+                                              "sel": "key",
+                                              "name": "mqgw40jq-18b8iw.png"
                                             }
                                           ]
                                         }
                                       }
                                     },
                                     {
-                                      "key": null,
-                                      "edge": "ref",
+                                      "key": "created",
+                                      "edge": "contain",
                                       "value": {
-                                        "ptr": {
-                                          "base": {
-                                            "scope": "link",
-                                            "authority": "yamlover"
-                                          },
-                                          "steps": [
-                                            {
-                                              "sel": "key",
-                                              "name": "ontos"
-                                            },
-                                            {
-                                              "sel": "key",
-                                              "name": "forth tag"
+                                        "kind": "scalar",
+                                        "value": "2026-06-16T17:02:24.710Z",
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "yamlover-annotations",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "mapping",
+                                        "array": true,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": [
+                                          {
+                                            "key": null,
+                                            "edge": "ref",
+                                            "value": {
+                                              "ptr": {
+                                                "base": {
+                                                  "scope": "link",
+                                                  "authority": "yamlover"
+                                                },
+                                                "steps": [
+                                                  {
+                                                    "sel": "key",
+                                                    "name": "ontos"
+                                                  },
+                                                  {
+                                                    "sel": "key",
+                                                    "name": "fifth tag"
+                                                  }
+                                                ]
+                                              }
                                             }
-                                          ]
-                                        }
+                                          },
+                                          {
+                                            "key": null,
+                                            "edge": "ref",
+                                            "value": {
+                                              "ptr": {
+                                                "base": {
+                                                  "scope": "link",
+                                                  "authority": "yamlover"
+                                                },
+                                                "steps": [
+                                                  {
+                                                    "sel": "key",
+                                                    "name": "ontos"
+                                                  },
+                                                  {
+                                                    "sel": "key",
+                                                    "name": "forth tag"
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
                                       }
                                     }
                                   ]
@@ -1005,7 +1018,7 @@
                     }
                   },
                   {
-                    "key": "yamlover-fragments",
+                    "key": "yo",
                     "edge": "contain",
                     "value": {
                       "kind": "mapping",
@@ -1015,166 +1028,179 @@
                       "anchors": [],
                       "entries": [
                         {
-                          "key": "mqgw4p2e-2wif88",
+                          "key": "fragments",
                           "edge": "contain",
                           "value": {
                             "kind": "mapping",
                             "array": false,
                             "set": false,
                             "yo": false,
-                            "schema": {
-                              "ptr": {
-                                "base": {
-                                  "scope": "link",
-                                  "authority": "yamlover"
-                                },
-                                "steps": [
-                                  {
-                                    "sel": "key",
-                                    "name": "$defs"
-                                  },
-                                  {
-                                    "sel": "key",
-                                    "name": "fragment"
-                                  }
-                                ]
-                              }
-                            },
                             "anchors": [],
                             "entries": [
                               {
-                                "key": "type",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": "rect",
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "x",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": 1093,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "y",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": 484,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "w",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": 371,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "h",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": 390,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "image",
-                                "edge": "ref",
-                                "value": {
-                                  "ptr": {
-                                    "base": {
-                                      "scope": "document"
-                                    },
-                                    "steps": [
-                                      {
-                                        "sel": "key",
-                                        "name": ".yo"
-                                      },
-                                      {
-                                        "sel": "key",
-                                        "name": "fragments"
-                                      },
-                                      {
-                                        "sel": "key",
-                                        "name": "mqgw4p2e-2wif88.png"
-                                      }
-                                    ]
-                                  }
-                                }
-                              },
-                              {
-                                "key": "created",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": "2026-06-16T17:02:56.487Z",
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "yamlover-annotations",
+                                "key": "mqgw4p2e-2wif88",
                                 "edge": "contain",
                                 "value": {
                                   "kind": "mapping",
-                                  "array": true,
+                                  "array": false,
                                   "set": false,
                                   "yo": false,
+                                  "schema": {
+                                    "ptr": {
+                                      "base": {
+                                        "scope": "link",
+                                        "authority": "yamlover"
+                                      },
+                                      "steps": [
+                                        {
+                                          "sel": "key",
+                                          "name": "$defs"
+                                        },
+                                        {
+                                          "sel": "key",
+                                          "name": "fragment"
+                                        }
+                                      ]
+                                    }
+                                  },
                                   "anchors": [],
                                   "entries": [
                                     {
-                                      "key": null,
+                                      "key": "type",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": "rect",
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "x",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": 1093,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "y",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": 484,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "w",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": 371,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "h",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": 390,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "image",
                                       "edge": "ref",
                                       "value": {
                                         "ptr": {
                                           "base": {
-                                            "scope": "link",
-                                            "authority": "yamlover"
+                                            "scope": "document"
                                           },
                                           "steps": [
                                             {
                                               "sel": "key",
-                                              "name": "ontos"
+                                              "name": ".yo"
                                             },
                                             {
                                               "sel": "key",
-                                              "name": "forth tag"
+                                              "name": "fragments"
+                                            },
+                                            {
+                                              "sel": "key",
+                                              "name": "mqgw4p2e-2wif88.png"
                                             }
                                           ]
                                         }
+                                      }
+                                    },
+                                    {
+                                      "key": "created",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": "2026-06-16T17:02:56.487Z",
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "yamlover-annotations",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "mapping",
+                                        "array": true,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": [
+                                          {
+                                            "key": null,
+                                            "edge": "ref",
+                                            "value": {
+                                              "ptr": {
+                                                "base": {
+                                                  "scope": "link",
+                                                  "authority": "yamlover"
+                                                },
+                                                "steps": [
+                                                  {
+                                                    "sel": "key",
+                                                    "name": "ontos"
+                                                  },
+                                                  {
+                                                    "sel": "key",
+                                                    "name": "forth tag"
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
                                       }
                                     }
                                   ]
@@ -1756,7 +1782,7 @@
                     }
                   },
                   {
-                    "key": "yamlover-fragments",
+                    "key": "yo",
                     "edge": "contain",
                     "value": {
                       "kind": "mapping",
@@ -1766,882 +1792,895 @@
                       "anchors": [],
                       "entries": [
                         {
-                          "key": "mqgzjq12-09ktac",
+                          "key": "fragments",
                           "edge": "contain",
                           "value": {
                             "kind": "mapping",
                             "array": false,
                             "set": false,
                             "yo": false,
-                            "schema": {
-                              "ptr": {
-                                "base": {
-                                  "scope": "link",
-                                  "authority": "yamlover"
-                                },
-                                "steps": [
-                                  {
-                                    "sel": "key",
-                                    "name": "$defs"
-                                  },
-                                  {
-                                    "sel": "key",
-                                    "name": "fragment"
-                                  }
-                                ]
-                              }
-                            },
                             "anchors": [],
                             "entries": [
                               {
-                                "key": "type",
+                                "key": "mqgzjq12-09ktac",
                                 "edge": "contain",
                                 "value": {
-                                  "kind": "scalar",
-                                  "value": "rect",
+                                  "kind": "mapping",
                                   "array": false,
                                   "set": false,
                                   "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "x",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": 684,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "y",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": 374,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "w",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": 225,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "h",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": 447,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "image",
-                                "edge": "ref",
-                                "value": {
-                                  "ptr": {
-                                    "base": {
-                                      "scope": "document"
-                                    },
-                                    "steps": [
-                                      {
-                                        "sel": "key",
-                                        "name": ".yo"
+                                  "schema": {
+                                    "ptr": {
+                                      "base": {
+                                        "scope": "link",
+                                        "authority": "yamlover"
                                       },
-                                      {
-                                        "sel": "key",
-                                        "name": "fragments"
-                                      },
-                                      {
-                                        "sel": "key",
-                                        "name": "mqgzjq12-09ktac.png"
-                                      }
-                                    ]
-                                  }
-                                }
-                              },
-                              {
-                                "key": "created",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": "2026-06-16T18:38:36.423Z",
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "yamlover-annotations",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": null,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              }
-                            ]
-                          }
-                        },
-                        {
-                          "key": "mqgzkr8b-o80pq1",
-                          "edge": "contain",
-                          "value": {
-                            "kind": "mapping",
-                            "array": false,
-                            "set": false,
-                            "yo": false,
-                            "schema": {
-                              "ptr": {
-                                "base": {
-                                  "scope": "link",
-                                  "authority": "yamlover"
-                                },
-                                "steps": [
-                                  {
-                                    "sel": "key",
-                                    "name": "$defs"
+                                      "steps": [
+                                        {
+                                          "sel": "key",
+                                          "name": "$defs"
+                                        },
+                                        {
+                                          "sel": "key",
+                                          "name": "fragment"
+                                        }
+                                      ]
+                                    }
                                   },
-                                  {
-                                    "sel": "key",
-                                    "name": "fragment"
-                                  }
-                                ]
-                              }
-                            },
-                            "anchors": [],
-                            "entries": [
-                              {
-                                "key": "type",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": "rect",
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
                                   "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "x",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": 1255,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "y",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": 742,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "w",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": 187,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "h",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": 239,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "image",
-                                "edge": "ref",
-                                "value": {
-                                  "ptr": {
-                                    "base": {
-                                      "scope": "document"
-                                    },
-                                    "steps": [
-                                      {
-                                        "sel": "key",
-                                        "name": ".yo"
-                                      },
-                                      {
-                                        "sel": "key",
-                                        "name": "fragments"
-                                      },
-                                      {
-                                        "sel": "key",
-                                        "name": "mqgzkr8b-o80pq1.png"
+                                  "entries": [
+                                    {
+                                      "key": "type",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": "rect",
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
                                       }
-                                    ]
-                                  }
+                                    },
+                                    {
+                                      "key": "x",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": 684,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "y",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": 374,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "w",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": 225,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "h",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": 447,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "image",
+                                      "edge": "ref",
+                                      "value": {
+                                        "ptr": {
+                                          "base": {
+                                            "scope": "document"
+                                          },
+                                          "steps": [
+                                            {
+                                              "sel": "key",
+                                              "name": ".yo"
+                                            },
+                                            {
+                                              "sel": "key",
+                                              "name": "fragments"
+                                            },
+                                            {
+                                              "sel": "key",
+                                              "name": "mqgzjq12-09ktac.png"
+                                            }
+                                          ]
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "key": "created",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": "2026-06-16T18:38:36.423Z",
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "yamlover-annotations",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": null,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    }
+                                  ]
                                 }
                               },
                               {
-                                "key": "created",
+                                "key": "mqgzkr8b-o80pq1",
                                 "edge": "contain",
                                 "value": {
-                                  "kind": "scalar",
-                                  "value": "2026-06-16T18:39:24.635Z",
+                                  "kind": "mapping",
                                   "array": false,
                                   "set": false,
                                   "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "yamlover-annotations",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": null,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              }
-                            ]
-                          }
-                        },
-                        {
-                          "key": "mqgzkx76-qboh2g",
-                          "edge": "contain",
-                          "value": {
-                            "kind": "mapping",
-                            "array": false,
-                            "set": false,
-                            "yo": false,
-                            "schema": {
-                              "ptr": {
-                                "base": {
-                                  "scope": "link",
-                                  "authority": "yamlover"
-                                },
-                                "steps": [
-                                  {
-                                    "sel": "key",
-                                    "name": "$defs"
+                                  "schema": {
+                                    "ptr": {
+                                      "base": {
+                                        "scope": "link",
+                                        "authority": "yamlover"
+                                      },
+                                      "steps": [
+                                        {
+                                          "sel": "key",
+                                          "name": "$defs"
+                                        },
+                                        {
+                                          "sel": "key",
+                                          "name": "fragment"
+                                        }
+                                      ]
+                                    }
                                   },
-                                  {
-                                    "sel": "key",
-                                    "name": "fragment"
-                                  }
-                                ]
-                              }
-                            },
-                            "anchors": [],
-                            "entries": [
-                              {
-                                "key": "type",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": "rect",
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
                                   "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "x",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": 598,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "y",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": 1022,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "w",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": 147,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "h",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": 145,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "image",
-                                "edge": "ref",
-                                "value": {
-                                  "ptr": {
-                                    "base": {
-                                      "scope": "document"
-                                    },
-                                    "steps": [
-                                      {
-                                        "sel": "key",
-                                        "name": ".yo"
-                                      },
-                                      {
-                                        "sel": "key",
-                                        "name": "fragments"
-                                      },
-                                      {
-                                        "sel": "key",
-                                        "name": "mqgzkx76-qboh2g.png"
+                                  "entries": [
+                                    {
+                                      "key": "type",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": "rect",
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
                                       }
-                                    ]
-                                  }
+                                    },
+                                    {
+                                      "key": "x",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": 1255,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "y",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": 742,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "w",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": 187,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "h",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": 239,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "image",
+                                      "edge": "ref",
+                                      "value": {
+                                        "ptr": {
+                                          "base": {
+                                            "scope": "document"
+                                          },
+                                          "steps": [
+                                            {
+                                              "sel": "key",
+                                              "name": ".yo"
+                                            },
+                                            {
+                                              "sel": "key",
+                                              "name": "fragments"
+                                            },
+                                            {
+                                              "sel": "key",
+                                              "name": "mqgzkr8b-o80pq1.png"
+                                            }
+                                          ]
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "key": "created",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": "2026-06-16T18:39:24.635Z",
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "yamlover-annotations",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": null,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    }
+                                  ]
                                 }
                               },
                               {
-                                "key": "created",
+                                "key": "mqgzkx76-qboh2g",
                                 "edge": "contain",
                                 "value": {
-                                  "kind": "scalar",
-                                  "value": "2026-06-16T18:39:32.370Z",
+                                  "kind": "mapping",
                                   "array": false,
                                   "set": false,
                                   "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "yamlover-annotations",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": null,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              }
-                            ]
-                          }
-                        },
-                        {
-                          "key": "mqgzyj5v-xxvd5w",
-                          "edge": "contain",
-                          "value": {
-                            "kind": "mapping",
-                            "array": false,
-                            "set": false,
-                            "yo": false,
-                            "schema": {
-                              "ptr": {
-                                "base": {
-                                  "scope": "link",
-                                  "authority": "yamlover"
-                                },
-                                "steps": [
-                                  {
-                                    "sel": "key",
-                                    "name": "$defs"
+                                  "schema": {
+                                    "ptr": {
+                                      "base": {
+                                        "scope": "link",
+                                        "authority": "yamlover"
+                                      },
+                                      "steps": [
+                                        {
+                                          "sel": "key",
+                                          "name": "$defs"
+                                        },
+                                        {
+                                          "sel": "key",
+                                          "name": "fragment"
+                                        }
+                                      ]
+                                    }
                                   },
-                                  {
-                                    "sel": "key",
-                                    "name": "fragment"
-                                  }
-                                ]
-                              }
-                            },
-                            "anchors": [],
-                            "entries": [
-                              {
-                                "key": "type",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": "rect",
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
                                   "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "x",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": 355,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "y",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": 439,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "w",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": 169,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "h",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": 127,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "image",
-                                "edge": "ref",
-                                "value": {
-                                  "ptr": {
-                                    "base": {
-                                      "scope": "document"
-                                    },
-                                    "steps": [
-                                      {
-                                        "sel": "key",
-                                        "name": ".yo"
-                                      },
-                                      {
-                                        "sel": "key",
-                                        "name": "fragments"
-                                      },
-                                      {
-                                        "sel": "key",
-                                        "name": "mqgzyj5v-xxvd5w.png"
+                                  "entries": [
+                                    {
+                                      "key": "type",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": "rect",
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
                                       }
-                                    ]
-                                  }
+                                    },
+                                    {
+                                      "key": "x",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": 598,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "y",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": 1022,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "w",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": 147,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "h",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": 145,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "image",
+                                      "edge": "ref",
+                                      "value": {
+                                        "ptr": {
+                                          "base": {
+                                            "scope": "document"
+                                          },
+                                          "steps": [
+                                            {
+                                              "sel": "key",
+                                              "name": ".yo"
+                                            },
+                                            {
+                                              "sel": "key",
+                                              "name": "fragments"
+                                            },
+                                            {
+                                              "sel": "key",
+                                              "name": "mqgzkx76-qboh2g.png"
+                                            }
+                                          ]
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "key": "created",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": "2026-06-16T18:39:32.370Z",
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "yamlover-annotations",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": null,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    }
+                                  ]
                                 }
                               },
                               {
-                                "key": "created",
+                                "key": "mqgzyj5v-xxvd5w",
                                 "edge": "contain",
                                 "value": {
-                                  "kind": "scalar",
-                                  "value": "2026-06-16T18:50:07.365Z",
+                                  "kind": "mapping",
                                   "array": false,
                                   "set": false,
                                   "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "yamlover-annotations",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": null,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              }
-                            ]
-                          }
-                        },
-                        {
-                          "key": "mqgzyslc-dl2u4w",
-                          "edge": "contain",
-                          "value": {
-                            "kind": "mapping",
-                            "array": false,
-                            "set": false,
-                            "yo": false,
-                            "schema": {
-                              "ptr": {
-                                "base": {
-                                  "scope": "link",
-                                  "authority": "yamlover"
-                                },
-                                "steps": [
-                                  {
-                                    "sel": "key",
-                                    "name": "$defs"
+                                  "schema": {
+                                    "ptr": {
+                                      "base": {
+                                        "scope": "link",
+                                        "authority": "yamlover"
+                                      },
+                                      "steps": [
+                                        {
+                                          "sel": "key",
+                                          "name": "$defs"
+                                        },
+                                        {
+                                          "sel": "key",
+                                          "name": "fragment"
+                                        }
+                                      ]
+                                    }
                                   },
-                                  {
-                                    "sel": "key",
-                                    "name": "fragment"
-                                  }
-                                ]
-                              }
-                            },
-                            "anchors": [],
-                            "entries": [
-                              {
-                                "key": "type",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": "rect",
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
                                   "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "x",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": 733,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "y",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": 429,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "w",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": 179,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "h",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": 115,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "image",
-                                "edge": "ref",
-                                "value": {
-                                  "ptr": {
-                                    "base": {
-                                      "scope": "document"
-                                    },
-                                    "steps": [
-                                      {
-                                        "sel": "key",
-                                        "name": ".yo"
-                                      },
-                                      {
-                                        "sel": "key",
-                                        "name": "fragments"
-                                      },
-                                      {
-                                        "sel": "key",
-                                        "name": "mqgzyslc-dl2u4w.png"
+                                  "entries": [
+                                    {
+                                      "key": "type",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": "rect",
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
                                       }
-                                    ]
-                                  }
+                                    },
+                                    {
+                                      "key": "x",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": 355,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "y",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": 439,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "w",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": 169,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "h",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": 127,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "image",
+                                      "edge": "ref",
+                                      "value": {
+                                        "ptr": {
+                                          "base": {
+                                            "scope": "document"
+                                          },
+                                          "steps": [
+                                            {
+                                              "sel": "key",
+                                              "name": ".yo"
+                                            },
+                                            {
+                                              "sel": "key",
+                                              "name": "fragments"
+                                            },
+                                            {
+                                              "sel": "key",
+                                              "name": "mqgzyj5v-xxvd5w.png"
+                                            }
+                                          ]
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "key": "created",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": "2026-06-16T18:50:07.365Z",
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "yamlover-annotations",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": null,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    }
+                                  ]
                                 }
                               },
                               {
-                                "key": "created",
+                                "key": "mqgzyslc-dl2u4w",
                                 "edge": "contain",
                                 "value": {
-                                  "kind": "scalar",
-                                  "value": "2026-06-16T18:50:19.584Z",
+                                  "kind": "mapping",
                                   "array": false,
                                   "set": false,
                                   "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "yamlover-annotations",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": null,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              }
-                            ]
-                          }
-                        },
-                        {
-                          "key": "mqgzyufk-uyulgv",
-                          "edge": "contain",
-                          "value": {
-                            "kind": "mapping",
-                            "array": false,
-                            "set": false,
-                            "yo": false,
-                            "schema": {
-                              "ptr": {
-                                "base": {
-                                  "scope": "link",
-                                  "authority": "yamlover"
-                                },
-                                "steps": [
-                                  {
-                                    "sel": "key",
-                                    "name": "$defs"
+                                  "schema": {
+                                    "ptr": {
+                                      "base": {
+                                        "scope": "link",
+                                        "authority": "yamlover"
+                                      },
+                                      "steps": [
+                                        {
+                                          "sel": "key",
+                                          "name": "$defs"
+                                        },
+                                        {
+                                          "sel": "key",
+                                          "name": "fragment"
+                                        }
+                                      ]
+                                    }
                                   },
-                                  {
-                                    "sel": "key",
-                                    "name": "fragment"
-                                  }
-                                ]
-                              }
-                            },
-                            "anchors": [],
-                            "entries": [
-                              {
-                                "key": "type",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": "rect",
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
                                   "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "x",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": 1141,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "y",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": 444,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "w",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": 120,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "h",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": 102,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "image",
-                                "edge": "ref",
-                                "value": {
-                                  "ptr": {
-                                    "base": {
-                                      "scope": "document"
-                                    },
-                                    "steps": [
-                                      {
-                                        "sel": "key",
-                                        "name": ".yo"
-                                      },
-                                      {
-                                        "sel": "key",
-                                        "name": "fragments"
-                                      },
-                                      {
-                                        "sel": "key",
-                                        "name": "mqgzyufk-uyulgv.png"
+                                  "entries": [
+                                    {
+                                      "key": "type",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": "rect",
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
                                       }
-                                    ]
-                                  }
+                                    },
+                                    {
+                                      "key": "x",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": 733,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "y",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": 429,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "w",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": 179,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "h",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": 115,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "image",
+                                      "edge": "ref",
+                                      "value": {
+                                        "ptr": {
+                                          "base": {
+                                            "scope": "document"
+                                          },
+                                          "steps": [
+                                            {
+                                              "sel": "key",
+                                              "name": ".yo"
+                                            },
+                                            {
+                                              "sel": "key",
+                                              "name": "fragments"
+                                            },
+                                            {
+                                              "sel": "key",
+                                              "name": "mqgzyslc-dl2u4w.png"
+                                            }
+                                          ]
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "key": "created",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": "2026-06-16T18:50:19.584Z",
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "yamlover-annotations",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": null,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    }
+                                  ]
                                 }
                               },
                               {
-                                "key": "created",
+                                "key": "mqgzyufk-uyulgv",
                                 "edge": "contain",
                                 "value": {
-                                  "kind": "scalar",
-                                  "value": "2026-06-16T18:50:21.969Z",
+                                  "kind": "mapping",
                                   "array": false,
                                   "set": false,
                                   "yo": false,
+                                  "schema": {
+                                    "ptr": {
+                                      "base": {
+                                        "scope": "link",
+                                        "authority": "yamlover"
+                                      },
+                                      "steps": [
+                                        {
+                                          "sel": "key",
+                                          "name": "$defs"
+                                        },
+                                        {
+                                          "sel": "key",
+                                          "name": "fragment"
+                                        }
+                                      ]
+                                    }
+                                  },
                                   "anchors": [],
-                                  "entries": []
-                                }
-                              },
-                              {
-                                "key": "yamlover-annotations",
-                                "edge": "contain",
-                                "value": {
-                                  "kind": "scalar",
-                                  "value": null,
-                                  "array": false,
-                                  "set": false,
-                                  "yo": false,
-                                  "anchors": [],
-                                  "entries": []
+                                  "entries": [
+                                    {
+                                      "key": "type",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": "rect",
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "x",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": 1141,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "y",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": 444,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "w",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": 120,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "h",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": 102,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "image",
+                                      "edge": "ref",
+                                      "value": {
+                                        "ptr": {
+                                          "base": {
+                                            "scope": "document"
+                                          },
+                                          "steps": [
+                                            {
+                                              "sel": "key",
+                                              "name": ".yo"
+                                            },
+                                            {
+                                              "sel": "key",
+                                              "name": "fragments"
+                                            },
+                                            {
+                                              "sel": "key",
+                                              "name": "mqgzyufk-uyulgv.png"
+                                            }
+                                          ]
+                                        }
+                                      }
+                                    },
+                                    {
+                                      "key": "created",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": "2026-06-16T18:50:21.969Z",
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    },
+                                    {
+                                      "key": "yamlover-annotations",
+                                      "edge": "contain",
+                                      "value": {
+                                        "kind": "scalar",
+                                        "value": null,
+                                        "array": false,
+                                        "set": false,
+                                        "yo": false,
+                                        "anchors": [],
+                                        "entries": []
+                                      }
+                                    }
+                                  ]
                                 }
                               }
                             ]

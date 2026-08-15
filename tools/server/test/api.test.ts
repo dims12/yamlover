@@ -118,7 +118,7 @@ describe("api endpoints (engine-backed)", () => {
     const h = createHandlers(tmpTree({
       "pic.png": "pretend-png-bytes",
       ".yo/meta.yo": "properties:\n  pic.png:\n    type: binary\n    format: image/png\n    concrete: file/binary\n",
-      ".yo/body.yo": "\"pic.png\":\n  yamlover-fragments:\n    f1:\n      type: rect\n      x: 1\n      y: 2\n      w: 3\n      h: 4\n",
+      ".yo/body.yo": "\"pic.png\":\n  yo:\n    fragments:\n      f1:\n        type: rect\n        x: 1\n        y: 2\n        w: 3\n        h: 4\n",
     }), { gitignore: false });
     await h.ready;
     const { json } = (await nodeJson(h, { path: ":pic.png", binary: "1" }));
@@ -129,7 +129,7 @@ describe("api endpoints (engine-backed)", () => {
     const mixed = json.value.$yamloverMixed;
     expect(mixed.value.$yamloverBinary.format).toBe("image/png");
     expect(Buffer.from(mixed.value.$yamloverBinary.base64, "base64").toString()).toBe("pretend-png-bytes");
-    expect(mixed.entries.map((e: { key: string }) => e.key)).toContain("yamlover-fragments");
+    expect(mixed.entries.map((e: { key: string }) => e.key)).toContain("yo");
   });
 
   it("/api/schema returns the instance schema", async () => {

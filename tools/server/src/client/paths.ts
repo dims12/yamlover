@@ -99,11 +99,11 @@ export function fragmentOf(base: string, full: string): string {
 /** The in-page anchor id / URL hash for a fragment of `materialPath`: its slash continuation from
  *  the material — kept leading-slashed to mirror the chunk anchors (`<doc>#/chunks[n]`), so the `#`
  *  of `<material-url>#<id>` reads the same for both.
- *  E.g. (":dir:IMG.jpg", "mr0zbe2l-rqyow7") → "/yamlover-fragments/mr0zbe2l-rqyow7", so the fragment
- *  node `…/IMG.jpg/yamlover-fragments/<slug>` is reached in-page as `…/IMG.jpg#/yamlover-fragments/<slug>`.
+ *  E.g. (":dir:IMG.jpg", "mr0zbe2l-rqyow7") → "/yo/fragments/mr0zbe2l-rqyow7", so the fragment
+ *  node `…/IMG.jpg/yo/fragments/<slug>` is reached in-page as `…/IMG.jpg#/yo/fragments/<slug>`.
  *  Both the fragment's mark (text/region) and the RHS panel's row use this as the single key. */
 export function fragmentAnchorId(materialPath: string, fragmentSlug: string): string {
-  const fragNode = (materialPath === ":" ? "" : materialPath) + ":yamlover-fragments:" + fragmentSlug;
+  const fragNode = (materialPath === ":" ? "" : materialPath) + ":yo:fragments:" + fragmentSlug;
   return fragmentOf(materialPath, fragNode);
 }
 

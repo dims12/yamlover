@@ -9,7 +9,7 @@
  * SAME indent as their key; an item/value body 2 deeper. We descend a `within` path of mapping
  * KEYS (creating any that are absent, as empty blocks) to reach a target node, then:
  *   • append an element to its `yamlover-annotations:` sequence (creating the key), or
- *   • upsert a `<slug>:` entry into its `yamlover-fragments:` mapping (creating the key).
+ *   • upsert a `<slug>:` entry into its `yo: fragments:` mapping (creating the keys).
  *
  * Index (sequence-position) descent — e.g. tagging a chapter CHUNK, which would turn its
  * block-scalar into an omni node — is intentionally NOT handled here; the server resolves such a
@@ -21,7 +21,10 @@
 import { seqMarkLen, stripSeqMark } from "../../../parser/ts/src/serialize-common.ts";
 
 const ANNOTATIONS_KEY = "yamlover-annotations";
-const FRAGMENTS_KEY = "yamlover-fragments";
+/** Fragments nest under the node's reserved `yo:` key: `yo:` → `fragments:` → `<slug>:`
+ *  (docs/annotations/fragments). */
+export const YO_KEY = "yo";
+export const FRAGMENTS_SUBKEY = "fragments";
 const THUMBNAILS_KEY = "yamlover-thumbnails";
 
 const indentOf = (line: string): number => { let i = 0; while (line[i] === " ") i++; return i; };
@@ -79,7 +82,7 @@ function blockEnd(lines: string[], from: number, hi: number, indent: number): nu
 export interface Region { lo: number; hi: number; indent: number } // a mapping body: child keys at `indent`, within [lo,hi)
 
 /** Descend the mapping-KEY path `within` to the target node's body region, CREATING any missing
- *  key as an empty block (so a fresh overlay grows the `"file":` → `yamlover-fragments:` →
+ *  key as an empty block (so a fresh overlay grows the `"file":` → `yo:` → `fragments:` →
  *  `<slug>:` spine on demand). Mutates `lines` in place; returns the region under the last key. */
 function reachBody(lines: string[], within: string[]): Region {
   let start: Region = { lo: 0, hi: lines.length, indent: firstContentIndent(lines) };
@@ -102,7 +105,7 @@ function bodyUnder(lines: string[], L: number, hi: number, indent: number): Regi
 
 /** {@link reachBody}'s mapping-KEY descent, but starting from an already-resolved `start` region
  *  rather than the file root — so a host reached by NON-key descent (a chapter chunk, by index) can
- *  then descend its own keyed fields (`yamlover-fragments`/`<slug>`). Creates missing keys. */
+ *  then descend its own keyed fields (`yo`/`fragments`/`<slug>`). Creates missing keys. */
 export function reachBodyAt(lines: string[], start: Region, within: string[]): Region {
   let { lo, hi, indent } = start;
 
@@ -204,16 +207,39 @@ export function upsertMapEntryAt(lines: string[], region: Region, mapKey: string
   }
 }
 
-/** Upsert a `<slug>:` entry into the `yamlover-fragments:` mapping of the node addressed by
- *  `within`, creating the key (and any missing path) if absent. `render(indent)` returns the
+/** Upsert a `<slug>:` entry into the `yo: fragments:` mapping of the node addressed by
+ *  `within`, creating the keys (and any missing path) if absent. `render(indent)` returns the
  *  fragment's source lines INCLUDING the `<slug>:` line, at the mapping's child indent. A slug
  *  that already exists is REPLACED (its whole block). */
 export function upsertFragment(text: string, within: string[], slug: string, render: (indent: number) => string[]): string {
-  return upsertMapEntry(text, within, FRAGMENTS_KEY, slug, render);
+  return upsertMapEntry(text, [...within, YO_KEY], FRAGMENTS_SUBKEY, slug, render);
+}
+
+/** Drop the bare `key:` line at `region` when its block holds no content — the husk pruner for a
+ *  `yo:` key whose `fragments:` mapping was just removed. Mutates `lines`; returns whether it
+ *  dropped anything. */
+export function pruneEmptyKeyAt(lines: string[], region: Region, key: string): boolean {
+  const L = findKeyLine(lines, region.lo, region.hi, region.indent, key);
+  if (L < 0) return false;
+  const t = lines[L].trim();
+  if (t !== `${key}:` && t !== `${keyToken(key)}:`) return false; // an inline value — real data
+  const body = bodyUnder(lines, L, region.hi, region.indent);
+  for (let i = body.lo; i < body.hi; i++) if (isContentLine(lines[i])) return false;
+  lines.splice(L, Math.max(1, body.hi - L));
+  return true;
+}
+
+/** Drop an emptied `yo:` husk on the node at `within` (text-level twin of
+ *  {@link pruneEmptyKeyAt}) — after the last fragment went, the reserved key must not linger. */
+export function pruneEmptyYo(text: string, within: string[]): string {
+  const lines = text.replace(/\n$/, "").split("\n");
+  const region = findBody(lines, within);
+  if (!region) return text;
+  return pruneEmptyKeyAt(lines, region, YO_KEY) ? lines.join("\n") + "\n" : text;
 }
 
 /** Upsert a `[w, h]:` entry into the `yamlover-thumbnails:` mapping of the node addressed by
- *  `within` (an omni overlay on the original blob — parallel to `yamlover-fragments`), creating
+ *  `within` (an omni overlay on the original blob — parallel to `yo: fragments:`), creating
  *  the key (and any missing path) if absent. `render(indent)` returns the entry's source line
  *  INCLUDING the resolution key. The same `[w, h]` resolution is REPLACED if already present. */
 export function upsertThumbnail(text: string, within: string[], resKey: string, render: (indent: number) => string[]): string {
@@ -282,8 +308,8 @@ export function pruneEmptyAnnotations(text: string, within: string[], pruneHosts
 }
 
 /** Remove the `<entryKey>:` block from the `<mapKey>:` mapping of the node at `within` (e.g. drop one
- *  slug from `yamlover-fragments:`). Returns the text unchanged when the map or entry is absent. When
- *  the mapping is left empty, its `<mapKey>:` line is removed too, so no bare `yamlover-fragments:`
+ *  slug from `yo: fragments:`). Returns the text unchanged when the map or entry is absent. When
+ *  the mapping is left empty, its `<mapKey>:` line is removed too, so no bare `fragments:`
  *  husk lingers. */
 export function removeMapEntry(text: string, within: string[], mapKey: string, entryKey: string): string {
   const lines = text.replace(/\n$/, "").split("\n");

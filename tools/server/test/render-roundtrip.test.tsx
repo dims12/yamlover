@@ -154,7 +154,7 @@ describe("faithful-render round-trip (render → reparse → same IR)", () => {
 
   it("a chunk written as a single-line `- |-` block (what tagging produces) inlines its self-value", async () => {
     // convertChunkToOmni emits `- |-` (strip) for a one-line chunk → value has no newline → inlines
-    const text = await roundTrip("- |-\n    the tagged chunk\n  yamlover-fragments:\n    s1:\n      exact: tagged\n");
+    const text = await roundTrip("- |-\n    the tagged chunk\n  yo:\n    fragments:\n      s1: tagged\n        type: text\n");
     expect(text).not.toMatch(/^\s*-\s*$/m);
     expect(text).toMatch(/^- the tagged chunk$/m);
   });

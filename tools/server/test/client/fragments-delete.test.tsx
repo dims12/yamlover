@@ -32,7 +32,7 @@ describe("Fragments panel — delete from the RHS", () => {
     // both tags deleted, targeting the fragment's node path (decode params — space may be `+` or %20)
     await waitFor(() => expect(calls.filter((c) => c.method === "DELETE")).toHaveLength(2));
     const params = calls.map((c) => new URL("http://x" + c.url.replace(/^[^?]*/, "")).searchParams);
-    expect(params.every((p) => p.get("target") === ":60-doc.yo:yamlover-fragments:abc123")).toBe(true);
+    expect(params.every((p) => p.get("target") === ":60-doc.yo:yo:fragments:abc123")).toBe(true);
     const tags = params.map((p) => p.get("tag"));
     expect(tags).toContain(":yamlover:ontos:fifth tag");
     expect(tags).toContain(":yamlover:ontos:forth tag");

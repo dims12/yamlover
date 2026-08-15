@@ -49,7 +49,7 @@ import { pointerToken, schemaTagToken, serializeYamlover } from "../../../parser
 import { renderPointer, parsePointer } from "../../../parser/ts/src/pointer.ts";
 import { pathOfSegs, segsOfPath, segToken } from "../../../parser/ts/src/pathseg.ts";
 import { anchorBody, seqMarkLen, stripSeqMark } from "../../../parser/ts/src/serialize-common.ts";
-import { appendAnnotation, upsertFragment, upsertThumbnail, removeAnnotation as removeAnnotationItem, annotationsRemain, removeMapEntry, keyToken, appendAnnotationAt, upsertMapEntryAt, removeAnnotationAt, removeMapEntryAt, annotationsRemainAt, pruneEmptyAnnotations, pruneEmptyAnnotationsAt, reachBodyAt, type Region as EmbedRegion } from "./embed.js";
+import { appendAnnotation, upsertFragment, upsertThumbnail, removeAnnotation as removeAnnotationItem, annotationsRemain, removeMapEntry, keyToken, appendAnnotationAt, upsertMapEntryAt, removeAnnotationAt, removeMapEntryAt, annotationsRemainAt, pruneEmptyAnnotations, pruneEmptyAnnotationsAt, reachBodyAt, pruneEmptyKeyAt, pruneEmptyYo, type Region as EmbedRegion } from "./embed.js";
 import { BODY_FILE, INDEX_FILE, OVERLAY_DIR, dataFileConcrete, dirConcreteFor, interiorOf, isDirConcrete, isOverlayDirConcrete, overlaySegs, pointerSafeName, type DirConcrete } from "../concrete.js";
 import { classifyScalar, isDefaultRepr, type BlockQualifiers, type Repr, type ScalarStyle } from "../repr.js";
 import { renderThumbnail } from "./extract/thumbnails.js";
@@ -636,7 +636,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
       // Create an annotation — TAG a target (a WRITE path; docs/annotations). The tag application is
       // appended to the target's own `yamlover-annotations` array, embedded in the target's host
       // body (a `*.yo` document, or a directory's `.yo/body.yo` overlay keyed by
-      // filename). The target may be a whole node OR a fragment (`…:yamlover-fragments:<slug>`).
+      // filename). The target may be a whole node OR a fragment (`…:yo:fragments:<slug>`).
       // Body: { target, tag, description?, params? } — target/tag are JSON paths; description/params
       // make it a PARAMETRIZED annotation (an object element), else it is a bare tag pointer.
       if (req.method === "POST" && url.pathname === "/api/annotate") {
@@ -670,7 +670,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
       }
 
       // Create a FRAGMENT — a user-marked region inside a target (a WRITE path; docs/annotations).
-      // Stored under the target's `yamlover-fragments` mapping keyed by a fresh slug; for an
+      // Stored under the target's `yo: fragments:` mapping keyed by a fresh slug; for an
       // image-like selection the optional `imageBase64` crop is written as a sidecar blob the
       // fragment references. Body: { target, selector, imageBase64? } → { slug, fragmentPath }.
       if (req.method === "POST" && url.pathname === "/api/fragment") {
@@ -1347,7 +1347,7 @@ const queryHidden = (s: Store, p: string): boolean => {
 };
 
 /** Has a SUBCHAPTER child (a nested chapter/task) — the `hasChildren` hint a CHAPTER should report in
- *  the TOC: only subchapters are navigable there (chunks and overlay fields like `yamlover-fragments`
+ *  the TOC: only subchapters are navigable there (chunks and overlay fields like `yo`
  *  are content, not tree entries — `chapterTocView`). Mirrors the client's `isSubchapter(format)`, so
  *  a chunks-only chapter reads as a leaf (no chevron that expands to nothing). */
 const hasSubchapterChild = (s: Store, p: string): boolean =>
@@ -1660,7 +1660,7 @@ function firstChunkText(s: Store, p: string): string | null {
 
 // --------------------------------------------------------------------------- //
 // Tags, fragments & annotations — EMBEDDED in the target (docs/annotations). A user-marked region
-// is a FRAGMENT under the target's `yamlover-fragments` mapping (keyed by slug; selector + an
+// is a FRAGMENT under the target's `yo: fragments:` mapping (keyed by slug; selector + an
 // optional binary crop). TAGGING a target — a whole node or a fragment — appends to its
 // `yamlover-annotations` array: a bare tag pointer (`- *::tag`) or a `{tag, …params}` object. The
 // applied tag drives the color. A material's annotations / a tag's materials are derived from
@@ -1671,13 +1671,15 @@ function firstChunkText(s: Store, p: string): string | null {
 const ONTO_FORMAT = "x-yamlover-onto";
 const FRAGMENT_FORMAT = "x-yamlover-fragment";
 const ANN_KEY = "yamlover-annotations";
-const FRAG_KEY = "yamlover-fragments";
+// Fragments nest under the reserved `yo:` key (docs/annotations/fragments): `yo: fragments: <slug>`.
+const YO_KEY = "yo";
+const FRAGS_SUBKEY = "fragments";
 const THUMB_KEY = "yamlover-thumbnails";
 const CROP_SUBDIR = "fragments"; // crop sidecar blobs, under a hidden .yo/ overlay dir
 const THUMB_SUBDIR = "thumbnails"; // derived thumbnail blobs, content-addressed, under .yo/
 
 interface AnnotateInput {
-  target: string; // the target's JSON path — a node, or a fragment (`…:yamlover-fragments:<slug>`)
+  target: string; // the target's JSON path — a node, or a fragment (`…:yo:fragments:<slug>`)
   tag: string; // the applied tag's JSON path
   description?: string; // a parametrized annotation's comment
   params?: Record<string, unknown>; // any other parameters (parametrized form)
@@ -1743,14 +1745,18 @@ function readAnnotations(s: Store, hostStore: string): { tag: ReturnType<typeof 
 }
 
 /** A host node's fragments: each slug's selector fields (geometry / text quote) + its crop URL,
- *  read from the `yamlover-fragments` mapping. `image` is a `*` pointer (a ref edge) to the crop. */
+ *  read from the `yo: fragments:` mapping. A TEXT fragment's quoted text is the member's
+ *  SELF-VALUE (docs/annotations/fragments) — materialized onto the wire as `selector.exact`, so
+ *  every consumer keeps the W3C shape. `image` is a `*` pointer (a ref edge) to the crop. */
 function readFragments(s: Store, hostStore: string): { slug: string; node: string; selector: Record<string, unknown>; imageUrl?: string }[] {
-  const frags = childPath(hostStore, FRAG_KEY);
+  const frags = childPath(childPath(hostStore, YO_KEY), FRAGS_SUBKEY);
   if (!s.node(frags)) return [];
   const out: { slug: string; node: string; selector: Record<string, unknown>; imageUrl?: string }[] = [];
   for (const fc of s.children(frags)) {
     if (!fc.label) continue;
     const selector: Record<string, unknown> = {};
+    const self = s.node(fc.to)?.value;
+    if (self != null) selector.exact = String(self);
     for (const c of s.children(fc.to)) {
       if (c.label && c.label !== ANN_KEY && c.label !== "created") selector[c.label] = s.node(c.to)?.value;
     }
@@ -1936,11 +1942,15 @@ function annotationItemLines(a: AnnotateInput, indent: number): string[] {
 }
 
 /** A fragment's source lines at the fragments-map `indent` (`<slug>:` + selector + crop + created),
- *  tagged so it indexes as an x-yamlover-fragment node. */
+ *  tagged so it indexes as an x-yamlover-fragment node. A TEXT selector's `exact` is spelled as
+ *  the member's SELF-VALUE on the slug line (docs/annotations/fragments) — the member is an omni:
+ *  the quoted text itself, with the remaining selector fields beside it. */
 function fragmentBlockLines(slug: string, selector: Record<string, unknown>, imagePtr: string | null, indent: number): string[] {
   const pad = " ".repeat(indent);
-  const lines = [`${pad}${keyToken(slug)}: !!<*::yamlover:$defs:fragment>`];
-  for (const [k, v] of Object.entries(selector)) lines.push(`${pad}  ${keyToken(k)}: ${yScalar(v)}`);
+  const { exact, ...fields } = selector as { exact?: unknown } & Record<string, unknown>;
+  const self = exact != null ? ` ${yScalar(exact)}` : "";
+  const lines = [`${pad}${keyToken(slug)}: !!<*::yamlover:$defs:fragment>${self}`];
+  for (const [k, v] of Object.entries(fields)) lines.push(`${pad}  ${keyToken(k)}: ${yScalar(v)}`);
   if (imagePtr) lines.push(`${pad}  image: ${imagePtr}`);
   lines.push(`${pad}  created: ${new Date().toISOString()}`);
   return lines;
@@ -1950,7 +1960,7 @@ function fragmentBlockLines(slug: string, selector: Record<string, unknown>, ima
  *  host body in place — docs/annotations). */
 function embedAnnotation(dataRoot: string, s: Store, a: AnnotateInput): string {
   const segs = strToSegs(a.target || ":");
-  // A tag ON a chunk fragment (`:chapter[k]:yamlover-fragments:<slug>`) descends past a body index:
+  // A tag ON a chunk fragment (`:chapter[k]:yo:fragments:<slug>`) descends past a body index:
   // reach the chunk field-region, then the fragment's own body, and append there.
   if (isChunkTarget(s, segs)) {
     const { docSegs, bodyFile } = chapterSource(dataRoot, s, segs);
@@ -1968,13 +1978,13 @@ function embedAnnotation(dataRoot: string, s: Store, a: AnnotateInput): string {
   return bodyFile;
 }
 
-/** Embed a fragment under the target's `yamlover-fragments` mapping; for an image-like selection,
+/** Embed a fragment under the target's `yo: fragments:` mapping; for an image-like selection,
  *  write the PNG crop as a sidecar blob the fragment references. Returns its slug + node path. */
 function embedFragment(dataRoot: string, s: Store, mode: SidecarLocation, f: FragmentInput): { slug: string; fragmentPath: string } {
   const segs = strToSegs(f.target || ":");
   const slug = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   // A chunk target (`:chapter[k]`, a positional prose item) can't be reached by the mapping-key
-  // writer — turn the chunk into an omni node and hang `yamlover-fragments:` off it (docs/annotations/storage).
+  // writer — turn the chunk into an omni node and hang `yo: fragments:` off it (docs/annotations/storage).
   if (isChunkTarget(s, segs)) {
     const { docSegs, bodyFile } = chapterSource(dataRoot, s, segs);
     const { indices, keys } = splitChunkWithin(segs.slice(docSegs.length));
@@ -1982,9 +1992,9 @@ function embedFragment(dataRoot: string, s: Store, mode: SidecarLocation, f: Fra
     const lines = fs.readFileSync(bodyFile, "utf8").replace(/\n$/, "").split("\n");
     assertProseChunk(lines, indices); // reject a `*…` / non-text chunk
     const region = chunkFieldRegion(lines, indices, /*ensureOmni*/ true); // convert the chunk to an omni node
-    upsertMapEntryAt(lines, region, FRAG_KEY, slug, (indent) => fragmentBlockLines(slug, f.selector, null, indent));
+    upsertMapEntryAt(lines, reachBodyAt(lines, region, [YO_KEY]), FRAGS_SUBKEY, slug, (indent) => fragmentBlockLines(slug, f.selector, null, indent));
     writeBody(dataRoot, s, bodyFile, lines.join("\n") + "\n");
-    return { slug, fragmentPath: segsToStr([...segs, FRAG_KEY, slug]) };
+    return { slug, fragmentPath: segsToStr([...segs, YO_KEY, FRAGS_SUBKEY, slug]) };
   }
   const { bodyFile, within } = hostFor(dataRoot, s, segs);
   let imagePtr: string | null = null;
@@ -2001,12 +2011,12 @@ function embedFragment(dataRoot: string, s: Store, mode: SidecarLocation, f: Fra
   mkdirInside(dataRoot, path.dirname(bodyFile), { recursive: true });
   const src = fs.existsSync(bodyFile) ? fs.readFileSync(bodyFile, "utf8") : "";
   writeBody(dataRoot, s, bodyFile, upsertFragment(src, within, slug, (indent) => fragmentBlockLines(slug, f.selector, imagePtr, indent)));
-  return { slug, fragmentPath: segsToStr([...segs, FRAG_KEY, slug]) };
+  return { slug, fragmentPath: segsToStr([...segs, YO_KEY, FRAGS_SUBKEY, slug]) };
 }
 
 // --- thumbnails: a per-type EXTRACTOR product, stored the yamlover way ------------------------ //
 // A thumbnail is an omni overlay on the source blob, under `yamlover-thumbnails:`, keyed by the
-// `[w, h]` resolution tuple — parallel to `yamlover-fragments`. The bytes can't live inline
+// `[w, h]` resolution tuple — parallel to `yo: fragments:`. The bytes can't live inline
 // (the serializer has no blob text form yet), so each is a content-addressed sidecar blob under
 // `thumbnails/` that the entry references by `*` pointer — exactly the fragment-crop pattern. The
 // content hash in the name gives free dedupe + invalidation (a re-saved source → a new name).
@@ -2084,8 +2094,9 @@ function unembedAnnotation(dataRoot: string, s: Store, target: string, tag: stri
     const lines = fs.readFileSync(bodyFile, "utf8").replace(/\n$/, "").split("\n");
     const fragRegion = () => reachBodyAt(lines, chunkFieldRegion(lines, indices, /*ensureOmni*/ false), keys);
     removeAnnotationAt(lines, fragRegion, (t) => t.replace(/\s+/g, "").includes(needle));
-    if (keys.length >= 2 && keys[keys.length - 2] === FRAG_KEY && !annotationsRemainAt(lines, fragRegion())) {
-      removeMapEntryAt(lines, reachBodyAt(lines, chunkFieldRegion(lines, indices, false), keys.slice(0, -2)), FRAG_KEY, keys[keys.length - 1]);
+    if (keys.length >= 3 && keys[keys.length - 3] === YO_KEY && keys[keys.length - 2] === FRAGS_SUBKEY && !annotationsRemainAt(lines, fragRegion())) {
+      removeMapEntryAt(lines, reachBodyAt(lines, chunkFieldRegion(lines, indices, false), keys.slice(0, -2)), FRAGS_SUBKEY, keys[keys.length - 1]);
+      pruneEmptyKeyAt(lines, chunkFieldRegion(lines, indices, false), YO_KEY); // the emptied `yo:` husk
       collapseChunkOmni(lines, indices); // no fields left → back to a plain `- |` chunk
     } else if (keys.length === 0 && !annotationsRemainAt(lines, fragRegion())) {
       // the CHUNK's last whole-node tag: drop the emptied `yamlover-annotations:` husk and — when
@@ -2109,10 +2120,11 @@ function unembedAnnotation(dataRoot: string, s: Store, target: string, tag: stri
   // filename spine) exist solely to host overlay entries. An in-place document's keys are the
   // user's data: a pre-existing empty mapping must not vanish because a tag passed through it.
   const overlay = overlaidDir(bodyFile) !== null;
-  // within = [...host, "yamlover-fragments", "<slug>"] for a fragment target; drop it when emptied.
-  if (within.length >= 2 && within[within.length - 2] === FRAG_KEY && !annotationsRemain(src, within)) {
-    src = removeMapEntry(src, within.slice(0, -2), FRAG_KEY, within[within.length - 1]);
-    src = pruneEmptyAnnotations(src, within.slice(0, -2), overlay); // the host may hold nothing else now
+  // within = [...host, "yo", "fragments", "<slug>"] for a fragment target; drop it when emptied.
+  if (within.length >= 3 && within[within.length - 3] === YO_KEY && within[within.length - 2] === FRAGS_SUBKEY && !annotationsRemain(src, within)) {
+    src = removeMapEntry(src, within.slice(0, -2), FRAGS_SUBKEY, within[within.length - 1]);
+    src = pruneEmptyYo(src, within.slice(0, -3)); // the emptied `yo:` husk
+    src = pruneEmptyAnnotations(src, within.slice(0, -3), overlay); // the host may hold nothing else now
   } else {
     // untagging the last tag: drop the emptied `yamlover-annotations:` husk (a null-valued orphan
     // key otherwise) and, in an overlay, the host keys emptied with it
@@ -3521,7 +3533,7 @@ function assignAt(lines: string[], r: Region, seg: Seg | undefined, op: string, 
 
 // --- chunk fragments (docs/annotations/storage): a text fragment lives ON the chunk it was drawn in ----- //
 // A chunk that carries a fragment becomes an OMNI node — its prose is a block-scalar self-value and
-// `yamlover-fragments:`/`yamlover-annotations:` are keyed fields. These fields sit at the item's
+// `yo:`/`yamlover-annotations:` are keyed fields. These fields sit at the item's
 // child indent (item-indent + 2); the block-scalar content is pushed one step DEEPER (item-indent +
 // 4) so its dedent to the field level ends the block (docs/language/vs-yaml/differences/mixtures). Reached by ABSOLUTE index
 // (node-path space — what the fragment target uses), NOT the /api/edit rank space.
@@ -3584,7 +3596,7 @@ function convertChunkToOmni(lines: string[], item: ChapterEntry, itemIndent: num
   lines.splice(item.start, item.end - item.start, `${pad}- ${tag}${chomp}`, ...clean.split("\n").map((l) => (l.trim() ? `${pad}    ${l}` : "")));
 }
 
-/** The field-level Region of the chapter body item at absolute `indices` (where `yamlover-fragments:`
+/** The field-level Region of the chapter body item at absolute `indices` (where `yo:`
  *  / `yamlover-annotations:` live). With `ensureOmni`, a plain chunk is first converted so it can
  *  hold fields. Re-scans after conversion, so the returned span is current. */
 function chunkFieldRegion(lines: string[], indices: number[], ensureOmni: boolean): EmbedRegion {
@@ -3626,7 +3638,7 @@ function isChunkTarget(s: Store, segs: Seg[]): boolean {
 }
 
 /** Split a chapter-local `within` into its leading numeric body indices and the trailing mapping
- *  keys (e.g. `[3, "yamlover-fragments", "slug"]` → `{ indices:[3], keys:["yamlover-fragments","slug"] }`). */
+ *  keys (e.g. `[3, "yo", "fragments", "slug"]` → `{ indices:[3], keys:["yo","fragments","slug"] }`). */
 function splitChunkWithin(within: Seg[]): { indices: number[]; keys: string[] } {
   let i = 0;
   while (i < within.length && typeof within[i] === "number") i++;

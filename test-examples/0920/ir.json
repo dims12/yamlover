@@ -138,7 +138,7 @@
         }
       },
       {
-        "key": "yamlover-fragments",
+        "key": "yo",
         "edge": "contain",
         "value": {
           "kind": "mapping",
@@ -148,48 +148,17 @@
           "anchors": [],
           "entries": [
             {
-              "key": "mqgwoar6-xbn407",
+              "key": "fragments",
               "edge": "contain",
               "value": {
                 "kind": "mapping",
                 "array": false,
                 "set": false,
                 "yo": false,
-                "schema": {
-                  "ptr": {
-                    "base": {
-                      "scope": "link",
-                      "authority": "yamlover"
-                    },
-                    "steps": [
-                      {
-                        "sel": "key",
-                        "name": "$defs"
-                      },
-                      {
-                        "sel": "key",
-                        "name": "fragment"
-                      }
-                    ]
-                  }
-                },
                 "anchors": [],
                 "entries": [
                   {
-                    "key": "type",
-                    "edge": "contain",
-                    "value": {
-                      "kind": "scalar",
-                      "value": "text",
-                      "array": false,
-                      "set": false,
-                      "yo": false,
-                      "anchors": [],
-                      "entries": []
-                    }
-                  },
-                  {
-                    "key": "exact",
+                    "key": "mqgwoar6-xbn407",
                     "edge": "contain",
                     "value": {
                       "kind": "scalar",
@@ -197,83 +166,115 @@
                       "array": false,
                       "set": false,
                       "yo": false,
-                      "anchors": [],
-                      "entries": []
-                    }
-                  },
-                  {
-                    "key": "prefix",
-                    "edge": "contain",
-                    "value": {
-                      "kind": "scalar",
-                      "value": "",
-                      "array": false,
-                      "set": false,
-                      "yo": false,
-                      "anchors": [],
-                      "entries": []
-                    }
-                  },
-                  {
-                    "key": "suffix",
-                    "edge": "contain",
-                    "value": {
-                      "kind": "scalar",
-                      "value": " likes to hide ",
-                      "array": false,
-                      "set": false,
-                      "yo": false,
-                      "anchors": [],
-                      "entries": []
-                    }
-                  },
-                  {
-                    "key": "created",
-                    "edge": "contain",
-                    "value": {
-                      "kind": "scalar",
-                      "value": "2026-06-16T17:18:11.059Z",
-                      "array": false,
-                      "set": false,
-                      "yo": false,
-                      "anchors": [],
-                      "entries": []
-                    }
-                  },
-                  {
-                    "key": "yamlover-annotations",
-                    "edge": "contain",
-                    "value": {
-                      "kind": "mapping",
-                      "array": true,
-                      "set": false,
-                      "yo": false,
+                      "schema": {
+                        "ptr": {
+                          "base": {
+                            "scope": "link",
+                            "authority": "yamlover"
+                          },
+                          "steps": [
+                            {
+                              "sel": "key",
+                              "name": "$defs"
+                            },
+                            {
+                              "sel": "key",
+                              "name": "fragment"
+                            }
+                          ]
+                        }
+                      },
                       "anchors": [],
                       "entries": [
                         {
-                          "key": null,
-                          "edge": "ref",
+                          "key": "type",
+                          "edge": "contain",
                           "value": {
-                            "ptr": {
-                              "base": {
-                                "scope": "link",
-                                "authority": "yamlover"
-                              },
-                              "steps": [
-                                {
-                                  "sel": "key",
-                                  "name": "ontos"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "colors"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "green"
+                            "kind": "scalar",
+                            "value": "text",
+                            "array": false,
+                            "set": false,
+                            "yo": false,
+                            "anchors": [],
+                            "entries": []
+                          }
+                        },
+                        {
+                          "key": "prefix",
+                          "edge": "contain",
+                          "value": {
+                            "kind": "scalar",
+                            "value": "",
+                            "array": false,
+                            "set": false,
+                            "yo": false,
+                            "anchors": [],
+                            "entries": []
+                          }
+                        },
+                        {
+                          "key": "suffix",
+                          "edge": "contain",
+                          "value": {
+                            "kind": "scalar",
+                            "value": " likes to hide ",
+                            "array": false,
+                            "set": false,
+                            "yo": false,
+                            "anchors": [],
+                            "entries": []
+                          }
+                        },
+                        {
+                          "key": "created",
+                          "edge": "contain",
+                          "value": {
+                            "kind": "scalar",
+                            "value": "2026-06-16T17:18:11.059Z",
+                            "array": false,
+                            "set": false,
+                            "yo": false,
+                            "anchors": [],
+                            "entries": []
+                          }
+                        },
+                        {
+                          "key": "yamlover-annotations",
+                          "edge": "contain",
+                          "value": {
+                            "kind": "mapping",
+                            "array": true,
+                            "set": false,
+                            "yo": false,
+                            "anchors": [],
+                            "entries": [
+                              {
+                                "key": null,
+                                "edge": "ref",
+                                "value": {
+                                  "ptr": {
+                                    "base": {
+                                      "scope": "link",
+                                      "authority": "yamlover"
+                                    },
+                                    "steps": [
+                                      {
+                                        "sel": "key",
+                                        "name": "ontos"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "colors"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "green"
+                                      }
+                                    ]
+                                  }
                                 }
-                              ]
-                            }
+                              }
+                            ]
                           }
                         }
                       ]

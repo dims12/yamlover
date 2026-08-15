@@ -8,7 +8,7 @@ import { nodeJson } from "./node-json";
 
 // A TEXT fragment lives ON the chunk it was drawn in (docs/annotations/storage), NOT the whole chapter:
 // tagging a chunk's text turns that chunk into an omni node (its prose becomes a block-scalar
-// self-value; `yamlover-fragments:`/`yamlover-annotations:` become keyed fields). Synthetic temp
+// self-value; `yo:`/`yamlover-annotations:` become keyed fields). Synthetic temp
 // trees only — never the repo's examples/.
 
 const DEFS = {
@@ -47,11 +47,11 @@ describe("chunk text fragments (docs/annotations/storage)", () => {
 
     const src = bodyOf(root);
     // the chunk became an omni node: block-scalar prose (indented one step deeper) + fields
-    expect(src).toContain("yamlover-fragments:");
-    expect(src).toContain('exact: "word"');
+    expect(src).toContain("fragments:");
+    expect(src).toContain(':fragment> "word"'); // exact IS the member's self-value
     expect(src).toContain("*::ontos.yo:yellow");
-    expect(src).not.toMatch(/^yamlover-fragments:/m); // NOT at the chapter root (column 0) — it hangs off the chunk
-    expect(src).toMatch(/^ {2}yamlover-fragments:/m); // at the chunk's field indent (2)
+    expect(src).not.toMatch(/^yo:/m); // NOT at the chapter root (column 0) — it hangs off the chunk
+    expect(src).toMatch(/^ {2}yo:/m); // at the chunk's field indent (2)
 
     // the fragment node resolves at the chunk path
     expect((await nodeJson(h, { path: fragmentPath })).status).toBe(200);
@@ -74,7 +74,7 @@ describe("chunk text fragments (docs/annotations/storage)", () => {
     expect(del.status).toBe(200);
 
     const src = bodyOf(root);
-    expect(src).not.toContain("yamlover-fragments:"); // the emptied fragment map is gone
+    expect(src).not.toContain("fragments:"); // the emptied fragment map is gone
     expect(src).toContain("the word appears here in a chunk"); // prose intact
     expect(call(h, "/api/annotations", { path: ":doc.yo" }).json).toHaveLength(0);
     h.close();
