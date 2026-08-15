@@ -113,6 +113,19 @@ describe("marklower (the default format for bare strings)", () => {
     expect(container.querySelector("em")?.textContent).toBe("c"); // only the real pair styles
   });
 
+  it("renders a link-less fragment token as a mark of its value", () => {
+    const { container } = render(<MarklowerChunk chunk={chunk("reads twice: [once to scan](), once to build")} onNavigate={noop} />);
+    const mark = container.querySelector("mark.yo-inline-fragment");
+    expect(mark?.textContent).toBe("once to scan");
+    expect(container.textContent).toBe("reads twice: once to scan, once to build"); // no token chrome
+  });
+
+  it("hides a membership bookmark riding the token's label", () => {
+    const { container } = render(<MarklowerChunk chunk={chunk("a [&:: yamlover: ontos: colors: yellow: -: word]() here")} onNavigate={noop} />);
+    expect(container.querySelector("mark.yo-inline-fragment")?.textContent).toBe("word");
+    expect(container.textContent).toBe("a word here");
+  });
+
   it("keeps a link as an emphasis boundary (labels style themselves instead)", () => {
     const { container } = render(<MarklowerChunk chunk={chunk("**[a](*:b)** t")} onNavigate={noop} />);
     expect(container.querySelector("strong")).toBeNull(); // the pair spans a link — literal

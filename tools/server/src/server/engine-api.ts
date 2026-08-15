@@ -47,6 +47,7 @@ import { parseYamlover } from "../../../parser/ts/src/yamlover.ts";
 import { parseJson5p } from "../../../parser/ts/src/json5p.ts";
 import { pointerToken, schemaTagToken, serializeYamlover } from "../../../parser/ts/src/serialize-yamlover.ts";
 import { renderPointer, parsePointer } from "../../../parser/ts/src/pointer.ts";
+import { scanMarklower, type FragToken as FragTokenT } from "../../../parser/ts/src/marklower-links.ts";
 import { pathOfSegs, segsOfPath, segToken } from "../../../parser/ts/src/pathseg.ts";
 import { anchorBody, seqMarkLen, stripSeqMark } from "../../../parser/ts/src/serialize-common.ts";
 import { upsertFragment, upsertThumbnail, removeMapEntry, keyToken, upsertMapEntryAt, removeMapEntryAt, pruneEmptyAnnotations, reachBodyAt, pruneEmptyKeyAt, pruneEmptyYo, appendBookmark, appendBookmarkAt, removeBookmark, removeBookmarkAt, bookmarksRemain, bookmarksRemainAt, type Region as EmbedRegion } from "./embed.js";
@@ -655,7 +656,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
               // is not a pointer), so the annotation could be written but never parsed back.
               // Refuse BEFORE the write — a failed reindex must not leave a corrupt body file.
               if (tagSegs.length === 0) throw new Error("the root cannot be a tag");
-              const bodyFile = embedAnnotation(dataRoot, s, a);
+              const bodyFile = embedAnnotation(dataRoot, s, settings.sidecars, a);
               // A surgical body edit changes one file: patch just that file's subtree against the
               // cached tree (re-resolving in memory keeps cross-file links correct), instead of
               // re-walking + rebuilding the whole index on every tag toggle.
@@ -690,14 +691,17 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
         return;
       }
 
-      // Delete an annotation (recolor = delete + create, client-side): remove the matching element
-      // from the target's `yamlover-annotations`. Body/query: { target, tag } (JSON paths).
+      // Unfile: remove the matching membership bookmark from the target (an inline-token
+      // membership when `selector` rides the query). Query: { target, tag, selector? }.
       if (req.method === "DELETE" && url.pathname === "/api/annotate") {
         const target = url.searchParams.get("target") ?? "";
         const tag = url.searchParams.get("tag") || "";
+        const selRaw = url.searchParams.get("selector");
+        let sel: Record<string, unknown> | undefined;
+        try { sel = selRaw ? (JSON.parse(selRaw) as Record<string, unknown>) : undefined; } catch { sel = undefined; }
         enqueue(async () => {
           if (!tag) throw new Error("delete needs a `tag`");
-          const bodyFile = unembedAnnotation(dataRoot, s, target, tag);
+          const bodyFile = unembedAnnotation(dataRoot, s, target, tag, sel);
           broadcast(await doReindexFile(bodyFile));
         })
           .then(() => sendJson(res, 200, { ok: true }))
@@ -1681,6 +1685,7 @@ interface AnnotateInput {
   target: string; // the target's JSON path — a node, or a fragment (`…:yo:fragments:<slug>`)
   tag: string; // the applied tag's JSON path
   description?: string; // a parametrized annotation's comment
+  selector?: Record<string, unknown>; // a TEXT selection on a prose chunk — the INLINE token spelling
   params?: Record<string, unknown>; // any other parameters (parametrized form)
 }
 
@@ -1770,6 +1775,26 @@ function annotationsFor(dataRoot: string, s: Store, segs: Seg[]): unknown[] {
   const out: unknown[] = [];
   const gather = (hostStore: string, nodeClient: string): void => {
     for (const a of readAnnotations(s, hostStore)) out.push({ ...a, node: nodeClient });
+    // INLINE fragment tokens (docs/documents/marklower/grammar): a prose value's `[…](…)`
+    // tokens with label bookmarks are memberships of the region the token wraps — surfaced
+    // exactly like explicit fragments, the selector derived from the token's own position.
+    const row = s.node(hostStore);
+    if (row?.type === "scalar" && typeof row.value === "string" && row.value.includes("[")) {
+      const text = row.value;
+      for (const t of scanMarklower(text)) {
+        if (t.kind !== "frag" || t.bookmarks.length === 0) continue;
+        const selector = {
+          type: "text", exact: t.value,
+          prefix: text.slice(Math.max(0, t.start - 24), t.start).replace(/\n/g, " "),
+          suffix: text.slice(t.end, t.end + 24).replace(/\n/g, " "),
+        };
+        for (const b of t.bookmarks) {
+          const bsegs = bookmarkSegs(b);
+          const tag = bsegs ? projectTag(s, storePath(bsegs)) : null;
+          if (tag) out.push({ tag, node: nodeClient, selector, inline: true });
+        }
+      }
+    }
     for (const f of readFragments(s, hostStore)) {
       for (const a of readAnnotations(s, f.node)) {
         out.push({
@@ -1939,13 +1964,124 @@ function fragmentBlockLines(slug: string, selector: Record<string, unknown>, ima
 const isFragmentSegs = (segs: Seg[]): boolean =>
   segs.length >= 3 && segs[segs.length - 3] === YO_KEY && segs[segs.length - 2] === FRAGS_SUBKEY;
 
+// ─────────────── THE INLINE FRAGMENT TOKEN (docs/documents/marklower/grammar) ───────────────
+// In marklower prose the NORMALIZED spelling of a text fragment is the `[…](…)` token in the
+// chunk's own text: creation wraps the selected words, a membership rides the label as a
+// leading `&…:-` bookmark, and removing the last membership unwraps the token — the prose
+// returns byte-exact. Everything an inline op cannot spell (a selection across a soft break or
+// inside another token) falls back to the explicit `yo: fragments:` member, silently.
+
+/** The `[]` spelling of a value: bare when it survives the label scan; quoted otherwise. */
+const labelToken = (v: string): string =>
+  /[:\[\]()&'"\n]|^\s|\s$/.test(v) ? "'" + v.replace(/'/g, "''") + "'" : v;
+
+/** Locate `exact` in the chunk's SOURCE text (soft breaks read as spaces — the offsets are 1:1),
+ *  prefix/suffix disambiguated; null when absent, crossing a line, or inside another token. */
+function locateExact(text: string, sel: Record<string, unknown>): { a: number; b: number } | null {
+  const needle = String(sel.exact ?? "");
+  if (!needle) return null;
+  const norm = text.replace(/\n/g, " ");
+  const pre = String(sel.prefix ?? "").replace(/\n/g, " ");
+  const suf = String(sel.suffix ?? "").replace(/\n/g, " ");
+  let at = -1;
+  for (let f = norm.indexOf(needle); f >= 0; f = norm.indexOf(needle, f + 1)) {
+    if (pre && !norm.slice(0, f).endsWith(pre)) continue;
+    if (suf && !norm.slice(f + needle.length).startsWith(suf)) continue;
+    at = f;
+    break;
+  }
+  if (at < 0) at = norm.indexOf(needle);
+  if (at < 0) return null;
+  const b = at + needle.length;
+  if (text.slice(at, b).includes("\n")) return null; // a token never spans lines
+  for (const t of scanMarklower(text)) {
+    if (at < t.end && b > t.start) return null; // overlaps an existing token — not spellable
+  }
+  return { a: at, b };
+}
+
+/** The block-literal payload for an emplace of `text` — the chomp preserves the value's own
+ *  trailing-newline state, so an unwrap restores the chunk byte-exact. */
+const blockPayload = (text: string): string => {
+  const strip = !text.endsWith("\n");
+  const body = (strip ? text : text.slice(0, -1)).split("\n").map((l) => "  " + l).join("\n");
+  return (strip ? "|-\n" : "|\n") + body;
+};
+
+/** Rewrite a prose chunk's inline fragment token (or create one): `mutate` maps the existing
+ *  token (null = none yet) to the replacement TOKEN TEXT (null = unwrap to the plain value).
+ *  Returns false when the inline spelling cannot host the op — the caller falls back to the
+ *  explicit member. Writes through applyEdits, so anchors/comments survive like any edit. */
+function rewriteInlineFragment(
+  dataRoot: string,
+  s: Store,
+  segs: Seg[],
+  sel: Record<string, unknown>,
+  mutate: (token: FragTokenT | null) => string | null | false,
+): boolean {
+  const row = s.node(storePath(segs));
+  if (!row || row.type !== "scalar" || typeof row.value !== "string") return false;
+  const text = row.value;
+  const exact = String(sel.exact ?? "");
+  let existing: FragTokenT | null = null;
+  for (const t of scanMarklower(text)) {
+    if (t.kind === "frag" && t.link === null && t.value === exact) { existing = t; break; }
+  }
+  let next: string;
+  if (existing) {
+    const replacement = mutate(existing);
+    if (replacement === false) return false;
+    next = text.slice(0, existing.start) + (replacement ?? existing.value) + text.slice(existing.end);
+  } else {
+    const where = locateExact(text, sel);
+    if (!where) return false;
+    const replacement = mutate(null);
+    if (replacement === false || replacement === null) return false;
+    next = text.slice(0, where.a) + replacement + text.slice(where.b);
+  }
+  applyEdits(dataRoot, s, [{ path: segsToStr(segs), op: "emplace", yamlover: blockPayload(next) }]);
+  return true;
+}
+
+/** Compose a token from its parts (bookmarks lead the label, `: `-separated from the value). */
+function fragTokenText(bookmarks: readonly string[], value: string, parens: string): string {
+  const head = bookmarks.length ? bookmarks.join(": ") + ": " : "";
+  return `[${head}${labelToken(value)}](${parens})`;
+}
+
+/** The bookmark body's segs (authority + step names), or null when unparsable. */
+function bookmarkSegs(body: string): Seg[] | null {
+  try {
+    const p = parsePointer(body.replace(/^&/, "").replace(/:\s*-\s*$/, "")) as { base?: { authority?: string }; steps?: { name?: unknown }[] };
+    const segs = [p.base?.authority, ...(p.steps ?? []).map((st) => st.name)].filter((x): x is string => typeof x === "string");
+    return segs.length ? segs : null;
+  } catch {
+    return null;
+  }
+}
+
 /** File the target under an onto: ONE membership bookmark on the target (`&<onto>:-`, own-line,
  *  top of the field block — docs/annotations/applications). An application carries no data of its
- *  own; a `description`/params ride the target FRAGMENT as plain fields. */
-function embedAnnotation(dataRoot: string, s: Store, a: AnnotateInput): string {
+ *  own; a `description`/params ride the target FRAGMENT as plain fields. A TEXT selector on a
+ *  prose-chunk target takes the INLINE spelling — the bookmark rides the `[…](…)` token's label,
+ *  the token created around the selection when absent (docs/documents/marklower/grammar); what
+ *  the inline form cannot spell falls back to the explicit member. */
+function embedAnnotation(dataRoot: string, s: Store, mode: SidecarLocation, a: AnnotateInput): string {
   const segs = strToSegs(a.target || ":");
   const params: Record<string, unknown> = { ...(a.params ?? {}) };
   if (a.description != null && a.description !== "") params.description = a.description;
+  const sel = a.selector;
+  if (sel && typeof sel === "object" && (sel as Record<string, unknown>).type === "text"
+      && Object.keys(params).length === 0 && isChunkTarget(s, segs)) {
+    const btoken = `&${pointerRaw(a.tag)}:-`;
+    const ok = rewriteInlineFragment(dataRoot, s, segs, sel as Record<string, unknown>, (t) =>
+      t ? fragTokenText([...t.bookmarks, btoken], t.value, t.parens)
+        : fragTokenText([btoken], String((sel as Record<string, unknown>).exact ?? ""), ""));
+    if (ok) return chapterSource(dataRoot, s, segs).bodyFile;
+    // the inline spelling can't host it — the explicit member is the fallback form
+    const made = embedFragment(dataRoot, s, mode, { target: a.target, selector: sel as Record<string, unknown> });
+    return embedAnnotation(dataRoot, s, mode, { target: made.fragmentPath, tag: a.tag });
+  }
   if (Object.keys(params).length && !isFragmentSegs(segs)) {
     throw new Error("annotation parameters live on a fragment (docs/annotations/applications)");
   }
@@ -2072,7 +2208,7 @@ async function ensureThumbnail(dataRoot: string, s: Store, mode: SidecarLocation
  *  was its last tag, the now-empty fragment node is deleted whole (its selector + crop ref) — a
  *  fragment exists only to carry tags, so a tagless one is dead weight (docs/annotations). Sibling
  *  fragments and the host node are untouched. */
-function unembedAnnotation(dataRoot: string, s: Store, target: string, tag: string): string {
+function unembedAnnotation(dataRoot: string, s: Store, target: string, tag: string, sel?: Record<string, unknown>): string {
   const segs = strToSegs(target || ":");
   // Match on the onto's colon-PATH, tolerating the bookmark's spelling (compact or spaced,
   // project or graft scope). Strip whitespace on BOTH sides before the substring test — a
@@ -2082,6 +2218,18 @@ function unembedAnnotation(dataRoot: string, s: Store, target: string, tag: stri
     const t = line.replace(/\s+/g, "");
     return t.startsWith("&") && t.includes(needle) && /:-$/.test(t);
   };
+  // An INLINE-token membership: drop the bookmark from the token's label; the last one gone
+  // (and no fields, no link) unwraps the token — the prose returns byte-exact.
+  if (sel && sel.type === "text" && isChunkTarget(s, segs)) {
+    const ok = rewriteInlineFragment(dataRoot, s, segs, sel, (t) => {
+      if (!t) return false;
+      const kept = t.bookmarks.filter((b) => !pred(b));
+      if (kept.length === t.bookmarks.length) return false; // no such membership inline — fall back
+      if (kept.length === 0 && t.fields.length === 0 && t.link === null) return null; // unwrap
+      return fragTokenText(kept, t.value, t.parens);
+    });
+    if (ok) return chapterSource(dataRoot, s, segs).bodyFile;
+  }
   // A membership ON a chunk fragment: reach the chunk field-region + the fragment's body, drop
   // the bookmark, and — when that was its last — drop the emptied slug and collapse the chunk.
   if (isChunkTarget(s, segs)) {

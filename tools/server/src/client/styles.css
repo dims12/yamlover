@@ -2510,6 +2510,14 @@ mark.yo-annotation {
   border-radius: 2px;
   cursor: help;
 }
+mark.yo-inline-fragment {
+  /* an INLINE fragment token's value (docs/documents/marklower/grammar) — a quiet dotted
+     underline until a membership colors it through the annotation layer's mark */
+  background: transparent;
+  color: inherit;
+  border-bottom: 1px dotted var(--fg-muted, currentColor);
+  border-radius: 2px;
+}
 /* A fragment revealed via its `#/yo/fragments/<slug>` hash (RHS panel click or a shared link)
    pulses for ~1s so the eye finds it. Applies to both a text `<mark>` and a region `<div>`. */
 .yo-reveal-flash {

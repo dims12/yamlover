@@ -2,7 +2,7 @@ import { ReactNode } from "react";
 // The LABEL/TOKEN grammar and the link-target law live in the shared parser module — the
 // engine's move planner reads the same alternation and the same parseLinkTarget seam, so a
 // spelling that renders here is exactly a spelling a move keeps alive there.
-import { TOKEN } from "../../../../parser/ts/src/marklower-links.ts";
+import { scanMarklower, type FragToken } from "../../../../parser/ts/src/marklower-links.ts";
 import { NodeJson } from "../api";
 import { scalarValue } from "../render";
 import { Chunk } from "./registry";
@@ -133,28 +133,33 @@ function parse(
   const joinTrail = () => {
     buf.text = buf.text.replace(/(?<=[^\n])\n[ \t]*$/, " ");
   };
-  for (const m of src.matchAll(TOKEN)) {
-    buf.text += plain(src.slice(last, m.index)); // plain run before this token
+  for (const t of scanMarklower(src)) {
+    buf.text += plain(src.slice(last, t.start)); // plain run before this token
     joinLead = true; // every token is inline
-    if (m[1] !== undefined) {
+    if (t.kind === "fence") {
       // a ``` fence — not marklower syntax, but ATOMIC all the same: passed through verbatim
       // so its odd backtick count can never desync the inline code arm behind it
-      buf.addAtom(escapeHtml(m[0]));
+      buf.addAtom(escapeHtml(t.raw));
       joinLead = false;
-    } else if (m[2] !== undefined) {
+    } else if (t.kind === "math") {
       joinTrail();
-      buf.addAtom(renderMath(m[2], false)); // $$ inline math $$
-    } else if (m[3] !== undefined) {
+      buf.addAtom(renderMath(t.body, false)); // $$ inline math $$
+    } else if (t.kind === "code") {
       joinTrail();
-      buf.addAtom(`<code>${escapeHtml(m[3])}</code>`); // `code` — contents literal
-    } else {
-      // [label](target) — a real anchor so it navigates in JSON instance space; the
-      // label keeps its own inline styling.
+      buf.addAtom(`<code>${escapeHtml(t.body)}</code>`); // `code` — contents literal
+    } else if (t.kind === "frag" && t.link !== null) {
+      // a LINKED fragment token — a real anchor so it navigates in JSON instance space; the
+      // value keeps its own inline styling.
       joinTrail();
       flush();
-      nodes.push(link(m[4], m[5]));
+      nodes.push(link(t.valueRaw, t.link));
+    } else if (t.kind === "frag") {
+      // a link-less FRAGMENT token — the value marked in place (docs/documents/marklower/grammar);
+      // the token's bookmarks/fields are data, not chrome, so only the value shows
+      joinTrail();
+      buf.addAtom(`<mark class="yo-inline-fragment">${styleText(t.value)}</mark>`);
     }
-    last = m.index + m[0].length;
+    last = t.end;
   }
   buf.text += plain(src.slice(last));
   flush();
@@ -214,22 +219,26 @@ export function marklowerToEditableHtml(value: unknown): string {
     buf = new SpanBuf();
   };
   let last = 0;
-  for (const m of src.matchAll(TOKEN)) {
-    buf.text += escapeHtml(src.slice(last, m.index));
-    if (m[1] !== undefined) {
+  for (const t of scanMarklower(src)) {
+    buf.text += escapeHtml(src.slice(last, t.start));
+    if (t.kind === "fence") {
       // a ``` fence rides as one atom, its whole text the data-src — never re-tokenized
-      buf.addAtom(`<code class="mlw-atom" contenteditable="false" data-src="${escapeAttr(m[0])}">${escapeHtml(m[0])}</code>`);
-    } else if (m[2] !== undefined) {
-      buf.addAtom(`<span class="mlw-atom" contenteditable="false" data-src="${escapeAttr("$$" + m[2] + "$$")}">${renderMath(m[2], false)}</span>`);
-    } else if (m[3] !== undefined) {
-      buf.addAtom(`<code class="mlw-atom" contenteditable="false" data-src="${escapeAttr("`" + m[3] + "`")}">${escapeHtml(m[3])}</code>`);
-    } else {
-      // … but a LINK stays an emphasis boundary, exactly as in the read renderer's `parse`
-      // (there it must — a link is a real React element — and the two faces must agree).
+      buf.addAtom(`<code class="mlw-atom" contenteditable="false" data-src="${escapeAttr(t.raw)}">${escapeHtml(t.raw)}</code>`);
+    } else if (t.kind === "math") {
+      buf.addAtom(`<span class="mlw-atom" contenteditable="false" data-src="${escapeAttr(t.raw)}">${renderMath(t.body, false)}</span>`);
+    } else if (t.kind === "code") {
+      buf.addAtom(`<code class="mlw-atom" contenteditable="false" data-src="${escapeAttr(t.raw)}">${escapeHtml(t.body)}</code>`);
+    } else if (t.kind === "frag" && t.link !== null) {
+      // … but a LINKED fragment token stays an emphasis boundary, exactly as in the read
+      // renderer's `parse` (there it must — a link is a real React element — and the two faces
+      // must agree). data-src carries the VERBATIM token, so the round-trip is lossless.
       cut();
-      html += `<a class="mlw-atom mlw-link" contenteditable="false" data-src="${escapeAttr("[" + m[4] + "](" + m[5] + ")")}">${styleText(m[4])}</a>`;
+      html += `<a class="mlw-atom mlw-link" contenteditable="false" data-src="${escapeAttr(t.raw)}">${styleText(t.valueRaw)}</a>`;
+    } else if (t.kind === "frag") {
+      // a link-less fragment token: the marked value, one atom, verbatim data-src
+      buf.addAtom(`<mark class="mlw-atom yo-inline-fragment" contenteditable="false" data-src="${escapeAttr(t.raw)}">${styleText(t.value)}</mark>`);
     }
-    last = m.index + m[0].length;
+    last = t.end;
   }
   buf.text += escapeHtml(src.slice(last));
   cut();

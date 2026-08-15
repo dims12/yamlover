@@ -299,7 +299,7 @@ export function useMaterialAnnotations(path: string): MaterialAnnotations {
 
   const refresh = () => setBump((b) => b + 1);
   const deleteReal = (ann: Annotation, key: string) =>
-    deleteAnnotation(annotationTarget(path, ann), ann.tag!.path)
+    deleteAnnotation(annotationTarget(path, ann), ann.tag!.path, ann.inline ? ann.selector : undefined)
       .then(refresh)
       .catch((e) => { setDeleted((d) => { const n = new Set(d); n.delete(key); return n; }); window.alert("delete failed: " + (e as Error).message); }); // un-hide on failure
 
@@ -349,6 +349,14 @@ export function useMaterialAnnotations(path: string): MaterialAnnotations {
 
   const annotateRegion = (selector: Record<string, unknown>, tag: TagRef, opts?: { imageBase64?: string; silent?: boolean; target?: string }) => {
     const node = opts?.target ?? path; // the region's host node (a chunk, else the material)
+    if (selector.type === "text") {
+      // the INLINE token spelling: one call per pick — the server wraps the words on the first
+      // and appends further memberships to the same token's label (docs/documents/marklower/grammar)
+      const entry = { path: "(pending)", node, selector, tag } as Annotation;
+      setOptimistic((o) => [...o, entry]);
+      annotate({ target: node, tag: tag.path, selector }).then(refresh).catch((e) => rollback(entry, e, opts?.silent));
+      return;
+    }
     const target = regionFragmentTarget(selector);
     if (target) { // the fragment already exists → just annotate it (a later tag)
       const entry = { path: "(pending)", node, selector, tag } as Annotation;

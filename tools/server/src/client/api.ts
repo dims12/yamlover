@@ -186,6 +186,7 @@ export interface Annotation {
   node?: string; // the CLIENT path of the node this annotation/fragment lives ON — the chapter, or a
                  // CHUNK when the fragment hangs off a chunk (docs/annotations/storage). Drives the delete
                  // target, the `#`-anchor, and which element the highlight is scoped to.
+  inline?: boolean; // an INLINE token membership (docs/documents/marklower/grammar) — delete carries the selector
   path?: string; // a transient client marker only ("(preview)"/"(pending)"); annotations have no node path
 }
 
@@ -266,7 +267,7 @@ export function createFragment(target: string, selector: Record<string, unknown>
 
 /** Apply the tag at `tag` to the node at `target` (a whole node OR a fragment path) — appends to
  *  the target's `yamlover-annotations`. `description`/`params` make it a parametrized annotation. */
-export function annotate(a: { target: string; tag: string; description?: string; params?: Record<string, unknown> }): Promise<{ ok: true }> {
+export function annotate(a: { target: string; tag: string; description?: string; params?: Record<string, unknown>; selector?: Record<string, unknown> }): Promise<{ ok: true }> {
   return postJson(api("/api/annotate"), a);
 }
 
@@ -481,8 +482,8 @@ function objectBody(title: string): string {
 
 /** Remove the application of `tag` from the node at `target` (a whole node OR a fragment path) —
  *  splices the matching element out of its `yamlover-annotations`. */
-export function deleteAnnotation(target: string, tag: string): Promise<void> {
-  const q = new URLSearchParams({ target, tag });
+export function deleteAnnotation(target: string, tag: string, selector?: Record<string, unknown>): Promise<void> {
+  const q = new URLSearchParams({ target, tag, ...(selector ? { selector: JSON.stringify(selector) } : {}) });
   return fetch(api(`/api/annotate?${q}`), { method: "DELETE" }).then(async (res) => {
     if (!res.ok) throw new Error(((await res.json().catch(() => null))?.error) || `HTTP ${res.status}`);
   });
