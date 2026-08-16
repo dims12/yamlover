@@ -156,6 +156,9 @@ export interface FlowItem {
   absIndex: number; // its ABSOLUTE entry index (-1 for the omni self-value, which consumes none)
   /** A KEYED body element's gutter label — its key (the null key as `~`); absent = positional. */
   key?: string;
+  /** A bookmark-created MEMBER's storage key — the segment its comments bucket and store path
+   *  ride (the anchorKey remap), while its gutter stays positional. */
+  anchorKey?: string;
 }
 
 /** A body element's kind. A subchapter that ran out of depth budget arrives as a `$yamloverLink`
@@ -225,6 +228,7 @@ export function chapterFlow(value: unknown): FlowItem[] {
       value: e.value,
       absIndex: i,
       ...(keyed ? { key: e.keyNull === true ? "~" : (e.key as string) } : {}),
+      ...(e.anchor === true && e.key !== null ? { anchorKey: e.key as string } : {}),
     });
   }
   if (slot === mixed.entries.length) out.push({ kind: "title", value: self, absIndex: -1 });

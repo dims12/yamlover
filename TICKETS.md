@@ -160,6 +160,11 @@ from more than one (e.g. a dev state **and** an SRS state) — they are independ
 
 ## 3. The agile board renderer
 
+*Status: shipped, reshaped — lanes are seqs of tagged COMPARTMENTS stored under the board's
+`yo: lanes:` member; cards live IN compartments; a backlog section lists the structural
+orphans; drag is the only retagging verb; the old `workflow:`/top-level `lanes:` keys only
+seed a not-yet-materialized board.*
+
 A **directory whose entries are `$defs/task` nodes** gains a **Board view**, beside the existing
 directory views (explorer grid, thumbnails gallery — `explorer-renderer`, `extractor-registry`).
 

@@ -17,6 +17,32 @@ import { anchorOf, chapterFlow, childPath, childSlot, flowText } from "./chapter
 import { InlineSubchapter, subchapterTarget } from "./subchapter";
 import { DataChunk } from "./data-chunk";
 import { navigateToFragment } from "./headings";
+import { fragmentOf, isAncestorPath } from "../paths";
+import { membershipPaths } from "./tag";
+import { InlineTagChips } from "./tag-resolve";
+import type { CommentMap } from "../api";
+
+/** The membership tag paths recorded in `comments` for the node at `nodePath` — the bucket key
+ *  is the node's fragment continuation from `base` (a MATERIALIZED member's bucket is keyed by
+ *  its anchorKey, which is why callers pass the LINK's path rather than the index composition).
+ *  Empty when the map doesn't cover the node. */
+export function membershipsAt(comments: CommentMap | undefined, base: string | undefined, nodePath: string | null | undefined): string[] {
+  if (!comments || !base || !nodePath) return [];
+  if (base !== nodePath && !(base === ":" || isAncestorPath(base, nodePath))) return [];
+  const bucket = comments[nodePath === base ? "" : fragmentOf(base, nodePath)];
+  const anchors = bucket && !Array.isArray(bucket) ? bucket.anchors ?? [] : [];
+  return anchors.length ? membershipPaths(anchors) : [];
+}
+
+/** The chip row hung to the RIGHT of a title or chunk (marked chrome — never document text). */
+function TagsSpan({ paths, className, onNavigate }: { paths: readonly string[]; className: string; onNavigate: (path: string) => void }) {
+  if (paths.length === 0) return null;
+  return (
+    <span className={className} data-yo-chrome>
+      <InlineTagChips paths={paths} onNavigate={onNavigate} />
+    </span>
+  );
+}
 
 /** The index gutter — an in-page anchor link to the chunk's own location, or a plain marker.
  *  Each entry of `index` is one level's ADDRESS token (docs/documents/chapter/addressing): the chunk's
@@ -119,7 +145,7 @@ function idOccurrences(id: string): readonly Element[] {
 }
 
 export function SubchapterHeading({
-  path, title, level = 1, id, note, linked = true, targetFragment, onNavigate,
+  path, title, level = 1, id, note, linked = true, targetFragment, tagPaths, onNavigate,
 }: {
   path?: string;
   title?: string;
@@ -131,6 +157,8 @@ export function SubchapterHeading({
   /** The in-page anchor id the TARGET would have when rendered under this page's root
    *  (anchorOf(base, target, "") — empty when the target lives outside the page). */
   targetFragment?: string;
+  /** The subchapter's own membership tags, shown as chips at the right of the title. */
+  tagPaths?: readonly string[];
   onNavigate?: (path: string) => void;
 }) {
   const Heading = `h${Math.min(level + 1, 6)}` as "h2";
@@ -184,6 +212,7 @@ export function SubchapterHeading({
             {note && <span className="chapter-link-note" data-yo-chrome> {note}</span>}
           </>
         )}
+        {tagPaths && tagPaths.length > 0 && <TagsSpan paths={tagPaths} className="title-tags" onNavigate={onNavigate ?? (() => {})} />}
       </Heading>
     </section>
   );
@@ -279,7 +308,7 @@ export function EditableLine({
  *  shows the same number here as it does on that subchapter's own page — the number stays a
  *  stable citation either way. */
 export function ChapterBody({
-  value, nodePath, documentPath, anchorBase, slot, level, budget, ancestors, crumbs = [], onLoaded, onNavigate,
+  value, nodePath, documentPath, anchorBase, slot, level, budget, ancestors, crumbs = [], comments, commentsBase, commentsPath, onLoaded, onNavigate,
 }: {
   value: unknown;
   nodePath: string;
@@ -292,6 +321,15 @@ export function ChapterBody({
   /** The index chain from the PAGE root down to this body — the composed positional address
    *  every chunk gutter cites (see {@link chunkLabel}); empty at the page root. */
   crumbs?: readonly number[];
+  /** The fetched node's comments sidecar + the path its fragment keys are relative to — the
+   *  per-node membership bookmarks ({@link membershipsAt}) the tag chips read. Optional: a
+   *  caller without them simply shows no chips. */
+  comments?: CommentMap;
+  commentsBase?: string;
+  /** This body's node path IN THE COMMENTS MAP, when it differs from `nodePath`: an inlined
+   *  bookmark-created member renders at its positional slot but its buckets ride the anchorKey
+   *  segment (the remap in derive-node). Defaults to `nodePath`. */
+  commentsPath?: string;
   onLoaded: () => void;
   onNavigate: (path: string) => void;
 }) {
@@ -299,13 +337,21 @@ export function ChapterBody({
   const Heading = `h${Math.min(level + 1, 6)}` as "h1";
   // the heading's anchor is the PATH fragment, exactly like a chunk's — `#/principles` resolves
   const sectionId = level > 0 ? anchorOf(anchorBase, nodePath, slot) : undefined;
+  const cpath = commentsPath ?? nodePath;
+  // a child's comments segment: the storage key (anchorKey / field key), else the entry index
+  const childCPath = (f: { anchorKey?: string; key?: string; absIndex: number }): string =>
+    childPath(cpath, f.anchorKey ?? f.key ?? f.absIndex);
 
   const body = flow.map((f, i) => {
     if (f.kind === "title") {
+      // the chapter's own tags ride its title — except at the page root, whose tags the
+      // NodeView header bar already shows
+      const ownTags = level > 0 ? membershipsAt(comments, commentsBase, cpath) : [];
       return (
         <Heading key={i} className="chapter-title" id={sectionId}>
           {sectionId && <SectionAnchor id={sectionId} />}
           {flowText(f.value)}
+          {ownTags.length > 0 && <TagsSpan paths={ownTags} className="title-tags" onNavigate={onNavigate} />}
         </Heading>
       );
     }
@@ -316,8 +362,15 @@ export function ChapterBody({
       // still a numbered body element, so it keeps the [n] gutter and its anchor slot
       const link = asLink(f.value);
       const anchor = anchorOf(anchorBase, link?.path ?? "", childSlotId);
+      const dataTags = membershipsAt(comments, commentsBase, link?.path ?? childCPath(f));
       return (
-        <ChunkShell key={i} anchor={anchor} nodePath={link?.path} gutter={<ChunkGutter index={f.key !== undefined ? [f.key] : chunkLabel(crumbs, f.absIndex)} anchor={anchor} />}>
+        <ChunkShell
+          key={i}
+          anchor={anchor}
+          nodePath={link?.path}
+          gutter={<ChunkGutter index={f.key !== undefined ? [f.key] : chunkLabel(crumbs, f.absIndex)} anchor={anchor} />}
+          tools={dataTags.length > 0 ? <TagsSpan paths={dataTags} className="chunk-tags" onNavigate={onNavigate} /> : undefined}
+        >
           <DataChunk item={f.value} documentPath={documentPath} onNavigate={onNavigate} />
         </ChunkShell>
       );
@@ -347,6 +400,12 @@ export function ChapterBody({
               // every inlined body composes its address from here — a chunk's gutter cites its
               // place in the PAGE's nested array (on its own page the same chunk starts fresh)
               crumbs={[...crumbs, f.absIndex]}
+              // a FETCHED member brings its own comments map (relative to its own path); an
+              // inline subchapter stays covered by the enclosing map, its buckets keyed by
+              // its STORAGE segment (anchorKey), not its positional slot
+              comments={p.comments ?? comments}
+              commentsBase={p.comments ? p.nodePath : commentsBase}
+              commentsPath={p.comments ? p.nodePath : childCPath(f)}
               onLoaded={onLoaded}
               onNavigate={onNavigate}
             />
@@ -368,6 +427,7 @@ export function ChapterBody({
                 // the target's would-be anchor on THIS page — empty (→ no upgrade) when the
                 // target lives outside the page's own subtree (anchorOf falls back to the slot)
                 targetFragment={(target ? anchorOf(anchorBase, target, "") : "") || undefined}
+                tagPaths={membershipsAt(comments, commentsBase, target ?? childCPath(f))}
                 onNavigate={onNavigate}
               />
             );
@@ -385,6 +445,9 @@ export function ChapterBody({
         slot={childSlotId}
         documentPath={documentPath}
         path={childPath(nodePath, f.absIndex)}
+        // the LINK's path first: a materialized member's comments bucket is keyed by its
+        // anchorKey, which only the link marker spells (membershipsAt's banner)
+        memberships={membershipsAt(comments, commentsBase, asLink(f.value)?.path ?? childCPath(f))}
         onNavigate={onNavigate}
       />
     );
@@ -406,6 +469,8 @@ type ReadChunkProps = {
   /** The chunk's OWN node path (composed by the caller for an inline prose scalar, which
    *  carries no `$yamloverLink`) — the frame a relative link scope resolves against. */
   path?: string;
+  /** The chunk's whole-node membership tags, chips in the right-hand tools slot. */
+  memberships?: readonly string[];
   onNavigate: (path: string) => void;
 };
 
@@ -420,6 +485,13 @@ const sameIndex = (a: ReadChunkProps["index"], b: ReadChunkProps["index"]): bool
  *  MEMOIZED on its data: a chapter page re-renders wholesale on every lazy subchapter landing
  *  (`noteLoad`), and re-parsing every already-rendered marklower chunk each time froze the page
  *  on large trees (the docs/ scroll profile) — an unchanged chunk must cost nothing. */
+/** The `memberships` list compares by VALUE too — the caller derives it fresh every render. */
+const sameStrings = (a?: readonly string[], b?: readonly string[]): boolean => {
+  if (a === b) return true;
+  if (!a || !b) return (a?.length ?? 0) === (b?.length ?? 0);
+  return a.length === b.length && a.every((x, i) => x === b[i]);
+};
+
 export const ReadChunk = memo(function ReadChunk({
   index,
   item,
@@ -427,6 +499,7 @@ export const ReadChunk = memo(function ReadChunk({
   slot,
   documentPath,
   path,
+  memberships,
   onNavigate,
 }: ReadChunkProps) {
   const chunk = chunkOf(item, documentPath, path);
@@ -434,14 +507,19 @@ export const ReadChunk = memo(function ReadChunk({
   // inlined subchapter's chunks are addressed one way on a root page and the other on a subpage
   const anchor = anchorOf(anchorBase, chunk.path, slot);
   return (
-    <ChunkShell anchor={anchor} nodePath={chunk.path} gutter={<ChunkGutter index={index} anchor={anchor} />}>
+    <ChunkShell
+      anchor={anchor}
+      nodePath={chunk.path}
+      gutter={<ChunkGutter index={index} anchor={anchor} />}
+      tools={memberships && memberships.length > 0 ? <TagsSpan paths={memberships} className="chunk-tags" onNavigate={onNavigate} /> : undefined}
+    >
       {renderChunkBody(chunk, onNavigate)}
     </ChunkShell>
   );
 }, (a, b) =>
   a.item === b.item && a.anchorBase === b.anchorBase && a.slot === b.slot &&
   a.documentPath === b.documentPath && a.path === b.path && a.onNavigate === b.onNavigate &&
-  sameIndex(a.index, b.index));
+  sameIndex(a.index, b.index) && sameStrings(a.memberships, b.memberships));
 
 /** Build a {@link Chunk} (for a renderer's `renderChunk`) from a chapter chunk value/link marker.
  *

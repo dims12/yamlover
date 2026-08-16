@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { appendBookmark, upsertFragment, removeBookmark, removeMapEntry, bookmarksRemain, keyToken } from "../src/server/embed";
+import { appendBookmark, upsertFragment, removeBookmark, removeMapEntry, bookmarksRemain, keyToken, reachBody, replaceSeqEntryAt } from "../src/server/embed";
 
 // Surgical embedding of fragments + membership bookmarks into a yamlover host body
 // (docs/annotations). Pure string transforms — no fs / Store; the round-trip target is
@@ -147,5 +147,37 @@ describe("keyToken", () => {
     expect(keyToken("plain_name")).toBe("plain_name");
     expect(keyToken("S0002-9904.pdf")).toBe('"S0002-9904.pdf"');
     expect(keyToken("has space")).toBe('"has space"');
+  });
+});
+
+describe("replaceSeqEntryAt", () => {
+  const run = (src: string, key: string, rendered: string[]): string => {
+    const lines = src.replace(/\n$/, "").split("\n");
+    replaceSeqEntryAt(lines, reachBody(lines, []), key, () => rendered);
+    return lines.join("\n") + "\n";
+  };
+
+  it("replaces the key line AND its same-indent `- ` items (with their deeper bodies)", () => {
+    const src = "lanes:\n- -\n    &::t:a:-\n    - *::x\n- old\nother: kept\n";
+    const out = run(src, "lanes", ["lanes:", "- fresh"]);
+    expect(out).toBe("lanes:\n- fresh\nother: kept\n");
+  });
+
+  it("appends at the body end when the key is absent", () => {
+    const src = "title: A Board\n";
+    const out = run(src, "lanes", ["lanes: []"]);
+    expect(out).toBe("title: A Board\nlanes: []\n");
+  });
+
+  it("replaces an inline-valued key as one line", () => {
+    const src = "lanes: []\nother: kept\n";
+    const out = run(src, "lanes", ["lanes:", "- -", "    &::t:a:-"]);
+    expect(out).toBe("lanes:\n- -\n    &::t:a:-\nother: kept\n");
+  });
+
+  it("stops at a sibling key even when items never appeared", () => {
+    const src = "lanes:\nother: kept\n";
+    const out = run(src, "lanes", ["lanes:", "- x"]);
+    expect(out).toBe("lanes:\n- x\nother: kept\n");
   });
 });

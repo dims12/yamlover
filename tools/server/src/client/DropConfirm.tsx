@@ -9,7 +9,7 @@ import type { DropPlan } from "../drop-policy";
 const VERB: Record<DropPlan["kind"], string> = {
   "move-node": "Move",
   "upload-files": "Upload",
-  "board-retag": "Move task",
+  "board-move": "Move task",
 };
 
 export function DropConfirm({ x, y, plan, onConfirm, onCancel }: {

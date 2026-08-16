@@ -123,6 +123,8 @@ function ChapterRead({ node, onNavigate }: { node: NodeJson; onNavigate: (path: 
         level={0}
         budget={budget}
         ancestors={[canonPath(node.path)]}
+        comments={node.comments}
+        commentsBase={node.path}
         onLoaded={noteLoad}
         onNavigate={onNavigate}
       />

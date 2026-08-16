@@ -174,3 +174,62 @@ describe("the chapter cell laws", () => {
     h.unmount();
   });
 });
+
+// ---------------------------------------------------------------------------- //
+// Membership tag chips — the adapter's renderTags seam (display-only chrome)
+// ---------------------------------------------------------------------------- //
+
+describe("membership tag chips (adapter renderTags)", () => {
+  // a tagged chunk (ordinal bookmark), a plain chunk, an ALIAS (keyed) bookmark that must be
+  // filtered, and a tagged subchapter
+  const TAGGED =
+    "T\n" +
+    "- plain prose\n" +
+    "- tagged prose\n  &::ontos:urgent:-\n" +
+    "- aliased prose\n  &::ontos:alias\n" +
+    "- Sub\n  &::ontos:review:-\n  - inner\n";
+
+  it("no adapter hook -> no tag chrome at all", () => {
+    const h = mountChapter(TAGGED);
+    expect(h.container.querySelector(".chunk-tags")).toBeNull();
+    expect(h.container.querySelector(".title-tags")).toBeNull();
+    h.unmount();
+  });
+
+  it("renders chips on the tagged chunk and subchapter title; keyed aliases are filtered; the root title stays bare", () => {
+    const seen: string[][] = [];
+    const h = mountChapter(TAGGED, {
+      adapter: {
+        renderTags: (anchors) => {
+          seen.push(anchors.map((a) => a.path.raw ?? ""));
+          return <span className="tt-stub">{anchors.length}</span>;
+        },
+      },
+    });
+    // the tagged chunk carries a .chunk-tags row; the plain and aliased chunks carry none
+    const chunks = Array.from(h.container.querySelectorAll(".chunk"));
+    const withTags = chunks.filter((c) => c.querySelector(":scope > .chunk-tags"));
+    expect(withTags.length).toBe(1);
+    expect(withTags[0].textContent).toContain("tagged prose");
+    // the subchapter's heading carries a .title-tags span; the ROOT title (path []) never does
+    expect(h.container.querySelectorAll(".title-tags").length).toBe(1);
+    const rootTitle = h.container.querySelector(".y2-cell[data-kind=title]")!.closest("h1, h2")!;
+    expect(rootTitle.querySelector(".title-tags")).toBeNull();
+    // only ORDINAL anchors reach the hook — the keyed alias never shows
+    expect(seen.flat().every((raw) => raw.includes("urgent") || raw.includes("review"))).toBe(true);
+    h.unmount();
+  });
+
+  it("a chip mousedown never moves the caret out of the active cell", () => {
+    const h = mountChapter(TAGGED, {
+      adapter: { renderTags: () => <span className="tt-stub">t</span> },
+    });
+    // focus the tagged prose chunk
+    h.update({ ...h.state(), focus: { at: "token", path: [1] }, caret: "end" });
+    const before = document.activeElement;
+    expect(before).not.toBe(document.body);
+    fireEvent.mouseDown(h.container.querySelector(".chunk-tags .tt-stub")!);
+    expect(document.activeElement).toBe(before);
+    h.unmount();
+  });
+});

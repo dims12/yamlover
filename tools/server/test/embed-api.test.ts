@@ -200,3 +200,46 @@ describe("DELETE /api/annotate — tolerant bookmark matching", () => {
     h.close();
   });
 });
+
+describe("own-document bookmark hosting (a `.yo` doc carries its whole-node memberships in place)", () => {
+  const OMNI_TASK = "!!<*yamlover:$defs:task>\nWire the widget\npriority: low\n- a chunk of prose\n";
+
+  it("tags an OMNI (scalar-rooted) document in its own file, and untags it there too", async () => {
+    const root = tmpTree({ "task.yo": OMNI_TASK, ...TAG_FILE });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+
+    const r = await callBody(h, "POST", "/api/annotate", { target: ":task.yo", tag: TAG });
+    expect(r.status).toBe(201);
+    // the bookmark rides the document itself — never a directory-overlay reroute (a bookmark
+    // is an edge, not an entry: the omni root stays what it is)
+    expect(fs.readFileSync(path.join(root, "task.yo"), "utf8")).toBe(OMNI_TASK + "&::ontos.yo:yellow:-\n");
+    expect(fs.existsSync(path.join(root, ".yo", "body.yo"))).toBe(false);
+    expect(call(h, "/api/annotations", { path: ":task.yo" }).json).toHaveLength(1);
+
+    const d = await callBody(h, "DELETE", "/api/annotate", undefined, { target: ":task.yo", tag: TAG });
+    expect(d.status).toBe(200);
+    expect(fs.readFileSync(path.join(root, "task.yo"), "utf8")).toBe(OMNI_TASK);
+    expect(call(h, "/api/annotations", { path: ":task.yo" }).json).toHaveLength(0);
+    h.close();
+  });
+
+  it("unfiling falls back to the overlay host when the membership was filed there (the old routing)", async () => {
+    const root = tmpTree({
+      "task.yo": OMNI_TASK,
+      ".yo/body.yo": '"task.yo":\n  &::ontos.yo:yellow:-\n',
+      ...TAG_FILE,
+    });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    expect(call(h, "/api/annotations", { path: ":task.yo" }).json).toHaveLength(1);
+
+    const d = await callBody(h, "DELETE", "/api/annotate", undefined, { target: ":task.yo", tag: TAG });
+    expect(d.status).toBe(200);
+    // the own file carried no such bookmark — the overlay copy is the one removed (husk pruned)
+    expect(fs.readFileSync(path.join(root, "task.yo"), "utf8")).toBe(OMNI_TASK);
+    expect(fs.readFileSync(path.join(root, ".yo", "body.yo"), "utf8")).not.toContain("yellow");
+    expect(call(h, "/api/annotations", { path: ":task.yo" }).json).toHaveLength(0);
+    h.close();
+  });
+});

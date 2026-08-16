@@ -46,7 +46,8 @@ the diff over `/api/events`.
 | `/api/annotate` | POST / DELETE | POST `{ target, tag, description?, params? }`; DELETE `?target&tag` | Apply / remove a tag application in the target's `yamlover-annotations` |
 | `/api/fragment` | POST | `{ target, selector, imageBase64? }` | Mark a fragment (a region) under the target's `yamlover-fragments`, optional crop sidecar; returns `{ slug, fragmentPath }` |
 | `/api/tag` | POST | `{ name }` | Create a named tag in the taxonomy location (`settings.tags`); idempotent |
-| `/api/board` | POST | `{ path, lanes: string[][] }` | Persist a board's lane configuration (tag pointers in the directory overlay) |
+| `/api/board` | GET | `?path` | The resolved tag board: `yo: lanes:` (else the legacy `workflow:`/`lanes:` seed, `seeded: true`) as lanes of tagged compartments with card stubs, plus the structural-orphan `backlog` |
+| `/api/board` | POST | `{ path, op: "structure" \| "move" \| "reconcile", … }` | The board's write verbs: `structure {structure}` rewrites `yo: lanes:` wholesale (reconciled); `move {task, from, to}` is the drag gesture — the only retagging verb (compartment tag deltas, then restructure + reconcile; `null` = backlog); `reconcile` silently fixes structure ← tags (writes only a materialized board). Each answers the resolved board |
 | `/api/reindex` | POST | — | Manual reconcile (the watcher's fallback); responds with the diff |
 | `/api/agent-docs` | POST | — | Install/refresh the bundled AGENTS.md + CLAUDE.md guidance into the served root (marker-fenced; human text never clobbered) |
 

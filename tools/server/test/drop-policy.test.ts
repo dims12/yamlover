@@ -1,6 +1,6 @@
 // drop-policy.ts — the pure drag-drop possibility rules (no I/O, no DOM).
 import { describe, it, expect, afterEach } from "vitest";
-import { planNodeMove, planFileUpload, planBoardRetag, DropNode } from "../src/drop-policy";
+import { planNodeMove, planFileUpload, planBoardMove, DropNode } from "../src/drop-policy";
 
 const n = (path: string, concrete: string | null, label?: string): DropNode => ({ path, concrete, label });
 
@@ -84,15 +84,34 @@ describe("planFileUpload", () => {
   });
 });
 
-describe("planBoardRetag", () => {
-  it("rejects dropping into the same lane", () => {
-    expect(planBoardRetag({ path: ":t" }, ":ontos:doing", { path: ":ontos:doing", label: "doing" }).allowed).toBe(false);
+describe("planBoardMove", () => {
+  const DOING = { path: ":ontos:doing", name: "doing" };
+  const TODO = { path: ":ontos:todo", name: "todo" };
+
+  it("rejects dropping into the same compartment, and backlog onto backlog", () => {
+    expect(planBoardMove({ path: ":t" }, { lane: 0, comp: 1 }, { lane: 0, comp: 1 }, { untag: [], tag: [] }, "doing").allowed).toBe(false);
+    expect(planBoardMove({ path: ":t" }, null, null, { untag: [], tag: [] }, null).allowed).toBe(false);
   });
 
-  it("describes the retag by card title and lane label", () => {
-    const v = planBoardRetag({ path: ":t", title: "Fix login" }, ":ontos:todo", { path: ":ontos:doing", label: "doing" });
-    expect(v).toMatchObject({ allowed: true, plan: { kind: "board-retag", task: ":t", fromTag: ":ontos:todo", toTag: ":ontos:doing" } });
-    if (v.allowed) expect(v.plan.description).toBe('Move "Fix login" to "doing"');
+  it("describes a compartment move by card title, destination label, and tag deltas", () => {
+    const v = planBoardMove({ path: ":t", title: "Fix login" }, { lane: 0, comp: 0 }, { lane: 1, comp: 0 }, { untag: [TODO], tag: [DOING] }, "doing");
+    expect(v).toMatchObject({
+      allowed: true,
+      plan: { kind: "board-move", task: ":t", from: { lane: 0, comp: 0 }, to: { lane: 1, comp: 0 }, untag: [":ontos:todo"], tag: [":ontos:doing"] },
+    });
+    if (v.allowed) expect(v.plan.description).toBe('Move "Fix login" to "doing" (+doing, −todo)');
+  });
+
+  it("describes a move to the backlog with only removals", () => {
+    const v = planBoardMove({ path: ":t", title: "Fix login" }, { lane: 0, comp: 0 }, null, { untag: [TODO], tag: [] }, null);
+    expect(v).toMatchObject({ allowed: true, plan: { kind: "board-move", to: null, untag: [":ontos:todo"], tag: [] } });
+    if (v.allowed) expect(v.plan.description).toBe('Move "Fix login" to the backlog (−todo)');
+  });
+
+  it("a deltaless move into a manual (tagless) compartment says so plainly", () => {
+    const v = planBoardMove({ path: ":t", title: "Pin" }, null, { lane: 0, comp: 0 }, { untag: [], tag: [] }, "compartment");
+    if (!v.allowed) throw new Error("expected allowed");
+    expect(v.plan.description).toBe('Move "Pin" to "compartment"');
   });
 });
 
@@ -105,7 +124,7 @@ describe("read-only server (window.__READONLY__)", () => {
     (globalThis as { window?: unknown }).window = { __READONLY__: true };
     expect(planNodeMove(n(":a:note.yo", "file/yamlover"), n(":b", "dir"))).toEqual({ allowed: false, reason: "server is read-only" });
     expect(planFileUpload(n(":a", "dir"), ["x.png"])).toEqual({ allowed: false, reason: "server is read-only" });
-    expect(planBoardRetag({ path: ":t" }, ":ontos:todo", { path: ":ontos:doing", label: "doing" })).toEqual({ allowed: false, reason: "server is read-only" });
+    expect(planBoardMove({ path: ":t" }, null, { lane: 0, comp: 0 }, { untag: [], tag: [] }, "doing")).toEqual({ allowed: false, reason: "server is read-only" });
   });
 
   it("an explicit false flag changes nothing", () => {

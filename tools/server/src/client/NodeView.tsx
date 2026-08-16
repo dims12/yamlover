@@ -568,6 +568,9 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
   const tags = [...relTags];
   for (const a of anns) {
     if (a.fragmentSlug) continue;
+    // /api/annotations gathers the node PLUS its direct children (for region highlighting) —
+    // a CHILD's whole-node tag belongs to the child's own row (chapter chips), not this header
+    if (a.node && canonPath(a.node) !== canonPath(node.path)) continue;
     if (a.tag && !tags.some((t) => t.path === a.tag!.path)) {
       tags.push({ path: a.tag.path, label: a.tag.name, color: a.tag.color });
     }

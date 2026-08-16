@@ -103,7 +103,7 @@ export interface Region { lo: number; hi: number; indent: number } // a mapping 
 /** Descend the mapping-KEY path `within` to the target node's body region, CREATING any missing
  *  key as an empty block (so a fresh overlay grows the `"file":` → `yo:` → `fragments:` →
  *  `<slug>:` spine on demand). Mutates `lines` in place; returns the region under the last key. */
-function reachBody(lines: string[], within: string[]): Region {
+export function reachBody(lines: string[], within: string[]): Region {
   let start: Region = { lo: 0, hi: lines.length, indent: firstContentIndent(lines) };
   if (lines.length === 1 && lines[0] === "") { lines.length = 0; start = { lo: 0, hi: 0, indent: 0 }; } // empty file
   return reachBodyAt(lines, start, within);
@@ -226,6 +226,30 @@ export function upsertMapEntryAt(lines: string[], body: Region, entryKey: string
     const at = trimBack(lines, body.lo - 1, body.hi);
     lines.splice(at, 0, ...render(body.indent));
   }
+}
+
+/** Replace the `<key>:` SEQUENCE entry — its key line AND its same-indent `- ` items — in the
+ *  mapping body `region`, else append it at the body's end. Unlike {@link upsertMapEntryAt},
+ *  whose replaced extent is the key's DEEPER block, a sequence's items sit at the key's OWN
+ *  indent (the same-indent rule, file header) — the extent must swallow them too, or a rewrite
+ *  would strand the old items as orphan rows. `render(indent)` returns the entry's source lines
+ *  INCLUDING the key line. Mutates `lines`. */
+export function replaceSeqEntryAt(lines: string[], region: Region, key: string, render: (indent: number) => string[]): void {
+  const keyLine = findKeyLine(lines, region.lo, region.hi, region.indent, key);
+  if (keyLine < 0) {
+    const at = trimBack(lines, region.lo - 1, region.hi);
+    lines.splice(at, 0, ...render(region.indent));
+    return;
+  }
+  let end = keyLine + 1;
+  for (let i = keyLine + 1; i < region.hi; i++) {
+    if (!isContentLine(lines[i])) continue;
+    const ind = indentOf(lines[i]);
+    if (ind < region.indent) break;
+    if (ind === region.indent && seqMarkLen(lines[i].trim()) === null) break; // a sibling key — the sequence ended
+    end = i + 1; // an item start, or the current item's deeper body
+  }
+  lines.splice(keyLine, trimBack(lines, keyLine, end) - keyLine, ...render(region.indent));
 }
 
 /** Upsert a `<slug>:` entry into the `yo: fragments:` mapping of the node addressed by

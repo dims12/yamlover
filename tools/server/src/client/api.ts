@@ -2,6 +2,7 @@
 
 import { api } from "./base"; // prefixes every server path with the served base path (--base-path)
 import { strToSegs } from "./paths";
+import type { BoardStructure, CompartmentAt } from "../board-model";
 import { decodeEnvelope, fetchContent } from "./content";
 import { deriveNodeJson } from "./derive-node";
 
@@ -273,11 +274,55 @@ export function annotate(a: { target: string; tag: string; description?: string;
   return postJson(api("/api/annotate"), a);
 }
 
-/** Persist a board directory's LANE configuration — `lanes` is the lanes, each a list of tag
- *  client-paths (1 = a plain lane, N = N sublanes). Rewrites the directory's board overlay
- *  (`.yo/body.yo` `lanes:`) and reindexes; the open board re-reads it over SSE. */
-export function saveBoardLanes(path: string, lanes: string[][]): Promise<{ ok: true }> {
-  return postJson(api("/api/board"), { path, lanes });
+// ---- the tag board (TICKETS.md §3; board-model.ts is the pure policy both sides share) ---- //
+
+/** One resolved board card — a direct member's display stub plus its current tag paths. */
+export interface BoardCard {
+  path: string;
+  title: string;
+  priority: string | null;
+  assignee: string | null;
+  due: string | null;
+  tags: string[];
+  key?: string; // a keyed compartment item keeps its key
+}
+
+/** One resolved compartment: its tags as refs, its items as cards. */
+export interface BoardCompartmentView {
+  tags: TagRef[];
+  items: BoardCard[];
+}
+
+/** The resolved board GET/POST /api/board answer: lanes of compartments plus the BACKLOG
+ *  (direct members referenced by no compartment). `seeded` = still displayed from the legacy
+ *  `workflow:`/`lanes:` seed, not yet materialized as `yo: lanes:`. */
+export interface BoardResolved {
+  seeded: boolean;
+  lanes: BoardCompartmentView[][];
+  backlog: BoardCard[];
+}
+
+/** The board at `path`, resolved (reconciled in memory for display — the GET never writes). */
+export function fetchBoard(path: string): Promise<BoardResolved> {
+  return getJson<BoardResolved>(api(`/api/board?path=${encodeURIComponent(path)}`));
+}
+
+/** Persist the board's STRUCTURE wholesale (add/remove lanes/compartments, set compartment
+ *  tags, manual item moves) — the server reconciles, writes `yo: lanes:`, and answers resolved. */
+export function saveBoardStructure(path: string, structure: BoardStructure): Promise<BoardResolved> {
+  return postJson(api("/api/board"), { path, op: "structure", structure });
+}
+
+/** The MOVE GESTURE — the board's only retagging verb: untag/tag `task` by the source and
+ *  destination compartments' deltas, restructure, reconcile. `null` = the backlog. */
+export function boardMove(path: string, task: string, from: CompartmentAt, to: CompartmentAt): Promise<BoardResolved> {
+  return postJson(api("/api/board"), { path, op: "move", task, from, to });
+}
+
+/** The silent structure fix on view-open: reconcile and (materialized boards only) write when
+ *  changed; a still-seeded legacy board is reconciled in memory and never dirtied. */
+export function boardReconcile(path: string): Promise<BoardResolved> {
+  return postJson(api("/api/board"), { path, op: "reconcile" });
 }
 
 /** Create a named tag at the project's default ontos location (settings.yo; `/ontos` by

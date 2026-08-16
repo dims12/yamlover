@@ -642,3 +642,23 @@ describe("link paste (arXiv, tweets)", () => {
     }
   });
 });
+
+describe("NodeView header tag badges", () => {
+  it("shows only THIS node's whole-node tags — a child's annotations stay off the header", async () => {
+    const { fetchAnnotations } = await import("../../src/client/api");
+    const mAnns = fetchAnnotations as unknown as ReturnType<typeof vi.fn>;
+    mAnns.mockResolvedValue([
+      { tag: { path: ":ontos:mine", name: "mine", color: null }, node: ":x.yaml" },
+      // /api/annotations gathers direct children too (for region highlighting) — never a header badge
+      { tag: { path: ":ontos:childs", name: "childs", color: null }, node: ":x.yaml:name" },
+    ]);
+    try {
+      mNode.mockResolvedValue({ path: ":x.yaml", type: "object", concrete: "file/yaml", hasKeyed: true, title: null, description: null, value: { name: "Alice" } });
+      render(<NodeView path=":x.yaml" format="" onFormat={() => {}} onNavigate={() => {}} />);
+      await screen.findByText("mine");
+      expect(screen.queryByText("childs")).toBeNull();
+    } finally {
+      mAnns.mockResolvedValue([]);
+    }
+  });
+});

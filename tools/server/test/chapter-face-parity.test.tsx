@@ -135,3 +135,27 @@ describe("the chapter face-parity gate — examples/74-deep-book", () => {
     } finally { done(); }
   }, 30_000);
 });
+
+describe("the chapter face-parity gate — membership tag chips", () => {
+  it("chunk and subchapter tags chip identically in both faces; the root title stays bare", async () => {
+    const { readEl, editEl, done } = await mountBoth(":host", {
+      "host/.yo/body.yo": "!!<*yamlover: $defs: chapter>\nHost\n&::ontos:rooty:-\n- the opening chunk\n  &::ontos:urgent:-\n- *: sub\n",
+      "host/sub/.yo/body.yo": "Sub Chapter\n&::ontos:review:-\n- inner text\n",
+      "ontos/.yo/body.yo": "!!<*yamlover:$defs:onto>\nrooty: !!<*yamlover:$defs:onto> Rooty\nurgent: !!<*yamlover:$defs:onto> Urgent\nreview: !!<*yamlover:$defs:onto> Review\n",
+    });
+    try {
+      await waitFor(() => {
+        for (const [face, el] of [["read", readEl], ["edit", editEl]] as const) {
+          // the chunk's chip row, resolved to the tag's title
+          const chunkChips = Array.from(el.querySelectorAll(".chunk-tags .tagtag")).map((c) => c.textContent);
+          expect(chunkChips, `${face}: chunk chips`).toEqual(["Urgent"]);
+          // the subchapter's heading chip
+          const titleChips = Array.from(el.querySelectorAll(".title-tags .tagtag")).map((c) => c.textContent);
+          expect(titleChips, `${face}: title chips`).toEqual(["Review"]);
+          // the page ROOT's own tag never rides the body (the header bar owns it)
+          expect(el.textContent, `${face}: root tag leaked`).not.toContain("Rooty");
+        }
+      });
+    } finally { done(); }
+  }, 30_000);
+});

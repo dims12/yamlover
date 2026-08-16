@@ -1452,6 +1452,28 @@ textarea.chapter-latex-src {
 }
 .chunk-tool:hover { color: var(--fg); background: var(--hover, rgba(127, 127, 127, 0.12)); }
 
+/* a chunk's MEMBERSHIP tags — always-visible chips in the right-hand tools column (unlike
+   .chunk-tools, which is hover-only chrome); .tagtag's own 11px keeps them compact */
+.chunk-tags {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding-top: 3px;
+  max-width: 12em;
+}
+/* a title's / subchapter heading's tags, inline after the text at chip size */
+.title-tags {
+  margin-left: 0.5em;
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  font-weight: 400;
+  vertical-align: middle;
+}
+
 /* an image / diagram chunk sits flush with its index: drop the standalone-view
    top padding so the object's top-left corner meets the gutter (the index) */
 .chunk-body .filemedia {
@@ -2864,44 +2886,43 @@ mark.yo-inline-fragment {
 /* The board: horizontal columns, one per workflow state. */
 .board {
   display: flex;
+  flex-direction: column; /* the lane row, then the BACKLOG section below */
+  gap: 12px;
+  width: 100%;            /* the board spans the whole page */
+  padding: 8px 4px 16px;
+}
+.board-lanes {
+  display: flex;
   gap: 12px;
   align-items: flex-start;
-  width: 100%;            /* the board spans the whole page */
+  width: 100%;
   overflow-x: auto;       /* …degrading to horizontal scroll only when columns hit their min */
-  padding: 8px 4px 16px;
+  cursor: grab;           /* the image/map idiom: drag the pane's ground to pan the overflow */
+}
+.board-lanes.board-panning {
+  cursor: grabbing;
+  user-select: none;
+}
+/* one lane column PLUS its trailing "＋ lane" (compartment) ghost below the box */
+.board-col-wrap {
+  flex: 1 1 0;            /* columns share the page width equally — not a fixed width */
+  min-width: 180px;       /* but never narrower than a readable card (else scroll) */
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 .board-error {
   color: var(--null);
   padding: 12px;
 }
 .board-col {
-  flex: 1 1 0;            /* columns share the page width equally — not a fixed width */
-  min-width: 180px;       /* but never narrower than a readable card (else scroll) */
   background: var(--bg-alt);
   border: 1px solid var(--line);
+  border-top: 2px solid var(--line); /* the lane's color bar (inline borderTopColor re-inks it) */
   border-radius: 8px;
   display: flex;
   flex-direction: column;
   max-height: calc(100vh - 160px);
-}
-.board-col-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  border-top: 2px solid var(--line);
-  border-radius: 8px 8px 0 0;
-  font-weight: 600;
-}
-.board-col-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  flex: 0 0 auto;
-}
-.board-col-title {
-  flex: 1 1 auto;
-  text-transform: capitalize;
 }
 .board-col-count {
   color: var(--dim);
@@ -3099,6 +3120,43 @@ mark.yo-inline-fragment {
   margin-top: 2px;
 }
 .board-add-lane:hover { color: var(--fg); border-color: var(--accent); }
+/* the per-column "＋ lane" (compartment adder) below the lane box — the trailing
+   ＋ lane ghost's vertical twin, sitting a bit OUTSIDE the column like that one does */
+.board-add-comp {
+  align-self: stretch;
+  background: none;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  color: var(--dim);
+  cursor: pointer;
+  font: inherit;
+  padding: 8px 12px;
+  text-align: center;
+}
+.board-add-comp:hover { color: var(--fg); border-color: var(--accent); }
+
+/* The BACKLOG — the directory's chapters no compartment references, cards like any lane's,
+   a drag source and target (dropping here removes the source compartment's shared tags). */
+.board-backlog {
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  padding: 8px;
+  min-height: 56px;         /* an empty backlog is still a drop target */
+}
+.board-backlog-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 2px 8px;
+  font-weight: 600;
+  color: var(--dim);
+}
+.board-backlog-cards {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 8px;
+}
 
 /* The DETAILS view — a columnar table of the directory's members. */
 .detailsview {

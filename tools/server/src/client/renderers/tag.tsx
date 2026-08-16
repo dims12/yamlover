@@ -14,24 +14,37 @@ export function isColorTagPath(path: string): boolean {
   return /(^|:)ontos:colors:/.test(canonPath(path));
 }
 
-/** The onto client-paths a node is FILED under — its ordinal `&…:-` membership bookmarks, read
- *  off the wire's root-bucket `anchors` deco (a bookmark is an edge, never a value entry —
- *  docs/annotations/applications). Keyed bookmarks (aliases) don't count; an unparsable anchor
- *  is not a membership. */
-export function membershipsOf(node: { comments?: CommentMap }): string[] {
+/** A parsed pointer's KEY segments as a client colon-path (positions dropped — a tag is
+ *  key-addressed), or null when nothing keyed remains. The one segs→path spelling both the
+ *  anchor-body readers below and the yed chapter adapter (IR `meta.anchors`) share. */
+export function pointerSegsToPath(p: { base?: unknown; steps?: readonly unknown[] }): string | null {
+  const authority = (p.base as { authority?: unknown } | null | undefined)?.authority;
+  const names = (p.steps ?? []).map((s) => (s as { name?: unknown } | null | undefined)?.name);
+  const segs = [authority, ...names].filter((s): s is string => typeof s === "string");
+  return segs.length ? segsToStr(segs) : null;
+}
+
+/** The onto client-paths among a node's anchor BODIES (the wire's `anchors` deco strings):
+ *  only the ordinal `…:-` form is a membership — keyed bookmarks (aliases) don't count; an
+ *  unparsable anchor is not a membership (docs/annotations/applications). */
+export function membershipPaths(anchors: readonly string[]): string[] {
   const out: string[] = [];
-  const root = node.comments?.[""];
-  const anchors = root && !Array.isArray(root) ? root.anchors ?? [] : [];
   for (const body of anchors) {
     const t = body.trim();
     if (!/(^|:)\s*-\s*$/.test(t)) continue; // only the ordinal `…:-` form is a membership
     try {
-      const p = parsePointer(t.replace(/:\s*-\s*$/, "")) as { base?: { authority?: string }; steps?: { name?: unknown }[] };
-      const segs = [p.base?.authority, ...(p.steps ?? []).map((s) => s.name)].filter((s): s is string => typeof s === "string");
-      if (segs.length) out.push(segsToStr(segs));
+      const p = pointerSegsToPath(parsePointer(t.replace(/:\s*-\s*$/, "")));
+      if (p) out.push(p);
     } catch { /* not a membership */ }
   }
   return out;
+}
+
+/** The onto client-paths a node is FILED under — its ordinal `&…:-` membership bookmarks, read
+ *  off the wire's root-bucket `anchors` deco (a bookmark is an edge, never a value entry). */
+export function membershipsOf(node: { comments?: CommentMap }): string[] {
+  const root = node.comments?.[""];
+  return membershipPaths(root && !Array.isArray(root) ? root.anchors ?? [] : []);
 }
 
 /** Expose a tag's colour to CSS as `--tag`. Every chip/swatch/dot paints through it — CSS renders

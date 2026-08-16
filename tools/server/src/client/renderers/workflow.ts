@@ -9,7 +9,7 @@
 // is a single link, or (read at depth ≥ 2) a JS array of links.
 import { fetchNode, fetchAnnotations, annotate, deleteAnnotation } from "../api";
 import { asLink } from "../render";
-import { ONTO_FORMAT, tagLabel, tagFields, explicitColor } from "./tag";
+import { tagLabel, tagFields, explicitColor } from "./tag";
 
 const REF_KEY = "$yamloverRef";
 export const WORKFLOW_FORMAT = "x-yamlover-workflow";
@@ -39,45 +39,6 @@ function nextPaths(stateValue: unknown): string[] {
   if (Array.isArray(raw)) return raw.map(targetPath).filter((p): p is string => p != null);
   const one = targetPath(raw);
   return one ? [one] : [];
-}
-
-/** The ordered STATES of a workflow tag (its contained sub-tags), each with display color and its
- *  advisory `next` transitions. Skips the `initial` ref (it duplicates a state) and de-dupes. One
- *  fetch for the workflow, one per state (depth 2, to expand a multi-target `next` array). */
-export async function fetchWorkflowStates(workflowPath: string): Promise<WorkflowState[]> {
-  const wf = await fetchNode(workflowPath, 1);
-  const initialPath = targetPath(tagFields(wf.value).find(([k]) => k === "initial")?.[1]);
-  const seen = new Set<string>();
-  const states: WorkflowState[] = [];
-  for (const [key, val] of tagFields(wf.value)) {
-    if (key === "initial" || key === "color") continue; // not states: the start-state ref / a workflow color
-    const link = asLink(val);
-    if (!link || link.format !== ONTO_FORMAT || seen.has(link.path)) continue;
-    seen.add(link.path);
-    states.push({ path: link.path, label: tagLabel(link.path, link.title), color: link.color ?? null, next: [], initial: link.path === initialPath });
-  }
-  await Promise.all(
-    states.map(async (st) => {
-      try {
-        st.next = nextPaths((await fetchNode(st.path, 2)).value);
-      } catch {
-        /* transitions are advisory — a miss just means no highlighted targets */
-      }
-    }),
-  );
-  return states;
-}
-
-/** Read a task's current state directly from its already-fetched value (its `yamlover-annotations`
- *  elements, projected as link markers / `{tag}` objects), matched against `statePaths`. */
-export function stateInValue(taskValue: unknown, statePaths: Set<string>): string | null {
-  const ann = tagFields(taskValue).find(([k]) => k === "yamlover-annotations")?.[1];
-  const items = Array.isArray(ann) ? ann : [];
-  for (const el of items) {
-    const p = targetPath(el) ?? targetPath(tagFields(el).find(([k]) => k === "tag")?.[1]);
-    if (p && statePaths.has(p)) return p;
-  }
-  return null;
 }
 
 /** Move a task between states: drop the old state annotation, add the new. Advisory — any target

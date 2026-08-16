@@ -45,6 +45,8 @@ import { domToMarklower } from "../marklower-serialize";
 import { renderedTextLength } from "./chunk-editors";
 import { clipboardFiles, fileToBase64, pastedName } from "../clipboard";
 import { ChapterBody, renderChunkBody } from "./chapter-shared";
+import { pointerSegsToPath } from "./tag";
+import { InlineTagChips } from "./tag-resolve";
 import type { Chunk } from "./registry";
 import { viewDepth } from "./depth";
 import { markupWidthCh } from "./markup";
@@ -237,6 +239,12 @@ export function YedChapterEditor({ path, onNavigate }: { path: string; onNavigat
     renderLinked: (link, level, budget) => (
       <LinkedPreview link={link} level={level} budget={budget} chapterPath={path} onNavigate={onNavigate} />
     ),
+    // a node's membership bookmarks (ordinal IR anchors) as INERT chips — display-only in the
+    // editor, so the caret never moves off the text (tagging happens via the shared menus)
+    renderTags: (anchors) => {
+      const paths = anchors.map((a) => pointerSegsToPath(a.path)).filter((p): p is string => p !== null);
+      return paths.length ? <InlineTagChips paths={paths} inert onNavigate={onNavigate} /> : null;
+    },
     pasteFiles: (el, range, files, commit) => { void insertPastedImages(el, range, files, path, commit); },
     navigate: onNavigate,
     columnMemory,
@@ -329,7 +337,9 @@ function LinkedPreview({ link, level, budget, chapterPath, onNavigate }: {
       <section className="chapter-sub" data-chapter-path={link.path}>
         <ChapterBody value={fetched.value} nodePath={link.path} documentPath={fetched.documentPath ?? link.path}
           anchorBase={link.path} slot="" level={level + 1} budget={budget - 1}
-          ancestors={[canonPath(chapterPath), canonPath(link.path)]} onLoaded={() => {}} onNavigate={onNavigate} />
+          ancestors={[canonPath(chapterPath), canonPath(link.path)]}
+          comments={fetched.comments} commentsBase={fetched.path}
+          onLoaded={() => {}} onNavigate={onNavigate} />
       </section>
     );
   }

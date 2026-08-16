@@ -61,6 +61,10 @@ export interface SubchapterBodyProps {
   slot: string;
   level: number;
   ancestors: readonly string[];
+  /** A FETCHED member's own comments sidecar (its map is relative to `nodePath`) — the per-node
+   *  membership bookmarks its tags render from. Absent for an inline subchapter, whose deco the
+   *  enclosing chapter's map already carries. */
+  comments?: NodeJson["comments"];
 }
 
 export interface InlineSubchapterProps {
@@ -164,6 +168,7 @@ export function InlineSubchapter({
         slot,
         level,
         ancestors: [...ancestors, canonPath(node.path)],
+        comments: node.comments,
       })}
     </>
   );

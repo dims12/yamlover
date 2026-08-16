@@ -22,7 +22,7 @@
 
 import { createContext, useContext, useRef, useReducer, type ReactNode } from "react";
 import type { EditorState, Entry, Node, Path, Value } from "../state";
-import { isPointer } from "../../../parser/ts/src/ir.ts";
+import { isPointer, type Anchor } from "../../../parser/ts/src/ir.ts";
 import { Cell, type CellRegistry } from "../cells";
 import { defaultRegistry } from "../cells";
 import type { HintProvider, RecentEntry, RecentsProvider } from "../complete";
@@ -85,6 +85,10 @@ export interface ChapterCellsAdapter {
   renderLinked?(link: { path: string; title?: string; format?: string }, level: number, budget: number): ReactNode;
   /** Image paste into prose; default: none (paste stays text-only). */
   pasteFiles?(el: HTMLElement, range: Range, files: File[], commit: (text: string) => void): void;
+  /** A node's MEMBERSHIP tags (its ordinal `&…:-` IR anchors) rendered as inline chips —
+   *  display-only, never focusable (the caret law). The server mount resolves names/colors;
+   *  default: none, tags simply don't show. */
+  renderTags?(anchors: readonly Anchor[]): ReactNode;
   /** §N anchor ids (+ data-node-path); default: none. */
   anchorFor?(path: Path, index: number): string | null;
   /** A SUBCHAPTER section's anchor id — the same fragment the read view stamps on its heading,
@@ -129,6 +133,24 @@ const scalarText = (v: Value): string => String((v as Node & { value?: unknown }
 
 const activeAt = (ctx: ChapterCtxValue, at: Position["at"], path: Path): boolean =>
   ctx.state.focus?.at === at && pathEq(path, ctx.state.focus?.path);
+
+/** A node's MEMBERSHIP anchors — the ordinal `&…:-` bookmarks in its IR meta. The ordinal
+ *  filter is IR semantics (a keyed bookmark is an alias, never an application), so it lives
+ *  here rather than in the adapter. */
+function membershipAnchorsOf(v: Value | null): Anchor[] {
+  if (v === null || isPointer(v)) return [];
+  const anchors = ((v as Node).meta as { anchors?: Anchor[] } | undefined)?.anchors ?? [];
+  return anchors.filter((a) => a.ordinal === true);
+}
+
+/** The chip row beside a title or chunk — nothing when no adapter or no memberships. */
+function TagsChrome({ ctx, value, className }: { ctx: ChapterCtxValue; value: Value | null; className: string }): ReactNode {
+  if (!ctx.adapter.renderTags) return null;
+  const anchors = membershipAnchorsOf(value);
+  if (anchors.length === 0) return null;
+  const chips = ctx.adapter.renderTags(anchors);
+  return chips == null ? null : <span className={className} data-yo-chrome>{chips}</span>;
+}
 
 export function nodeAtPath(root: Value, path: Path): Node | null {
   const v = valueAtPath(root, path);
@@ -293,7 +315,8 @@ export function ChapterNode({ path, spath, level, budget, crumbs = [] }: { path:
               <ChapterNode path={p} spath={sp} level={level + 1} budget={budget - 1} crumbs={[...crumbs, i]} />
             </section>
           ) : (
-            <DescendHeading path={sp} title={scalarText(e.value)} level={level + 1} />
+            <DescendHeading path={sp} title={scalarText(e.value)} level={level + 1}
+              tags={<TagsChrome ctx={ctx} value={e.value} className="title-tags" />} />
           )}
           {/* a MATERIALIZED subchapter deletes only through the tool (never a keystroke) —
               the same verb; the server archives the member's storage to .yo/.trash */}
@@ -323,16 +346,19 @@ const hx = (level: number): "h1" | "h2" | "h3" | "h4" | "h5" | "h6" =>
   (["h1", "h2", "h3", "h4", "h5", "h6"] as const)[Math.min(level, 5)];
 
 function TitleCell({ path, level }: { path: Path; level: number }): ReactNode {
+  const ctx = useChapter();
   const H = hx(level);
   return (
     <H className="chapter-title">
       <LineCell kind="title" path={path} className="chapter-title-text" />
+      {/* the page ROOT's tags live in the NodeView header bar — chips only on subchapters */}
+      {path.length > 0 && <TagsChrome ctx={ctx} value={valueAtPath(ctx.state.doc.root, path)} className="title-tags" />}
     </H>
   );
 }
 
 /** The collapsed subchapter face past the `?depth=` window — the descend heading. */
-function DescendHeading({ path, title, level }: { path: string; title: string; level: number }): ReactNode {
+function DescendHeading({ path, title, level, tags }: { path: string; title: string; level: number; tags?: ReactNode }): ReactNode {
   const ctx = useChapter();
   const H = hx(level);
   return (
@@ -340,6 +366,7 @@ function DescendHeading({ path, title, level }: { path: string; title: string; l
       <H className="chapter-title">
         <span className="chapter-link-more" data-yo-chrome aria-hidden="true">»</span>
         <a className="descend" href="#" onClick={(e) => { e.preventDefault(); ctx.adapter.navigate(path); }}>{title || path}</a>
+        {tags}
       </H>
     </section>
   );
@@ -367,6 +394,7 @@ function ChunkShell({ path, index, labels, children }: { path: Path; index: numb
     <div className="chunk" id={anchor ?? undefined}>
       {anchor ? <a className="chunk-index" href={`#${anchor}`}>{chunkCrumbs(labels)}</a> : <span className="chunk-index">{chunkCrumbs(labels)}</span>}
       <div className="chunk-body">{children}</div>
+      <TagsChrome ctx={ctx} value={valueAtPath(ctx.state.doc.root, path)} className="chunk-tags" />
       <DeleteChunkTool path={path} />
     </div>
   );

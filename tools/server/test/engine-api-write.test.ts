@@ -632,37 +632,194 @@ describe("agile board — drag = re-tag a task's state", () => {
   });
 });
 
-// The BOARD lane config (TICKETS.md §3): POST /api/board rewrites the directory overlay's
-// `lanes:` block (lanes × tag pointers), persisting the explorer board view's configuration.
-describe("/api/board (lane config)", () => {
-  it("persists lanes as project-scope tag pointers and re-reads them", async () => {
-    const root = tmpTree({
+// The TAG BOARD (TICKETS.md §3): the `yo: lanes:` structure — lanes of tagged COMPARTMENTS
+// holding member refs — served resolved by GET /api/board, written by POST /api/board's three
+// ops (structure | move | reconcile). board-model.ts is the pure policy under both.
+describe("/api/board (lanes of compartments)", () => {
+  const READY = ":ontos:workflow:dev:ready";
+  const DONE = ":ontos:workflow:dev:done";
+  const BACKLOG_TAG = ":ontos:workflow:dev:backlog";
+  const boardTree = () =>
+    tmpTree({
       ".yo/body.yo": "!!<*yamlover:$defs:board>\nworkflow: *::ontos:workflow:dev\n",
-      "ontos/.yo/body.yo": "!!<*yamlover:$defs:onto>\nworkflow: Lifecycles\n  dev: Software task lifecycle\n    ready: Ready\n    done: Done\n    cancelled: Dropped\n",
+      "ontos/.yo/body.yo": [
+        "!!<*yamlover:$defs:onto>",
+        "workflow: Lifecycles",
+        "  dev: Software task lifecycle",
+        "    initial: *::ontos:workflow:dev:backlog",
+        "    backlog: !!<*yamlover:$defs:onto> Captured",
+        "    ready: !!<*yamlover:$defs:onto> Ready",
+        "    done: !!<*yamlover:$defs:onto> Done",
+        "",
+      ].join("\n"),
+      "task-a.yo": "!!<*yamlover:$defs:task>\ntitle: Wire the widget\n&::ontos:workflow:dev:ready:-\n",
+      "task-b.yo": "!!<*yamlover:$defs:task>\ntitle: Untagged orphan\n",
     });
+  const cardPaths = (cards: { path: string }[]): string[] => cards.map((c) => c.path);
+
+  it("GET seeds from the workflow (initial state included), reconciles in memory, never writes", async () => {
+    const root = boardTree();
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const before = fs.readFileSync(path.join(root, ".yo", "body.yo"), "utf8");
+
+    const g = call(h, "/api/board", { path: ":" });
+    expect(g.status).toBe(200);
+    expect(g.json.seeded).toBe(true);
+    // one single-compartment lane per state, in taxonomy order — backlog (the initial) included
+    expect(g.json.lanes.map((l: any[]) => l.map((c: any) => c.tags.map((t: any) => t.path)))).toEqual([
+      [[BACKLOG_TAG]], [[READY]], [[DONE]],
+    ]);
+    // the display reconcile filed task-a into the ready compartment; task-b is a structural orphan
+    expect(cardPaths(g.json.lanes[1][0].items)).toEqual([":task-a.yo"]);
+    expect(cardPaths(g.json.backlog)).toEqual([":task-b.yo"]);
+    expect(g.json.lanes[1][0].items[0]).toMatchObject({ title: "Wire the widget", tags: [READY] });
+    // merely reading never materializes
+    expect(fs.readFileSync(path.join(root, ".yo", "body.yo"), "utf8")).toBe(before);
+  });
+
+  it("op:reconcile on a still-seeded board answers resolved but writes nothing", async () => {
+    const root = boardTree();
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const before = fs.readFileSync(path.join(root, ".yo", "body.yo"), "utf8");
+
+    const r = await callBody(h, "POST", "/api/board", { path: ":", op: "reconcile" });
+    expect(r.status).toBe(201);
+    expect(r.json.seeded).toBe(true);
+    expect(cardPaths(r.json.backlog)).toEqual([":task-b.yo"]);
+    expect(fs.readFileSync(path.join(root, ".yo", "body.yo"), "utf8")).toBe(before);
+  });
+
+  it("op:structure materializes the pinned `yo: lanes:` spelling and round-trips through the index", async () => {
+    const root = boardTree();
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
 
     const r = await callBody(h, "POST", "/api/board", {
       path: ":",
-      lanes: [[":ontos:workflow:dev:ready"], [":ontos:workflow:dev:done", ":ontos:workflow:dev:cancelled"]],
+      op: "structure",
+      structure: [
+        [{ tags: [READY], items: [] }],
+        [{ tags: [DONE], items: [] }, { tags: [BACKLOG_TAG], items: [] }],
+      ],
     });
     expect(r.status).toBe(201);
-    const body = fs.readFileSync(path.join(root, ".yo", "body.yo"), "utf8");
-    expect(body).toContain("lanes:");
-    expect(body).toContain("- [*::ontos:workflow:dev:ready]");
-    expect(body).toContain("- [*::ontos:workflow:dev:done, *::ontos:workflow:dev:cancelled]");
-    expect(body).toContain("workflow: *::ontos:workflow:dev"); // the existing config is preserved
-    // the lane tag pointers resolve (the board reads them at depth 3)
-    const deep = (await nodeJson(h, { path: ":", depth: "3" })).json;
-    const lanes = deep.value.lanes;
-    expect(Array.isArray(lanes)).toBe(true);
-    expect(lanes).toHaveLength(2);
+    expect(r.json.seeded).toBe(false);
+    // the write reconciled: task-a joined the ready compartment
+    expect(cardPaths(r.json.lanes[0][0].items)).toEqual([":task-a.yo"]);
+    expect(cardPaths(r.json.backlog)).toEqual([":task-b.yo"]);
 
-    // a later save with no lanes writes an empty flow-sequence (valid YAML, not a null key)
-    const empty = await callBody(h, "POST", "/api/board", { path: ":", lanes: [] });
-    expect(empty.status).toBe(201);
-    expect(fs.readFileSync(path.join(root, ".yo", "body.yo"), "utf8")).toContain("lanes: []");
+    // THE PINNED BLOCK SPELLING (block form only — flow refuses anchors): lane items at the
+    // key's own indent, first compartment folded onto the lane mark, bookmarks own-line
+    const body = fs.readFileSync(path.join(root, ".yo", "body.yo"), "utf8");
+    expect(body).toContain(
+      [
+        "yo:",
+        "  lanes:",
+        "  - -",
+        "      &::ontos:workflow:dev:ready:-",
+        "      - *::task-a.yo",
+        "  - -",
+        "      &::ontos:workflow:dev:done:-",
+        "    -",
+        "      &::ontos:workflow:dev:backlog:-",
+      ].join("\n"),
+    );
+    expect(body).toContain("workflow: *::ontos:workflow:dev"); // existing config preserved
+
+    // round-trip: the reindexed structure reads back identically
+    const g = call(h, "/api/board", { path: ":" });
+    expect(g.json.seeded).toBe(false);
+    expect(g.json.lanes.map((l: any[]) => l.map((c: any) => c.tags.map((t: any) => t.path)))).toEqual([
+      [[READY]], [[DONE], [BACKLOG_TAG]],
+    ]);
+    expect(cardPaths(g.json.lanes[0][0].items)).toEqual([":task-a.yo"]);
+    // the compartment IS a member of its tag (its bookmark indexed as a back edge)
+    const anns = call(h, "/api/annotations", { path: ":yo:lanes:0:0" }).json;
+    expect(anns.some((a: any) => a.tag?.path === READY)).toBe(true);
+  });
+
+  it("op:move retags the chapter by the compartments' deltas and restructures", async () => {
+    const root = boardTree();
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    await callBody(h, "POST", "/api/board", {
+      path: ":",
+      op: "structure",
+      structure: [[{ tags: [READY], items: [] }], [{ tags: [DONE], items: [] }]],
+    });
+
+    // ready → done: the source tag drops, the destination tag lands
+    const mv = await callBody(h, "POST", "/api/board", {
+      path: ":", op: "move", task: ":task-a.yo", from: { lane: 0, comp: 0 }, to: { lane: 1, comp: 0 },
+    });
+    expect(mv.status).toBe(201);
+    expect(cardPaths(mv.json.lanes[0][0].items)).toEqual([]);
+    expect(cardPaths(mv.json.lanes[1][0].items)).toEqual([":task-a.yo"]);
+    const taskA = fs.readFileSync(path.join(root, "task-a.yo"), "utf8");
+    expect(taskA).toContain("&::ontos:workflow:dev:done:-");
+    expect(taskA).not.toContain("&::ontos:workflow:dev:ready:-");
+
+    // backlog → ready: the orphan gains the compartment's tags
+    const up = await callBody(h, "POST", "/api/board", {
+      path: ":", op: "move", task: ":task-b.yo", from: null, to: { lane: 0, comp: 0 },
+    });
+    expect(cardPaths(up.json.lanes[0][0].items)).toEqual([":task-b.yo"]);
+    expect(cardPaths(up.json.backlog)).toEqual([]);
+    expect(fs.readFileSync(path.join(root, "task-b.yo"), "utf8")).toContain("&::ontos:workflow:dev:ready:-");
+
+    // ready → backlog: only the shared tags are removed; the card returns to the backlog section
+    const down = await callBody(h, "POST", "/api/board", {
+      path: ":", op: "move", task: ":task-b.yo", from: { lane: 0, comp: 0 }, to: null,
+    });
+    expect(cardPaths(down.json.backlog)).toEqual([":task-b.yo"]);
+    expect(fs.readFileSync(path.join(root, "task-b.yo"), "utf8")).not.toContain("&::ontos:workflow:dev:ready:-");
+  });
+
+  it("a move's tag change relocates the task's OTHER instances through the follow-up reconcile", async () => {
+    const root = tmpTree({
+      ".yo/body.yo": "!!<*yamlover:$defs:board>\n",
+      "ontos/.yo/body.yo": "!!<*yamlover:$defs:onto>\na: !!<*yamlover:$defs:onto> A\nb: !!<*yamlover:$defs:onto> B\n",
+      "task.yo": "!!<*yamlover:$defs:task>\ntitle: Twice filed\n&::ontos:a:-\n",
+    });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    // two compartments both wanting :ontos:a → the task lists twice
+    const st = await callBody(h, "POST", "/api/board", {
+      path: ":", op: "structure",
+      structure: [[{ tags: [":ontos:a"], items: [] }], [{ tags: [":ontos:a"], items: [] }, { tags: [":ontos:b"], items: [] }]],
+    });
+    expect(cardPaths(st.json.lanes[0][0].items)).toEqual([":task.yo"]);
+    expect(cardPaths(st.json.lanes[1][0].items)).toEqual([":task.yo"]);
+    // move the FIRST instance a → b: the tag flip pulls the second instance out too
+    const mv = await callBody(h, "POST", "/api/board", {
+      path: ":", op: "move", task: ":task.yo", from: { lane: 0, comp: 0 }, to: { lane: 1, comp: 1 },
+    });
+    expect(cardPaths(mv.json.lanes[0][0].items)).toEqual([]);
+    expect(cardPaths(mv.json.lanes[1][0].items)).toEqual([]);
+    expect(cardPaths(mv.json.lanes[1][1].items)).toEqual([":task.yo"]);
+  });
+
+  it("a zero-tag compartment is manual-only: reconcile leaves it alone, a move in adds no tags", async () => {
+    const root = tmpTree({
+      ".yo/body.yo": "!!<*yamlover:$defs:board>\n",
+      "ontos/.yo/body.yo": "!!<*yamlover:$defs:onto>\na: !!<*yamlover:$defs:onto> A\n",
+      "task.yo": "!!<*yamlover:$defs:task>\ntitle: Pinboard item\n",
+    });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    await callBody(h, "POST", "/api/board", {
+      path: ":", op: "structure", structure: [[{ tags: [], items: [] }]],
+    });
+    const mv = await callBody(h, "POST", "/api/board", {
+      path: ":", op: "move", task: ":task.yo", from: null, to: { lane: 0, comp: 0 },
+    });
+    expect(cardPaths(mv.json.lanes[0][0].items)).toEqual([":task.yo"]);
+    expect(fs.readFileSync(path.join(root, "task.yo"), "utf8")).not.toContain("&"); // untouched
+    // and a reconcile keeps the manual filing
+    const rec = await callBody(h, "POST", "/api/board", { path: ":", op: "reconcile" });
+    expect(cardPaths(rec.json.lanes[0][0].items)).toEqual([":task.yo"]);
   });
 });
 

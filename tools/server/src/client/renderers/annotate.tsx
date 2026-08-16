@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Annotation, TagRef, createOnto, fetchAnnotations, fetchNode, createFragment, annotate, deleteAnnotation, rekeyNode } from "../api";
 import { explicitColor, isColorTagPath, resolveTagColor, tagFields, tagStyle } from "./tag";
+import { tagRefOf } from "./tag-resolve";
 import { TagTip } from "./tagtip";
 import { canonPath, displayPath, fragmentAnchorId, strToSegs } from "../paths";
 import { touchesYamlover, useDiffBump } from "../live";
@@ -330,20 +331,6 @@ export function useMaterialAnnotations(path: string): MaterialAnnotations {
     annotations.push(a);
   }
   return { annotations, create, remove, annotateRegion };
-}
-
-/** An OMNI node's scalar self-value (the `$yamloverMixed` marker) as its display title — a
- *  plain LEAF scalar's value is data, not a title, so only the value-plus-fields shape reads. */
-function omniTitle(value: unknown): string | null {
-  const m = (value as { $yamloverMixed?: { value?: unknown } } | null | undefined)?.$yamloverMixed;
-  return m && typeof m.value === "string" && m.value !== "" ? m.value : null;
-}
-
-/** Resolve ANY node path into the annotation ref shape { path, name, color }: the name is its
- *  omni scalar title, else its schema title, else its key inside the parent. */
-async function tagRefOf(p: string): Promise<TagRef> {
-  const n = await fetchNode(p, 1);
-  return { path: n.path, name: omniTitle(n.value) || n.title || tagNameOf(n.path), color: explicitColor(n.value) };
 }
 
 /** Whether an event landed inside the LEFT (TOC) pane — the popup's close-on-outside-click

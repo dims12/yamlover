@@ -1,18 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import { planBoardRetag } from "../../drop-policy";
-import { NodeJson, fetchNode, TagRef, saveBoardLanes } from "../api";
+import { planBoardMove } from "../../drop-policy";
+import { moveDeltas, type CompartmentAt, type BoardStructure } from "../../board-model";
+import { NodeJson, TagRef, BoardCard, BoardCompartmentView, BoardResolved, boardMove, boardReconcile, fetchBoard, saveBoardStructure } from "../api";
 import { READ_ONLY } from "../base";
 import { useDropConfirm } from "../DropConfirm";
-import { memberItems } from "./explorer";
 import { touchesYamlover, useDiffBump } from "../live";
-import { membershipsOf, resolveTagColor, tagFields, tagStyle } from "./tag";
+import { resolveTagColor, tagFields, tagStyle } from "./tag";
 import { displayPath } from "../paths";
-import { fetchWorkflowStates, WorkflowState, stateDetail, moveState, targetPath } from "./workflow";
-import { AnnotationMenu } from "./annotate";
+import { AnnotationMenu, rememberTag, withinQueryDropdown, withinTocPane } from "./annotate";
 import { TagTip } from "./tagtip";
 
 export const BOARD_FORMAT = "x-yamlover-board";
-const CONTAINER_TAGISH = new Set(["x-yamlover-onto", "x-yamlover-workflow", "x-yamlover-board"]);
 
 /** Whether a directory should default to (and offer) the BOARD view: it carries the board schema,
  *  or an overlay board config (a `workflow:` seed or an explicit `lanes:` list). */
@@ -25,73 +23,32 @@ export function isBoardNode(node: NodeJson): boolean {
 const NEGATIVE_TERMINAL = new Set(["cancelled", "canceled", "rejected", "wontfix", "won't-fix", "dropped", "declined", "abandoned", "duplicate", "invalid"]);
 const isNegative = (label: string) => NEGATIVE_TERMINAL.has(label.toLowerCase());
 
-interface Card {
-  path: string;
-  title: string;
-  priority: string | null;
-  assignee: string | null;
-  due: string | null;
-  tags: string[]; // every tag this card carries (to classify into lane sub-sections)
+/** The client's half of the persistable structure: the resolved lanes stripped back to paths. */
+function structureOf(lanes: BoardCompartmentView[][]): BoardStructure {
+  return lanes.map((lane) =>
+    lane.map((c) => ({
+      tags: c.tags.map((t) => t.path),
+      items: c.items.map((it) => ({ path: it.path, ...(it.key !== undefined ? { key: it.key } : {}) })),
+    })),
+  );
 }
 
-/** One lane: either a single tag (shown in the lane header) or several SUBLANES — one tag each,
- *  stacked vertically, each tag shown only in its sublane head. */
-interface Lane {
-  tags: WorkflowState[];
-}
-
-const scalarField = (value: unknown, key: string): string | null => {
-  const v = tagFields(value).find(([k]) => k === key)?.[1];
-  return typeof v === "string" ? v : typeof v === "number" ? String(v) : null;
-};
-const lastSeg = (p: string): string => { const i = p.lastIndexOf(":"); return i < 0 ? p : p.slice(i + 1); };
-
-function workflowPathOf(node: NodeJson): string | null {
-  return targetPath(tagFields(node.value).find(([k]) => k === "workflow")?.[1]);
-}
-
-/** The explicit `lanes:` config (lanes × tag paths), or null when the board only seeds from a
- *  `workflow:`. `lanes` projects as an array of arrays of tag links. */
-function explicitLanes(node: NodeJson): string[][] | null {
-  const raw = tagFields(node.value).find(([k]) => k === "lanes")?.[1];
-  if (!Array.isArray(raw)) return null;
-  return raw.map((lane) => (Array.isArray(lane) ? lane.map(targetPath).filter((p): p is string => !!p) : []));
-}
-
-// Keys the board owns as config / taxonomy / graft — never cards.
-const BOARD_CONFIG_KEYS = new Set(["workflow", "lanes", "yamlover", "ontos"]);
-
-/** The directory's CARD members — content entities, not the board's own config / taxonomy / graft.
- *  Drawn from the SHARED projection ({@link memberItems}) so a board lists the same members the
- *  icon/details views do, minus the board's config keys and any nested tag/workflow/board link. */
-export function cardMemberPaths(node: NodeJson): string[] {
-  return memberItems(node)
-    .filter((it) => it.link && !BOARD_CONFIG_KEYS.has(it.key))
-    .filter((it) => !(it.link!.format && CONTAINER_TAGISH.has(it.link!.format)))
-    .map((it) => it.link!.path);
-}
-
-/** Every tag a card carries — its `yamlover-annotations` element targets (link or `{tag}` object). */
-function tagsInValue(value: unknown): string[] {
-  const ann = tagFields(value).find(([k]) => k === "yamlover-annotations")?.[1];
-  const items = Array.isArray(ann) ? ann : [];
-  const out: string[] = [];
-  for (const el of items) {
-    const p = targetPath(el) ?? targetPath(tagFields(el).find(([k]) => k === "tag")?.[1]);
-    if (p) out.push(p);
-  }
-  return out;
+/** The card for `task` wherever it currently shows (a compartment or the backlog). */
+function cardOf(board: BoardResolved, task: string): BoardCard | undefined {
+  for (const lane of board.lanes) for (const c of lane) { const hit = c.items.find((it) => it.path === task); if (hit) return hit; }
+  return board.backlog.find((it) => it.path === task);
 }
 
 /**
- * The BOARD view (TICKETS.md §3) — a tag-lane layout over a directory, now one of the explorer's
- * view modes. Lanes come from the board overlay's explicit `lanes:` (each lane a single tag or a
- * list of sublane tags) or, absent that, are seeded from a `workflow:` (flowing states each a
- * lane, terminal states merged into one lane of sublanes). A plain lane shows its tag in the
- * header; sublanes are added explicitly (the header's ＋) and each shows its tag only in its own
- * head — per-tag drop zones stacked vertically (persisted via `POST /api/board`). Dragging a card
- * between lanes/sublanes re-tags it (move: drop the source tag, add the target — advisory).
- * Cancelled-like tags are struck through. Right-click a card → the shared tagging menu.
+ * The TAG BOARD view (TICKETS.md §3) — lanes of tagged COMPARTMENTS over a directory/object,
+ * one of the explorer's view modes. The structure lives in the board's `yo: lanes:` member
+ * (board-model.ts is the pure policy; a legacy `workflow:`/`lanes:` board displays from a seed
+ * and materializes on the first write). Opening the view runs the silent structure RECONCILE
+ * (structure follows tags — never the other way); dragging a card between compartments (or
+ * to/from the BACKLOG below — the members no compartment references) is the ONLY retagging
+ * verb, confirmed through the shared drop popup with its tag deltas spelled out. Compartment
+ * tags are edited in place (chip click removes, ＋ opens the shared picker) — a tag-list edit
+ * reconciles, it never retags. Right-click a card → the shared tagging menu.
  */
 export function BoardView({
   node,
@@ -103,167 +60,240 @@ export function BoardView({
   openContextMenu?: (path: string, x: number, y: number) => void;
 }) {
   const diffBump = useDiffBump(touchesYamlover);
-  const [lanes, setLanes] = useState<Lane[]>([]);
-  const [cards, setCards] = useState<Card[]>([]);
+  const [board, setBoard] = useState<BoardResolved | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [drag, setDrag] = useState<{ task: string; from: string | null } | null>(null);
-  const [over, setOver] = useState<string | null>(null);
-  const [picker, setPicker] = useState<{ lane: number; x: number; y: number } | null>(null);
+  const [drag, setDrag] = useState<{ task: string; from: CompartmentAt } | null>(null);
+  const [over, setOver] = useState<string | null>(null); // "lane:comp" | "backlog"
+  const [picker, setPicker] = useState<{ lane: number; comp: number; x: number; y: number } | null>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
   const dropConfirm = useDropConfirm(); // the unified drop confirmation popup (drop-policy.ts)
+  const lanesRef = useRef<HTMLDivElement>(null);
+  const [panning, setPanning] = useState(false);
 
+  // GRAB-PAN the lane row (the image/map idiom): with many lanes the pane overflows
+  // horizontally — dragging its background scrolls it, no need to find the scrollbar. Cards,
+  // chips, and buttons keep their own gestures: the pan only takes the pane's empty ground.
+  const onPanDown = (e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    if ((e.target as Element).closest(".board-card, button, a, input, .tagtag")) return;
+    const el = lanesRef.current;
+    if (!el) return;
+    e.preventDefault(); // no text selection while panning
+    const start = { x: e.clientX, left: el.scrollLeft };
+    setPanning(true);
+    const move = (ev: MouseEvent) => { el.scrollLeft = start.left - (ev.clientX - start.x); };
+    const up = () => {
+      setPanning(false);
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+    };
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+  };
+
+  const fail = (e: unknown) => setError(String((e as Error)?.message || e));
+
+  // View-open: the silent structure fix (a still-seeded legacy board reconciles in memory only —
+  // opening a view never dirties the repo). Read-only servers just read.
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      try {
-        // Members + the workflow ref read from the (depth-1) node — there they are link markers; the
-        // `lanes:` config needs a DEEPER fetch (board → lanes → tags), where members instead
-        // expand inline, so the two are read from different depths.
-        const wfPath = workflowPathOf(node);
-        const hasLanes = tagFields(node.value).some(([k]) => k === "lanes");
-        const explicit = hasLanes ? explicitLanes(await fetchNode(node.path, 3)) : null;
-        let built: Lane[] = [];
-        if (explicit) {
-          built = await Promise.all(explicit.map(async (laneTags) => ({ tags: await Promise.all(laneTags.map(stateDetail)) })));
-        } else if (wfPath) {
-          const states = (await fetchWorkflowStates(wfPath)).filter((s) => !s.initial);
-          const flowing = states.filter((s) => s.next.length > 0);
-          const terminal = states.filter((s) => s.next.length === 0);
-          terminal.sort((a, b) => Number(isNegative(a.label)) - Number(isNegative(b.label)));
-          built = [...flowing.map((s) => ({ tags: [s] })), ...(terminal.length ? [{ tags: terminal }] : [])];
-        }
-        const members = cardMemberPaths(node);
-        const builtCards = await Promise.all(
-          members.map(async (tp): Promise<Card> => {
-            const tn = await fetchNode(tp, 2);
-            return { path: tp, title: tn.title ?? lastSeg(tp), priority: scalarField(tn.value, "priority"), assignee: scalarField(tn.value, "assignee"), due: scalarField(tn.value, "due"), tags: membershipsOf(tn) };
-          }),
-        );
-        if (cancelled) return;
-        setLanes(built);
-        setCards(builtCards);
-        setError(null);
-      } catch (e) {
-        if (!cancelled) setError(String((e as Error)?.message || e));
-      }
-    })();
+    (READ_ONLY ? fetchBoard(node.path) : boardReconcile(node.path))
+      .then((b) => { if (!cancelled) { setBoard(b); setError(null); } })
+      .catch((e) => { if (!cancelled) fail(e); });
+    return () => { cancelled = true; };
+  }, [node.path]);
+
+  // Any yamlover diff (a tag write elsewhere, another tab's move) → re-read the resolved board.
+  useEffect(() => {
+    if (!diffBump) return;
+    let cancelled = false;
+    fetchBoard(node.path)
+      .then((b) => { if (!cancelled) { setBoard(b); setError(null); } })
+      .catch((e) => { if (!cancelled) fail(e); });
     return () => { cancelled = true; };
   }, [node.path, diffBump]);
 
-  // The current lanes as a plain `lanes` config (materializing a workflow seed on first edit).
-  const currentLanes = (): string[][] => lanes.map((l) => l.tags.map((t) => t.path));
-  const persist = (ls: string[][]) => { saveBoardLanes(node.path, ls).catch((e) => setError(String((e as Error)?.message || e))); };
-  const addTagToLane = (laneI: number, tagPath: string) => { const ls = currentLanes(); if (!ls[laneI]) ls[laneI] = []; if (!ls[laneI].includes(tagPath)) ls[laneI].push(tagPath); persist(ls); };
-  const removeTagFromLane = (laneI: number, tagPath: string) => { const ls = currentLanes().map((l, i) => (i === laneI ? l.filter((t) => t !== tagPath) : l)); persist(ls); };
-  const addLane = () => persist([...currentLanes(), []]);
-  const removeLane = (laneI: number) => persist(currentLanes().filter((_, i) => i !== laneI));
+  const persist = (structure: BoardStructure) => {
+    saveBoardStructure(node.path, structure).then(setBoard).catch(fail);
+  };
+  const addLane = () => { if (board) persist([...structureOf(board.lanes), [{ tags: [], items: [] }]]); };
+  const removeLane = (laneI: number) => { if (board) persist(structureOf(board.lanes).filter((_, i) => i !== laneI)); };
+  const addCompartment = (laneI: number) => {
+    if (!board) return;
+    persist(structureOf(board.lanes).map((l, i) => (i === laneI ? [...l, { tags: [], items: [] }] : l)));
+  };
+  const removeCompartment = (laneI: number, compI: number) => {
+    if (!board) return;
+    const st = structureOf(board.lanes).map((l, i) => (i === laneI ? l.filter((_, j) => j !== compI) : l));
+    persist(st.filter((l) => l.length > 0)); // the last compartment takes its lane with it
+  };
+  const addTagToComp = (laneI: number, compI: number, tagPath: string) => {
+    if (!board) return;
+    const st = structureOf(board.lanes);
+    const comp = st[laneI]?.[compI];
+    if (!comp || comp.tags.includes(tagPath)) return;
+    comp.tags.push(tagPath);
+    persist(st);
+  };
+  const removeTagFromComp = (laneI: number, compI: number, tagPath: string) => {
+    if (!board) return;
+    const st = structureOf(board.lanes);
+    const comp = st[laneI]?.[compI];
+    if (!comp) return;
+    comp.tags = comp.tags.filter((t) => t !== tagPath);
+    persist(st);
+  };
 
-  const onDropTo = (to: WorkflowState, x: number, y: number) => {
+  // The move gesture — the board's ONLY retagging verb. The popup spells the tag deltas
+  // (board-model moveDeltas, the same rule the server re-runs authoritatively).
+  const onDropTo = (to: CompartmentAt, x: number, y: number) => {
     const d = drag;
     setDrag(null);
     setOver(null);
-    if (!d) return;
-    const card = cards.find((c) => c.path === d.task);
-    // drop-policy screens the retag (same-lane → refused silently); the popup confirms the rest
-    const v = planBoardRetag({ path: d.task, title: card?.title }, d.from, { path: to.path, label: to.label });
+    if (!d || !board) return;
+    const card = cardOf(board, d.task);
+    const fromView = d.from ? board.lanes[d.from.lane]?.[d.from.comp] : null;
+    const toView = to ? board.lanes[to.lane]?.[to.comp] : null;
+    const deltas = moveDeltas(
+      new Set(card?.tags ?? []),
+      fromView ? { tags: fromView.tags.map((t) => t.path), items: [] } : null,
+      toView ? { tags: toView.tags.map((t) => t.path), items: [] } : null,
+    );
+    const refs = [...(fromView?.tags ?? []), ...(toView?.tags ?? [])];
+    const named = (paths: string[]) => paths.map((p) => ({ path: p, name: refs.find((t) => t.path === p)?.name ?? p }));
+    const v = planBoardMove(
+      { path: d.task, title: card?.title },
+      d.from,
+      to,
+      { untag: named(deltas.untag), tag: named(deltas.tag) },
+      toView ? toView.tags.map((t) => t.name).join(" + ") || "compartment" : null,
+    );
     if (!v.allowed) return;
     dropConfirm.request(x, y, v.plan, async () => {
-      try {
-        await moveState(d.task, d.from, to.path);
-        setCards((cs) => cs.map((c) => (c.path === d.task ? { ...c, tags: [...c.tags.filter((t) => t !== d.from), to.path] } : c)));
-      } catch (e) {
-        setError(String((e as Error)?.message || e));
-      }
+      setBoard(await boardMove(node.path, d.task, d.from, to));
     });
   };
 
-  // The lane-header tag picker (reuses the floating AnnotationMenu; create-on-miss mints new tags).
+  // The compartment tag picker (reuses the floating AnnotationMenu; create-on-miss mints new tags).
   useEffect(() => {
     if (!picker) return;
-    const onDown = (e: MouseEvent) => { if (pickerRef.current?.contains(e.target as Node)) return; setPicker(null); };
+    const onDown = (e: MouseEvent) => {
+      if (pickerRef.current?.contains(e.target as Node)) return;
+      if (withinTocPane(e.target)) return; // a TOC row click APPLIES the tag — never a close
+      if (withinQueryDropdown(e.target)) return; // a candidate pick in the portaled dropdown — never a close
+      setPicker(null);
+    };
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
   }, [picker]);
 
   if (error) return <div className="board-error">Board error: {error}</div>;
+  if (!board) return <div className="board board-loading">…</div>;
+
+  const renderCard = (c: BoardCard, from: CompartmentAt, color: string, neg: boolean) => (
+    <article
+      key={c.path}
+      className={"board-card" + (neg ? " board-card-negative" : "")}
+      draggable={!READ_ONLY}
+      onDragStart={() => setDrag({ task: c.path, from })}
+      onDragEnd={() => { setDrag(null); setOver(null); }}
+      onClick={() => onNavigate(c.path)}
+      onContextMenu={openContextMenu ? (e) => { e.preventDefault(); openContextMenu(c.path, e.clientX, e.clientY); } : undefined}
+      title={displayPath(c.path)}
+      style={{ borderLeftColor: color }}
+    >
+      <div className="board-card-title">{c.title}</div>
+      <div className="board-card-meta">
+        {c.priority && <span className={"board-chip prio-" + c.priority}>{c.priority}</span>}
+        {c.assignee && <span className="board-chip board-assignee">@{c.assignee}</span>}
+        {c.due && <span className="board-chip board-due">{c.due.slice(0, 10)}</span>}
+      </div>
+    </article>
+  );
 
   return (
     <div className="board">
       {dropConfirm.element}
-      {lanes.map((lane, laneI) => {
-        const headColor = lane.tags[0] ? resolveTagColor({ name: lane.tags[0].label, color: lane.tags[0].color }) : "#6c7086";
-        const total = lane.tags.reduce((n, t) => n + cards.filter((c) => c.tags.includes(t.path)).length, 0);
-        return (
-          <section key={laneI} className="board-col">
-            <header className="board-col-head" style={{ borderTopColor: headColor }}>
-              <div className="board-col-tags">
-                {lane.tags.length === 1 && (
-                  <TagTip tag={{ path: lane.tags[0].path, name: lane.tags[0].label, color: lane.tags[0].color }}>
-                    <button
-                      type="button"
-                      className="tagtag on"
-                      style={tagStyle(resolveTagColor({ name: lane.tags[0].label, color: lane.tags[0].color }))}
-                      onClick={() => removeTagFromLane(laneI, lane.tags[0].path)}
+      <div className={"board-lanes" + (panning ? " board-panning" : "")} ref={lanesRef} onMouseDown={onPanDown}>
+        {board.lanes.map((lane, laneI) => {
+          const headTag = lane[0]?.tags[0];
+          const headColor = headTag ? resolveTagColor({ name: headTag.name, color: headTag.color }) : "#6c7086";
+          return (
+            <div key={laneI} className="board-col-wrap">
+            {/* no separate lane header — the FIRST compartment's tag row IS the lane's top
+                (it carries the lane 🗑 too), so no vertical space is spent above the tags */}
+            <section className="board-col" style={{ borderTopColor: headColor }}>
+              <div className="board-col-body">
+                {lane.map((comp, compI) => {
+                  const key = `${laneI}:${compI}`;
+                  const first = comp.tags[0];
+                  const color = first ? resolveTagColor({ name: first.name, color: first.color }) : "#6c7086";
+                  const neg = comp.tags.some((t) => isNegative(t.name));
+                  return (
+                    <div
+                      key={key}
+                      className={"board-group board-comp" + (compI > 0 ? " board-group-split" : "") + (over === key ? " board-group-over" : "")}
+                      onDragOver={(e) => { if (drag) { e.preventDefault(); if (over !== key) setOver(key); } }}
+                      onDrop={(e) => { e.preventDefault(); onDropTo({ lane: laneI, comp: compI }, e.clientX, e.clientY); }}
                     >
-                      <span className="tt-label">{lane.tags[0].label}</span>
-                    </button>
-                  </TagTip>
-                )}
-                {!READ_ONLY && <button className="board-lane-add" title={lane.tags.length === 0 ? "set this lane's tag" : "add a sublane"} onClick={(e) => setPicker({ lane: laneI, x: e.clientX, y: e.clientY })}>＋</button>}
-              </div>
-              <span className="board-col-count">{total}</span>
-              {!READ_ONLY && <button className="board-lane-del" title="remove this lane" onClick={() => removeLane(laneI)}>🗑</button>}
-            </header>
-            <div className="board-col-body">
-              {lane.tags.map((t, gi) => {
-                const groupCards = cards.filter((c) => c.tags.includes(t.path));
-                const color = resolveTagColor({ name: t.label, color: t.color });
-                const neg = isNegative(t.label);
-                return (
-                  <div
-                    key={t.path}
-                    className={"board-group" + (gi > 0 ? " board-group-split" : "") + (over === t.path ? " board-group-over" : "")}
-                    onDragOver={(e) => { if (drag) { e.preventDefault(); if (over !== t.path) setOver(t.path); } }}
-                    onDrop={(e) => { e.preventDefault(); onDropTo(t, e.clientX, e.clientY); }}
-                  >
-                    {lane.tags.length > 1 && (
-                      <div className="board-group-head">
-                        <span className="board-group-dot" style={tagStyle(color)} />
-                        <span className="board-group-title">{t.label}</span>
-                        <span className="board-col-count">{groupCards.length}</span>
-                        {!READ_ONLY && <button className="board-group-del" title="remove this sublane" onClick={() => removeTagFromLane(laneI, t.path)}>✕</button>}
+                      <div className="board-group-head board-comp-head">
+                        <div className="board-col-tags">
+                          {comp.tags.map((t) => (
+                            <TagTip key={t.path} tag={t}>
+                              <button
+                                type="button"
+                                className="tagtag on"
+                                title="remove this tag from the compartment"
+                                style={tagStyle(resolveTagColor({ name: t.name, color: t.color }))}
+                                onClick={() => removeTagFromComp(laneI, compI, t.path)}
+                              >
+                                <span className="tt-label">{t.name}</span>
+                              </button>
+                            </TagTip>
+                          ))}
+                          {!READ_ONLY && (
+                            <button
+                              className="board-lane-add"
+                              title={comp.tags.length === 0 ? "set this compartment's tag" : "add a tag"}
+                              onClick={(e) => setPicker({ lane: laneI, comp: compI, x: e.clientX, y: e.clientY })}
+                            >
+                              ＋
+                            </button>
+                          )}
+                        </div>
+                        <span className="board-col-count">{comp.items.length}</span>
+                        {!READ_ONLY && <button className="board-group-del" title="remove this compartment" onClick={() => removeCompartment(laneI, compI)}>✕</button>}
+                        {compI === 0 && !READ_ONLY && <button className="board-lane-del" title="remove this lane" onClick={() => removeLane(laneI)}>🗑</button>}
                       </div>
-                    )}
-                    <div className="board-group-cards">
-                      {groupCards.map((c) => (
-                        <article
-                          key={c.path}
-                          className={"board-card" + (neg ? " board-card-negative" : "")}
-                          draggable
-                          onDragStart={() => setDrag({ task: c.path, from: t.path })}
-                          onDragEnd={() => { setDrag(null); setOver(null); }}
-                          onClick={() => onNavigate(c.path)}
-                          onContextMenu={openContextMenu ? (e) => { e.preventDefault(); openContextMenu(c.path, e.clientX, e.clientY); } : undefined}
-                          title={displayPath(c.path)}
-                          style={{ borderLeftColor: color }}
-                        >
-                          <div className="board-card-title">{c.title}</div>
-                          <div className="board-card-meta">
-                            {c.priority && <span className={"board-chip prio-" + c.priority}>{c.priority}</span>}
-                            {c.assignee && <span className="board-chip board-assignee">@{c.assignee}</span>}
-                            {c.due && <span className="board-chip board-due">{c.due.slice(0, 10)}</span>}
-                          </div>
-                        </article>
-                      ))}
+                      <div className="board-group-cards">
+                        {comp.items.map((c) => renderCard(c, { lane: laneI, comp: compI }, color, neg))}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
+            </section>
+            {/* the vertical twin of the trailing ＋ lane ghost: a compartment is a stacked
+                sub-lane, so its adder reads "＋ lane" too — below the column, outside its box */}
+            {!READ_ONLY && <button className="board-add-comp" title="add a compartment below" onClick={() => addCompartment(laneI)}>＋ lane</button>}
             </div>
-          </section>
-        );
-      })}
-      {!READ_ONLY && <button className="board-add-lane" title="add a lane" onClick={addLane}>＋ lane</button>}
+          );
+        })}
+        {!READ_ONLY && <button className="board-add-lane" title="add a lane" onClick={addLane}>＋ lane</button>}
+      </div>
+      <section
+        className={"board-backlog" + (over === "backlog" ? " board-group-over" : "")}
+        onDragOver={(e) => { if (drag && drag.from) { e.preventDefault(); if (over !== "backlog") setOver("backlog"); } }}
+        onDrop={(e) => { e.preventDefault(); onDropTo(null, e.clientX, e.clientY); }}
+      >
+        <header className="board-backlog-head">
+          <span className="board-backlog-title">backlog</span>
+          <span className="board-col-count">{board.backlog.length}</span>
+        </header>
+        <div className="board-backlog-cards">
+          {board.backlog.map((c) => renderCard(c, null, "#6c7086", false))}
+        </div>
+      </section>
       {picker && (
         <AnnotationMenu
           menuRef={pickerRef}
@@ -271,7 +301,7 @@ export function BoardView({
           y={picker.y}
           applied={[]}
           mode="create"
-          onPick={(t: TagRef) => { addTagToLane(picker.lane, t.path); setPicker(null); }}
+          onPick={(t: TagRef) => { rememberTag(t); addTagToComp(picker.lane, picker.comp, t.path); setPicker(null); }}
           onClose={() => setPicker(null)}
           title={displayPath(node.path)}
         />

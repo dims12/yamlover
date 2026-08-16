@@ -26,7 +26,7 @@ export interface ChapterHarness {
   unmount(): void;
 }
 
-export function mountChapter(src: string, opts: { debug?: boolean; codec?: ProseCodec } = {}): ChapterHarness {
+export function mountChapter(src: string, opts: { debug?: boolean; codec?: ProseCodec; adapter?: Partial<ChapterCellsAdapter> } = {}): ChapterHarness {
   const doc = parseSource(src);
   const first = chapterPositionsOf(doc)[0] ?? null;
   let last: ChapterState = { ...initialChapterState(doc), focus: first, caret: first ? "end" : null };
@@ -41,7 +41,7 @@ export function mountChapter(src: string, opts: { debug?: boolean; codec?: Prose
     stateRef.current = state;
     last = state;
     push = (s) => { last = s; setState(s); };
-    const adapter: ChapterCellsAdapter = { codec, navigate: (p) => navigations.push(p), columnMemory };
+    const adapter: ChapterCellsAdapter = { codec, navigate: (p) => navigations.push(p), columnMemory, ...opts.adapter };
     const ctx: ChapterCtxValue = {
       state,
       debug: opts.debug ?? true,

@@ -50,7 +50,8 @@ import { renderPointer, parsePointer } from "../../../parser/ts/src/pointer.ts";
 import { scanMarklower, type FragToken as FragTokenT } from "../../../parser/ts/src/marklower-links.ts";
 import { pathOfSegs, segsOfPath, segToken } from "../../../parser/ts/src/pathseg.ts";
 import { anchorBody, seqMarkLen, stripSeqMark } from "../../../parser/ts/src/serialize-common.ts";
-import { upsertFragment, upsertThumbnail, removeMapEntry, keyToken, upsertMapEntryAt, removeMapEntryAt, pruneEmptyAnnotations, reachBodyAt, pruneEmptyKeyAt, pruneEmptyYo, appendBookmark, appendBookmarkAt, removeBookmark, removeBookmarkAt, bookmarksRemain, bookmarksRemainAt, type Region as EmbedRegion } from "./embed.js";
+import { upsertFragment, upsertThumbnail, removeMapEntry, keyToken, upsertMapEntryAt, removeMapEntryAt, pruneEmptyAnnotations, reachBody, reachBodyAt, replaceSeqEntryAt, pruneEmptyKeyAt, pruneEmptyYo, appendBookmark, appendBookmarkAt, removeBookmark, removeBookmarkAt, bookmarksRemain, bookmarksRemainAt, type Region as EmbedRegion } from "./embed.js";
+import { applyMove, compartmentAt, moveDeltas, reconcile as reconcileBoard, seedFromOldLanes, seedFromWorkflow, type BoardItem, type BoardStructure, type Compartment, type CompartmentAt } from "../board-model.js";
 import { BODY_FILE, INDEX_FILE, OVERLAY_DIR, dataFileConcrete, dirConcreteFor, interiorOf, isDirConcrete, isOverlayDirConcrete, overlaySegs, pointerSafeName, type DirConcrete } from "../concrete.js";
 import { classifyScalar, isDefaultRepr, type BlockQualifiers, type Repr, type ScalarStyle } from "../repr.js";
 import { renderThumbnail } from "./extract/thumbnails.js";
@@ -748,25 +749,70 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
         return;
       }
 
-      // Persist a BOARD's lane configuration (TICKETS.md §3 — the board is the explorer's per-tag
-      // view). Rewrites the board directory's overlay `lanes:` block (a sequence of lanes, each a
-      // flow-sequence of tag pointers — one tag = a plain lane, several = sublanes), then
-      // reconciles. Body: { path, lanes: string[][] } where each inner string is a tag client-path.
-      // The pointers are written project-scope (`*::…`), exactly like an annotation's tag (so they
-      // resolve from the served root).
+      // The TAG BOARD's write verbs (TICKETS.md §3). The board's structure — lanes of tagged
+      // COMPARTMENTS holding chapter refs — lives under the board's `yo: lanes:` member
+      // (board-model.ts is the pure policy; a board still on the legacy `workflow:`/`lanes:`
+      // seed materializes on its first write here). Body: { path, op, … } with three ops:
+      //   structure  { structure }              — add/remove lanes/compartments, set tags, manual
+      //                                          moves; reconciled, then written wholesale
+      //   move       { task, from|null, to|null } — the drag gesture (the ONLY retagging verb):
+      //                                          untag/tag by the compartments' deltas, then
+      //                                          restructure + reconcile; null = the backlog
+      //   reconcile  {}                          — silent structure fix (view-open); writes only
+      //                                          a materialized board, and only when changed
+      // Every op answers with the resolved board (the GET /api/board shape).
       if (req.method === "POST" && url.pathname === "/api/board") {
         readBody(req)
           .then((data) =>
             enqueue(async () => {
-              const b = data as { path?: string; lanes?: unknown };
-              const lanes: string[][] = Array.isArray(b?.lanes) ? b.lanes.map((lane) => (Array.isArray(lane) ? lane.map((p) => String(p)) : [])) : [];
-              const { bodyFile } = hostFor(dataRoot, s, strToSegs(b?.path || ":"));
-              mkdirInside(dataRoot, path.dirname(bodyFile), { recursive: true });
-              const src = fs.existsSync(bodyFile) ? fs.readFileSync(bodyFile, "utf8") : "";
-              writeBody(dataRoot, s, bodyFile, writeBoardLanes(src, lanes));
-              broadcast(await doReindex());
-              scheduleHasher();
-              return { ok: true };
+              const b = data as { path?: string; op?: string; structure?: unknown; task?: string; from?: unknown; to?: unknown };
+              const boardSegs = strToSegs(b?.path || ":");
+              const boardStore = storePath(boardSegs);
+              if (!s.node(boardStore)) throw new Error(`no board at ${b?.path || ":"}`);
+              const op = String(b?.op ?? "");
+              const read = readBoardStructure(s, boardStore);
+              const structure = read ?? seedBoardStructure(s, boardStore);
+              const writeStructure = async (st: BoardStructure): Promise<void> => {
+                const { bodyFile } = hostFor(dataRoot, s, boardSegs);
+                mkdirInside(dataRoot, path.dirname(bodyFile), { recursive: true });
+                const src = fs.existsSync(bodyFile) ? fs.readFileSync(bodyFile, "utf8") : "";
+                writeBody(dataRoot, s, bodyFile, writeBoardStructure(src, st));
+                broadcast(await doReindexFile(bodyFile));
+              };
+              if (op === "structure") {
+                const st = sanitizeBoardStructure(b.structure);
+                const rec = reconcileBoard(st, memberTagSets(s, boardMembers(s, boardStore)));
+                await writeStructure(rec.structure);
+                scheduleHasher();
+                return { seeded: false, ...resolveBoard(s, boardMembers(s, boardStore), rec.structure) };
+              }
+              if (op === "move") {
+                const task = String(b.task ?? "");
+                const taskStore = storePath(strToSegs(task));
+                if (!task || !s.node(taskStore)) throw new Error("move needs a `task` naming an existing node");
+                const from = boardCoord(b.from);
+                const to = boardCoord(b.to);
+                // the retag half: the source/destination compartments' tag deltas (the pure rule)
+                const deltas = moveDeltas(memberTagSets(s, [task]).get(task)!, compartmentAt(structure, from), compartmentAt(structure, to));
+                for (const t of deltas.untag) broadcast(await doReindexFile(unembedAnnotation(dataRoot, s, task, t)));
+                for (const t of deltas.tag) broadcast(await doReindexFile(embedAnnotation(dataRoot, s, settings.sidecars, { target: task, tag: t })));
+                // the structure half: move this instance, then reconcile with the POST-retag tags
+                // (the tag change may relocate the task's OTHER instances too)
+                const moved = applyMove(structure, task, from, to);
+                const rec = reconcileBoard(moved, memberTagSets(s, boardMembers(s, boardStore)));
+                await writeStructure(rec.structure);
+                scheduleHasher();
+                return { seeded: false, ...resolveBoard(s, boardMembers(s, boardStore), rec.structure) };
+              }
+              if (op === "reconcile") {
+                const rec = reconcileBoard(structure, memberTagSets(s, boardMembers(s, boardStore)));
+                // a still-seeded legacy board reconciles IN MEMORY only — merely opening the
+                // view must not dirty the repo; the first USER write materializes it
+                if (read !== null && rec.changed) await writeStructure(rec.structure);
+                scheduleHasher();
+                return { seeded: read === null, ...resolveBoard(s, boardMembers(s, boardStore), rec.structure) };
+              }
+              throw new Error(`unknown board op: ${op || "(none)"}`);
             }),
           )
           .then((body) => sendJson(res, 201, body))
@@ -1103,6 +1149,20 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
         const row = s.node(p);
         if (!row) return notFound(res, url);
         sendJson(res, 200, taggedMaterials(dataRoot, s, p));
+        return;
+      }
+
+      // The resolved TAG BOARD (TICKETS.md §3): the board's `yo: lanes:` structure — else the
+      // legacy `lanes:`/`workflow:` seed (`seeded: true`) — with compartment tags and cards
+      // resolved, plus the BACKLOG (direct members referenced by no compartment). Read-only:
+      // the display is reconciled IN MEMORY; the writes are POST /api/board's ops.
+      if (url.pathname === "/api/board") {
+        const row = s.node(p);
+        if (!row) return notFound(res, url);
+        const read = readBoardStructure(s, p);
+        const members = boardMembers(s, p);
+        const { structure } = reconcileBoard(read ?? seedBoardStructure(s, p), memberTagSets(s, members));
+        sendJson(res, 200, { seeded: read === null, ...resolveBoard(s, members, structure) });
         return;
       }
 
@@ -1861,24 +1921,177 @@ function pointerRaw(clientPath: string): string {
   return "::" + out;
 }
 
-/** Rewrite a board overlay's top-level `lanes:` block (TICKETS.md §3). `lanes` is the lanes, each a
- *  list of tag client-paths; each lane is emitted as a flow-sequence of project-scope pointers. An
- *  existing `lanes:` block (its `- …` items) is replaced; otherwise the block is appended. A fresh
- *  file is seeded with the board schema tag so it indexes as a board. */
-function writeBoardLanes(src: string, lanes: string[][]): string {
-  const laneLine = (lane: string[]) => `- [${lane.map((p) => pointerToken(pointerRaw(p))).join(", ")}]`;
-  const block = lanes.length === 0 ? ["lanes: []"] : ["lanes:", ...lanes.map(laneLine)];
+// ─────────────── THE TAG BOARD (TICKETS.md §3; board-model.ts is the pure policy) ───────────────
+// The structure lives under the board's `yo: lanes:` member, BLOCK form only (flow refuses
+// anchors): lane items at the key's own indent, each compartment a nested `- ` item whose body
+// carries its tag bookmarks (`&…:-` own-line — the compartment IS a member of its tags) followed
+// by its item refs (`- *::…` / `key: *::…`). The whole block is machine-owned and rewritten
+// wholesale on every structure write; a dangling item ref (its target deleted) has no edge row to
+// read back, so it drops on the next rewrite — /api/dangling reports it in the meantime.
+
+const LANES_SUBKEY = "lanes";
+// keys the board owns as config/taxonomy/graft — never cards (the client twin: board.tsx)
+const BOARD_CONFIG_KEYS = new Set(["workflow", "lanes", "yamlover", "ontos", YO_KEY]);
+const TAGISH_FORMATS = new Set([ONTO_FORMAT, "x-yamlover-workflow", "x-yamlover-board"]);
+
+/** Rewrite the board's `yo: lanes:` block from `structure`. A fresh file is seeded with the
+ *  board schema tag so it indexes as a board; everything else in the body is preserved. */
+function writeBoardStructure(src: string, structure: BoardStructure): string {
   let lines = src.replace(/\n+$/, "").split("\n");
   if (src.trim() === "") lines = ["!!<*yamlover:$defs:board>"];
-  const start = lines.findIndex((l) => /^lanes:/.test(l));
-  if (start >= 0) {
-    let end = start + 1;
-    while (end < lines.length && (lines[end] === "" || /^[ \t-]/.test(lines[end]))) end++; // the block's items
-    lines.splice(start, end - start, ...block);
-  } else {
-    lines.push(...block);
-  }
+  const render = (indent: number): string[] => {
+    const pad = " ".repeat(indent);
+    if (structure.length === 0) return [`${pad}lanes: []`];
+    const out: string[] = [`${pad}lanes:`];
+    const cpad = " ".repeat(indent + 2); // a lane's 2nd+ compartment mark column
+    const bpad = " ".repeat(indent + 4); // a compartment's body (bookmarks + items)
+    for (const lane of structure) {
+      const comps = lane.length ? lane : [{ tags: [], items: [] } as Compartment]; // a lane holds ≥1 compartment
+      comps.forEach((comp, ci) => {
+        out.push(ci === 0 ? `${pad}- -` : `${cpad}-`); // the first compartment folds onto the lane's mark
+        for (const t of comp.tags) out.push(`${bpad}&${pointerRaw(t)}:-`);
+        for (const it of comp.items)
+          out.push(it.key !== undefined ? `${bpad}${keyToken(it.key)}: *${pointerRaw(it.path)}` : `${bpad}- *${pointerRaw(it.path)}`);
+      });
+    }
+    return out;
+  };
+  replaceSeqEntryAt(lines, reachBody(lines, [YO_KEY]), LANES_SUBKEY, render);
   return lines.join("\n") + "\n";
+}
+
+/** A node's whole-node memberships (its ordinal `&…:-` bookmarks), as client tag paths. */
+function membershipPathsOf(s: Store, store: string): string[] {
+  return s
+    .relationships(store)
+    .out.filter((e) => e.kind === "back" && e.label == null)
+    .map((e) => segsToStr(storePathToSegs(e.to)));
+}
+
+/** The board's materialized `yo: lanes:` structure, read off the index — null when absent
+ *  (a legacy board still on its `workflow:`/top-level `lanes:` seed). */
+function readBoardStructure(s: Store, boardStore: string): BoardStructure | null {
+  const lanesStore = childPath(childPath(boardStore, YO_KEY), LANES_SUBKEY);
+  if (!s.node(lanesStore)) return null;
+  return s.children(lanesStore).map((lane) =>
+    s.children(lane.to).map((comp) => ({
+      tags: membershipPathsOf(s, comp.to),
+      items: s
+        .entries(comp.to)
+        .filter((e) => e.kind === "ref")
+        .map((e): BoardItem => ({ path: segsToStr(storePathToSegs(e.to)), ...(e.label != null ? { key: e.label } : {}) })),
+    })),
+  );
+}
+
+/** The in-memory SEED for a not-yet-materialized board: the retired top-level `lanes:` config
+ *  first (each former sublane tag one compartment), else the `workflow:` states — one
+ *  single-compartment lane per state, the INITIAL state included (the backlog SECTION is the
+ *  structural orphan set, a different thing). */
+function seedBoardStructure(s: Store, boardStore: string): BoardStructure {
+  const oldLanes = childPath(boardStore, LANES_SUBKEY);
+  if (s.node(oldLanes)) {
+    return seedFromOldLanes(
+      s.children(oldLanes).map((lane) =>
+        s
+          .entries(lane.to)
+          .filter((e) => e.kind === "ref" && e.label == null)
+          .map((e) => segsToStr(storePathToSegs(e.to))),
+      ),
+    );
+  }
+  const wf = s.relationships(boardStore).out.find((e) => e.kind === "ref" && e.label === "workflow");
+  if (wf) {
+    const children = s.children(wf.to).filter((c) => c.label && c.label !== "initial" && c.label !== "color");
+    // states are the workflow's onto sub-tags; a taxonomy authored without the onto schema
+    // (plain sub-keys) still seeds — take every keyed child when no onto is found
+    const ontos = children.filter((c) => s.node(c.to)?.format === ONTO_FORMAT);
+    return seedFromWorkflow((ontos.length ? ontos : children).map((c) => segsToStr(storePathToSegs(c.to))));
+  }
+  return [];
+}
+
+/** The board's CARD members — its direct entities, not config/taxonomy/graft, not the hidden
+ *  overlay, not a tag/workflow/board, and not a plain inline data field (a leaf scalar with no
+ *  children and no backing document). The server twin of the client's cardMemberPaths. */
+function boardMembers(s: Store, boardStore: string): string[] {
+  const out: string[] = [];
+  for (const c of s.children(boardStore)) {
+    if (!c.label || BOARD_CONFIG_KEYS.has(c.label) || isHidden(s, c.to)) continue;
+    const n = s.node(c.to);
+    if (!n || (n.format && TAGISH_FORMATS.has(n.format))) continue;
+    if (n.type === "scalar" && !n.meta?.documentRoot && s.children(c.to).length === 0) continue;
+    out.push(segsToStr(storePathToSegs(c.to)));
+  }
+  return out;
+}
+
+/** Each member's current tag set (client paths) — the reconcile / moveDeltas input. */
+function memberTagSets(s: Store, members: string[]): Map<string, Set<string>> {
+  return new Map(members.map((p) => [p, new Set(membershipPathsOf(s, storePath(strToSegs(p))))]));
+}
+
+/** One card's display stub. Tolerates a missing node (a dangling foreign ref renders inert). */
+function boardCardStub(s: Store, p: string): Record<string, unknown> {
+  const segs = strToSegs(p);
+  const store = storePath(segs);
+  const field = (k: string): string | null => {
+    const v = s.node(childPath(store, k))?.value;
+    return v == null ? null : String(v);
+  };
+  return {
+    path: p,
+    title: (s.node(store) ? displayNameOf(s, store) : null) ?? String(segs[segs.length - 1] ?? p),
+    priority: field("priority"),
+    assignee: field("assignee"),
+    due: field("due"),
+    tags: membershipPathsOf(s, store),
+  };
+}
+
+/** The resolved board the client renders: compartment tags as `{path,name,color}` refs, items
+ *  as card stubs, and the BACKLOG — every direct member referenced by no compartment. */
+function resolveBoard(s: Store, members: string[], structure: BoardStructure): { lanes: unknown[][]; backlog: unknown[] } {
+  const inComp = new Set<string>();
+  const lanes = structure.map((lane) =>
+    lane.map((comp) => ({
+      tags: comp.tags.map((t) => projectTag(s, storePath(strToSegs(t)))).filter(Boolean),
+      items: comp.items.map((it) => {
+        inComp.add(it.path);
+        return { ...boardCardStub(s, it.path), ...(it.key !== undefined ? { key: it.key } : {}) };
+      }),
+    })),
+  );
+  const backlog = members.filter((p) => !inComp.has(p)).map((p) => boardCardStub(s, p));
+  return { lanes, backlog };
+}
+
+/** The client's posted structure, validated shape-first (paths as plain strings — the write
+ *  path re-spells them via {@link pointerRaw}, which throws on anything unspellable). */
+function sanitizeBoardStructure(raw: unknown): BoardStructure {
+  if (!Array.isArray(raw)) throw new Error("board structure must be an array of lanes");
+  return raw.map((lane) =>
+    (Array.isArray(lane) ? lane : []).map((comp): Compartment => {
+      const c = comp as { tags?: unknown; items?: unknown };
+      return {
+        tags: Array.isArray(c?.tags) ? c.tags.map(String) : [],
+        items: Array.isArray(c?.items)
+          ? c.items
+              .map((it): BoardItem => {
+                const o = it as { path?: unknown; key?: unknown };
+                return { path: String(o?.path ?? ""), ...(o?.key != null ? { key: String(o.key) } : {}) };
+              })
+              .filter((it) => it.path !== "")
+          : [],
+      };
+    }),
+  );
+}
+
+/** A posted compartment coordinate — `{lane, comp}`, or null (the backlog). */
+function boardCoord(v: unknown): CompartmentAt {
+  const o = v as { lane?: unknown; comp?: unknown } | null | undefined;
+  return o != null && typeof o.lane === "number" && typeof o.comp === "number" ? { lane: o.lane, comp: o.comp } : null;
 }
 
 // --- derived sidecars: where the bytes live + how the overlay points at them ------------------ //
@@ -2106,11 +2319,34 @@ function embedAnnotation(dataRoot: string, s: Store, mode: SidecarLocation, a: A
     writeBody(dataRoot, s, bodyFile, lines.join("\n") + "\n");
     return bodyFile;
   }
+  // A whole-node membership on a yamlover DOCUMENT rides the document itself, whatever its
+  // root shape — a bookmark is an edge, never an entry, so a scalar/omni doc stays what it is
+  // (hostFor's overlay reroute exists for KEYED growth, which a leaf source cannot take).
+  const own = ownDocFile(dataRoot, segs);
+  if (own) {
+    writeBody(dataRoot, s, own, appendBookmark(fs.readFileSync(own, "utf8"), [], tokens));
+    return own;
+  }
   const { bodyFile, within } = hostFor(dataRoot, s, segs);
   mkdirInside(dataRoot, path.dirname(bodyFile), { recursive: true });
   const src = fs.existsSync(bodyFile) ? fs.readFileSync(bodyFile, "utf8") : "";
   writeBody(dataRoot, s, bodyFile, appendBookmark(src, within, tokens));
   return bodyFile;
+}
+
+/** The target's OWN document file, when it is one that can carry its whole-node bookmarks in
+ *  place: an existing `.yo` (or legacy `.yamlover`) source — the parser accepts own-line `&`
+ *  lines on any root shape. Null otherwise (a blob, a foreign concrete, an inlined node, a
+ *  directory) — those keep the enclosing overlay host (docs/annotations/storage). */
+function ownDocFile(dataRoot: string, segs: Seg[]): string | null {
+  if (segs.length === 0 || segs.some((s) => typeof s === "number")) return null;
+  const abs = path.resolve(dataRoot, ...segs.map(String));
+  if (!/\.(yo|yamlover)$/i.test(abs)) return null;
+  try {
+    return fs.statSync(abs).isFile() ? abs : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Embed a fragment under the target's `yo: fragments:` mapping; for an image-like selection,
@@ -2266,6 +2502,18 @@ function unembedAnnotation(dataRoot: string, s: Store, target: string, tag: stri
     }
     writeBody(dataRoot, s, bodyFile, lines.join("\n") + "\n");
     return bodyFile;
+  }
+  // The own-document host first (the embed twin above); when the file carries no such
+  // bookmark, FALL THROUGH to the overlay host — a membership filed under the old routing
+  // (or authored there) must stay removable, never a stale zombie.
+  const own = ownDocFile(dataRoot, segs);
+  if (own) {
+    const before = fs.readFileSync(own, "utf8");
+    const after = removeBookmark(before, [], pred);
+    if (after !== before) {
+      writeBody(dataRoot, s, own, after);
+      return own;
+    }
   }
   const { bodyFile, within } = hostFor(dataRoot, s, segs);
   if (!fs.existsSync(bodyFile)) return bodyFile;

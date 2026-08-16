@@ -64,6 +64,8 @@ const FORMAT: Record<string, string> = {
 function mediaIcon(format: string): string | null {
   if (format === "x-yamlover-chapter") return "§"; // a chapter — the section sign
   if (format === "x-yamlover-onto") return "🏷️";
+  if (format === "x-yamlover-board") return "📋"; // a task board — a clipboard of tickets
+  if (format === "x-yamlover-task") return "🎫"; // a task — one ticket
   if (format.startsWith("x-yamlover-")) return "🧩"; // a custom yamlover renderer
   if (format === "application/pdf") return "📕";
   if (format === "application/x-fictionbook+xml") return "📘";

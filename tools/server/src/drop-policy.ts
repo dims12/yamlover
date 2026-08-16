@@ -14,6 +14,7 @@
 import { isDirConcrete, isFileConcrete } from "./concrete";
 import { strToSegs, segsToStr, isAncestorPath } from "./client/paths";
 import { isReadOnly } from "./client/base";
+import type { CompartmentAt } from "./board-model";
 
 /** The facets a drop decision needs — a TreeNode, an explorer Link, or a NodeJson projects
  *  onto this. `concrete` is the docs/language/concretes value ("dir", "file/yaml", "yamlover", …). */
@@ -27,7 +28,7 @@ export interface DropNode {
 export type DropPlan =
   | { kind: "move-node"; from: string; to: string; description: string }
   | { kind: "upload-files"; target: string; files: string[]; description: string }
-  | { kind: "board-retag"; task: string; fromTag: string | null; toTag: string; description: string };
+  | { kind: "board-move"; task: string; from: CompartmentAt; to: CompartmentAt; untag: string[]; tag: string[]; description: string };
 
 export type DropVerdict = { allowed: true; plan: DropPlan } | { allowed: false; reason: string };
 
@@ -77,18 +78,32 @@ export function planFileUpload(target: DropNode, fileNames: string[]): DropVerdi
   };
 }
 
-/** Dropping a board card onto a lane — an advisory retag (moveState: delete the old
- *  state annotation, add the new). */
-export function planBoardRetag(
+/** Dropping a board card onto a COMPARTMENT (or the backlog, `to === null`) — the tag board's
+ *  move gesture (POST /api/board op:"move"): untag the source compartment's shared tags, tag the
+ *  destination's missing ones (board-model.ts moveDeltas — the caller computes the deltas from
+ *  the resolved board so the popup can spell them; the server recomputes authoritatively). */
+export function planBoardMove(
   task: { path: string; title?: string },
-  fromTag: string | null,
-  toTag: { path: string; label: string },
+  from: CompartmentAt,
+  to: CompartmentAt,
+  deltas: { untag: { path: string; name: string }[]; tag: { path: string; name: string }[] },
+  toLabel: string | null, // the destination compartment's display name; null = the backlog
 ): DropVerdict {
   if (isReadOnly()) return no("server is read-only");
-  if (fromTag === toTag.path) return no("already in this lane");
+  if (from === null && to === null) return no("already in the backlog");
+  if (from !== null && to !== null && from.lane === to.lane && from.comp === to.comp) return no("already in this compartment");
   const name = task.title || task.path;
+  const delta = [...deltas.tag.map((t) => `+${t.name}`), ...deltas.untag.map((t) => `−${t.name}`)].join(", ");
   return {
     allowed: true,
-    plan: { kind: "board-retag", task: task.path, fromTag, toTag: toTag.path, description: `Move "${name}" to "${toTag.label}"` },
+    plan: {
+      kind: "board-move",
+      task: task.path,
+      from,
+      to,
+      untag: deltas.untag.map((t) => t.path),
+      tag: deltas.tag.map((t) => t.path),
+      description: `Move "${name}" to ${to === null ? "the backlog" : `"${toLabel ?? "compartment"}"`}${delta ? ` (${delta})` : ""}`,
+    },
   };
 }

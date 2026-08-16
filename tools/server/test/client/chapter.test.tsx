@@ -497,3 +497,53 @@ describe("the page root anchor", () => {
     expect(getTocPresence().anchors.get(":")).toBe("/");
   });
 });
+
+// ---------------------------------------------------------------------------- //
+// Per-node tag chips — memberships from the comments sidecar, right of titles/chunks
+// ---------------------------------------------------------------------------- //
+
+describe("per-node tag chips", () => {
+  const commented: NodeJson = {
+    ...chapter,
+    comments: {
+      "": { anchors: ["::ontos:rooty:-"] },     // the ROOT chapter — the header bar owns these
+      "/2": { anchors: ["::ontos:urgent:-"] },  // first chunk — chips
+      "/3": { anchors: ["::ontos:alias"] },     // a KEYED bookmark (an alias) — never a chip
+      "/4": { anchors: ["::ontos:review:-"] },  // the subchapter — chips on its heading
+    },
+  };
+
+  it("chips chunks and subchapter headings; keyed aliases and the root title stay bare", () => {
+    render(<ChapterView node={commented} onNavigate={vi.fn()} />);
+    // the tagged chunk carries the chip row in its tools slot (label = the tag's last segment
+    // until the resolve settles — fetchNode never settles here)
+    expect(document.getElementById("/2")!.querySelector(".chunk-tags")?.textContent).toContain("urgent");
+    // the keyed alias is not a membership
+    expect(document.getElementById("/3")!.querySelector(".chunk-tags")).toBeNull();
+    // the subchapter's heading (its loading link face) shows its own tags
+    const sub = Array.from(document.querySelectorAll(".chapter-sub .chapter-title"))
+      .find((t) => t.textContent?.includes("Installation"))!;
+    expect(sub.querySelector(".title-tags")?.textContent).toContain("review");
+    // the page root's tags belong to the NodeView header bar, never the H1
+    expect(screen.getByText("The Handbook").closest("h1")!.querySelector(".title-tags")).toBeNull();
+  });
+
+  it("a materialized member's tags resolve through its anchorKey-remapped bucket", () => {
+    const withMember: NodeJson = {
+      ...chapter,
+      value: {
+        $yamloverMixed: {
+          kind: "mix",
+          entries: [
+            { key: "title", value: "The Handbook" },
+            { key: "dogs", anchor: true, value: { $yamloverLink: { kind: "scalar", type: "string", format: "text/markdown", path: ":dogs", value: "Dogs bark." } } },
+          ],
+        },
+      },
+      comments: { "/dogs": { anchors: ["::ontos:pets:-"] } }, // keyed by anchorKey, not the index
+    };
+    render(<ChapterView node={withMember} onNavigate={vi.fn()} />);
+    const chunk = screen.getByText("Dogs bark.").closest(".chunk")!;
+    expect(chunk.querySelector(".chunk-tags")?.textContent).toContain("pets");
+  });
+});
