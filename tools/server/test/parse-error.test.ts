@@ -56,7 +56,7 @@ describe("a degraded node declares its parse error and refuses mediated writes",
     expect(env.parseError).toMatchObject({ file: "julia/index.yo" });
 
     // a write that would re-serialize the broken overlay (the board rewrites the dir's body)
-    const bad = await callBody(h, "POST", "/api/board", { path: ":julia", lanes: [] });
+    const bad = await callBody(h, "POST", "/api/board", { path: ":julia", op: "structure", structure: [] });
     expect(bad.status).toBe(400);
     expect(String(bad.json.error)).toMatch(/cannot edit :julia\b/);
     expect(fs.readFileSync(path.join(root, "julia", "index.yo"), "utf8")).toBe(BROKEN); // untouched
