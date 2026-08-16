@@ -192,13 +192,14 @@ export function fmtDerivedAnchor(name: string): string {
   return "&" + name;
 }
 
-/** The syntax decorations on an entry's key line — its type tag then its `&` anchors (a tag is
- *  yamlover-only; json5p has no `!!…`). Rendered right after `key:`, before the value. */
+/** The syntax decorations on an entry's key line — its type tag (yamlover-only; json5p has no
+ *  `!!…`) and, in JSON, its quoted `&` anchors. Yamlover bookmarks are own-line (see
+ *  {@link yamlAnchorLines}), not jammed before the value. */
 function decoSpan(ctx: Ctx, frag: string, syntax: Syntax): ReactNode {
   const d = commentsAt(ctx, frag);
   if (!d) return null;
   const tag = syntax === "yaml" ? d.tag : undefined;
-  const anchors = d.anchors ?? [];
+  const anchors = syntax === "json" ? (d.anchors ?? []) : [];
   if (!tag && anchors.length === 0) return null;
   return (
     <>
@@ -206,6 +207,16 @@ function decoSpan(ctx: Ctx, frag: string, syntax: Syntax): ReactNode {
       {anchors.map((a, i) => <Fragment key={`an${i}`}>{" "}<span className="anchor">{fmtAnchor(a, syntax)}</span></Fragment>)}
     </>
   );
+}
+
+/** Canonical yamlover bookmark placement: own lines at `indent`, right after the value
+ *  (`path: 12` then `  &: another: path` — docs/language/pointers/bookmarks). Colon-styled
+ *  bodies ride bare; the token runs to EOL. */
+function yamlAnchorLines(ctx: Ctx, frag: string, indent: number): ReactNode {
+  const anchors = commentsAt(ctx, frag)?.anchors ?? [];
+  if (anchors.length === 0) return null;
+  const pad = " ".repeat(indent);
+  return <>{anchors.map((a, i) => <Fragment key={`al${i}`}>{pad}<span className="anchor">{fmtAnchor(a, "yaml")}</span>{"\n"}</Fragment>)}</>;
 }
 
 /** Own-line `leading` comments above an entry, each at `pad` indent. */
@@ -710,8 +721,11 @@ function flowLine(value: unknown, ctx: Ctx, frag: string, path: string | null): 
 function YamlBody({ value, indent, ctx, frag, path, inlineHead = false }: { value: unknown; indent: number; ctx: Ctx; frag: string; path: string | null; inlineHead?: boolean }): ReactNode {
   const mixed = asMixed(value);
   if (mixed) return <YamlMixed mixed={mixed} indent={indent} ctx={ctx} frag={frag} path={path} inlineHead={inlineHead} />;
-  if (isObj(value)) return <YamlObject entries={Object.entries(value)} indent={indent} ctx={ctx} frag={frag} path={path} inlineHead={inlineHead} />;
-  return <YamlArray items={value as unknown[]} indent={indent} ctx={ctx} frag={frag} path={path} inlineHead={inlineHead} />;
+  // the viewed root's bookmarks already sit in RootDeco; nested containers emit them here,
+  // before their entries (serialize-yamlover `anchorLines` then `entries`)
+  const anchors = frag !== ctx.base ? yamlAnchorLines(ctx, frag, indent) : null;
+  if (isObj(value)) return <>{anchors}<YamlObject entries={Object.entries(value)} indent={indent} ctx={ctx} frag={frag} path={path} inlineHead={inlineHead} /></>;
+  return <>{anchors}<YamlArray items={value as unknown[]} indent={indent} ctx={ctx} frag={frag} path={path} inlineHead={inlineHead} /></>;
 }
 
 /** The children a yamlover value projects as rows — mixed entries, object keys, or array items. */
@@ -856,6 +870,7 @@ function YamlFlatLeaf({ segs, v, indent, ctx, frag, path, pad, noPad, stamped }:
   const trail = trailingComment(ctx, frag, "yaml");
   const ptr = commentsAt(ctx, frag)?.pointer;
   const deco = decoSpan(ctx, frag, "yaml");
+  const bookmarks = yamlAnchorLines(ctx, frag, indent + 2);
   const head = (
     <>
       {noPad ? null : pad}
@@ -869,12 +884,15 @@ function YamlFlatLeaf({ segs, v, indent, ctx, frag, path, pad, noPad, stamped }:
       <>
         <FoldToggle open={open} onToggle={() => setOpen((o) => !o)} />
         {flatRowLine(segs, <>{head}{deco}{" "}<BigScalarYaml v={asBinary(v) ?? (v as string)} indent={indent + 2} open={open} trail={trail} raw={commentsAt(ctx, frag)?.raw} format={tagFormat(commentsAt(ctx, frag)?.tag)} /></>)}
+        {bookmarks}
       </>
     );
   }
-  if (!foldable(v)) return <>{flatRowLine(segs, <>{head}{deco}{inlineYamlValue(v, ctx, path, trail, ptr && fmtPointer(ptr, "yaml"), commentsAt(ctx, frag)?.raw, false)}</>)}{"\n"}</>;
+  // a flat row ending in a null with bookmarks: the prefix alone, the `&…` below (see YamlEntry)
+  if (v === null && bookmarks) return <>{flatRowLine(segs, <>{head}{deco}{trail}</>)}{"\n"}{bookmarks}</>;
+  if (!foldable(v)) return <>{flatRowLine(segs, <>{head}{deco}{inlineYamlValue(v, ctx, path, trail, ptr && fmtPointer(ptr, "yaml"), commentsAt(ctx, frag)?.raw, false)}</>)}{"\n"}{bookmarks}</>;
   const flowTok = flowOrKr(v, ctx, frag, path, indent);
-  if (flowTok) return <>{flatRowLine(segs, <>{head}{deco}{" "}{flowTok}{trail}</>)}{"\n"}</>;
+  if (flowTok) return <>{flatRowLine(segs, <>{head}{deco}{" "}{flowTok}{trail}</>)}{"\n"}{bookmarks}</>;
   const m = asMixed(v);
   const inlineSelf = !!m && m.kind === "omni" && (m.selfAt ?? 0) === 0 && !bigScalar(m.value);
   return (
@@ -955,13 +973,17 @@ function YamlMixed({ mixed, indent, ctx, frag, path, inlineHead = false }: { mix
   // self-value if it sits first, otherwise entry 0 (`- <self>` / `- title: …` — canInlineAfterDash).
   const selfFirst = inlineHead && selfAt === 0;
   const selfValue = <YamlSelfValue value={mixed.value} pad={pad} indent={indent} ctx={ctx} frag={frag} path={path} noPad={selfFirst} />;
+  // bookmarks follow the self-value line (or lead, on a mix with no self) — not the viewed root
+  const anchors = frag !== ctx.base ? yamlAnchorLines(ctx, frag, indent) : null;
   return (
     <>
+      {!isOmni && anchors}
       {mixed.entries.map((e, i) => {
         const noPad = inlineHead && i === 0 && !selfFirst; // entry 0 rides the dash unless the self does
         return (
           <Fragment key={i}>
             {i === selfAt && selfValue}
+            {i === selfAt && anchors}
             {e.keyNull === true ? (
               // the NULL KEY (YAML's rule): a KEYED entry whose key is the null value — rendered
               // `~: value`, addressed by the `~` path segment
@@ -981,6 +1003,7 @@ function YamlMixed({ mixed, indent, ctx, frag, path, inlineHead = false }: { mix
         );
       })}
       {isOmni && selfAt >= mixed.entries.length && selfValue}
+      {isOmni && selfAt >= mixed.entries.length && anchors}
       <TailComments ctx={ctx} frag={frag} syntax="yaml" />
     </>
   );
@@ -996,7 +1019,8 @@ function YamlEntry({ k, v, pad, indent, ctx, frag, path, noPad = false }: { k: s
   const lead = noPad ? null : <LeadingComments ctx={ctx} frag={frag} pad={pad} syntax="yaml" />;
   const trail = trailingComment(ctx, frag, "yaml");
   const ptr = commentsAt(ctx, frag)?.pointer; // a ref's authored `*…` token, if any
-  const deco = decoSpan(ctx, frag, "yaml"); // type tag + `&` anchors on the key line
+  const deco = decoSpan(ctx, frag, "yaml"); // type tag on the key line; `&` bookmarks are own-line
+  const bookmarks = yamlAnchorLines(ctx, frag, indent + 2);
   const head = (
     <>
       {noPad ? null : pad}
@@ -1016,10 +1040,15 @@ function YamlEntry({ k, v, pad, indent, ctx, frag, path, noPad = false }: { k: s
         {deco}
         {" "}
         <BigScalarYaml v={asBinary(v) ?? (v as string)} indent={indent + 2} open={open} trail={trail} raw={commentsAt(ctx, frag)?.raw} format={tagFormat(commentsAt(ctx, frag)?.tag)} />
+        {bookmarks}
       </>
     );
   }
-  if (!foldable(v)) return <>{blank}{lead}{head}{deco}{inlineYamlValue(v, ctx, path, trail, ptr && fmtPointer(ptr, "yaml"), commentsAt(ctx, frag)?.raw)}</>;
+  // a NULL with bookmarks keeps the bare `key:` spelling — the value is spelled by absence,
+  // the own-line `&…` below carries the line (serialize-yamlover: "a null keeps its bare
+  // `key:` spelling — nothing to continue")
+  if (v === null && bookmarks) return <>{blank}{lead}{head}{deco}{trail}{"\n"}{bookmarks}</>;
+  if (!foldable(v)) return <>{blank}{lead}{head}{deco}{inlineYamlValue(v, ctx, path, trail, ptr && fmtPointer(ptr, "yaml"), commentsAt(ctx, frag)?.raw)}{bookmarks}</>;
   // An OMNI whose self-value sits first renders that scalar ON the key row (`world: World`), its
   // entries below — matching the source and the projectional editor (nodeHeadKind "self"). Only the
   // node's OWN self-value inlines after a `key:`; a first CHILD may not (`person: name: Rex` is not
@@ -1028,7 +1057,7 @@ function YamlEntry({ k, v, pad, indent, ctx, frag, path, noPad = false }: { k: s
   // an AUTHORED flow token rides the key row (`k: [12, 13]`) — one line, so no fold toggle; a K&R
   // one opens there and closes on its own line at this column
   const flowTok = flowOrKr(v, ctx, frag, path, indent);
-  if (flowTok) return <>{blank}{lead}{head}{deco}{" "}{flowTok}{trail}{"\n"}</>;
+  if (flowTok) return <>{blank}{lead}{head}{deco}{" "}{flowTok}{trail}{"\n"}{bookmarks}</>;
   const inlineSelf = !!m && m.kind === "omni" && (m.selfAt ?? 0) === 0 && !bigScalar(m.value);
   return (
     <>
@@ -1058,6 +1087,7 @@ function YamlItem({ v, pad, indent, ctx, frag, path, noPad = false, anchorName }
   const trail = trailingComment(ctx, frag, "yaml");
   const ptr = commentsAt(ctx, frag)?.pointer; // a `- *…` item's authored pointer token
   const deco = decoSpan(ctx, frag, "yaml");
+  const bookmarks = yamlAnchorLines(ctx, frag, indent + 2);
   // `.yaml-dash` styles the marker (gray like the chevron) — kept a fixed cell so columns line up.
   // `anchorName` (a positional member's DERIVED storage anchor, {@link Mixed}) rides right after
   // the dash, dimmed — provenance, not authored source.
@@ -1080,14 +1110,17 @@ function YamlItem({ v, pad, indent, ctx, frag, path, noPad = false, anchorName }
         {deco}
         {" "}
         <BigScalarYaml v={asBinary(v) ?? (v as string)} indent={indent + 2} open={open} trail={trail} raw={commentsAt(ctx, frag)?.raw} format={tagFormat(commentsAt(ctx, frag)?.tag)} />
+        {bookmarks}
       </>
     );
   }
-  if (!foldable(v)) return <>{blank}{lead}{dash}{deco}{inlineYamlValue(v, ctx, path, trail, ptr && fmtPointer(ptr, "yaml"), commentsAt(ctx, frag)?.raw)}</>;
+  // a bare `-` item: a null with bookmarks drops its token, like a keyed null (see YamlEntry)
+  if (v === null && bookmarks) return <>{blank}{lead}{dash}{deco}{trail}{"\n"}{bookmarks}</>;
+  if (!foldable(v)) return <>{blank}{lead}{dash}{deco}{inlineYamlValue(v, ctx, path, trail, ptr && fmtPointer(ptr, "yaml"), commentsAt(ctx, frag)?.raw)}{bookmarks}</>;
   // an AUTHORED flow token rides the dash (`- [12, 13]`) — one line, so no fold toggle; a K&R one
   // opens there and closes on its own line at the dash column
   const flowTok = flowOrKr(v, ctx, frag, path, indent);
-  if (flowTok) return <>{blank}{lead}{dash}{deco}{" "}{flowTok}{trail}{"\n"}</>;
+  if (flowTok) return <>{blank}{lead}{dash}{deco}{" "}{flowTok}{trail}{"\n"}{bookmarks}</>;
   const compact = canInlineAfterDash(v);
   return (
     <>

@@ -97,6 +97,7 @@ describe("Render", () => {
     );
     const txt = document.body.textContent ?? "";
     expect(txt).toContain("&: chief"); // anchor on boss
+    expect(txt).not.toContain("boss: &: chief"); // own-line after the key, not jammed before the body
     expect(txt).toContain("*: chief"); // ref rendered as the authored pointer, not `:chief`
     expect(txt).not.toContain(":chief\n"); // NOT the bare resolved path
     expect(txt).toContain("!!set"); // type tag on crew
@@ -124,6 +125,33 @@ describe("Render", () => {
     expect(txt).toContain("*:: annotations"); // the dangling entry renders its authored pointer…
     const ref = [...document.querySelectorAll(".s")].find((e) => e.textContent === "*:: annotations");
     expect(ref).toBeTruthy(); // …as plain text (no hyperlink — nothing to navigate to)
+  });
+
+  it("renders a colon-styled bookmark on its own line, a bookmarked null as the bare `key:`", () => {
+    // 58-genealogy-dag: `seth:\n  &: eve: seth` — a null scalar with a bookmark. Inlining
+    // `&: eve: seth` on the key line before `null` drops the colon between bookmark and value;
+    // the canonical spelling omits the `null` token entirely (the bookmark line carries it).
+    render(
+      <Render
+        value={{ adam: { cain: { enoch: null }, seth: null, azura: { enoch: null } } }}
+        syntax="yaml"
+        onNavigate={() => {}}
+        comments={{
+          "/adam/cain": { anchors: [": eve: cain"] },
+          "/adam/cain/enoch": { anchors: [": adam: azura: enoch"] },
+          "/adam/seth": { anchors: [": eve: seth"] },
+          "/adam/azura": { anchors: [": eve: azura"] },
+        }}
+      />,
+    );
+    const txt = document.body.textContent ?? "";
+    expect(txt).not.toMatch(/&: eve: seth\s+null/); // not jammed before the value
+    expect(txt).not.toMatch(/seth: ?null/); // a bookmarked null drops its token
+    expect(txt).toMatch(/seth:\n\s+&: eve: seth\n/); // bare `key:`, the `&…` on its own line
+    expect(txt).toMatch(/enoch:\n\s+&: adam: azura: enoch\n/);
+    expect(txt).toMatch(/cain:\n\s+&: eve: cain\n/); // a container's bookmark leads its block
+    expect(txt).toMatch(/azura:\n\s+&: eve: azura\n/);
+    expect(txt).toMatch(/enoch: null/); // azura's enoch has no bookmark — null stays spelled
   });
 
   it("renders null as `null`, not the obsolete `~`", () => {

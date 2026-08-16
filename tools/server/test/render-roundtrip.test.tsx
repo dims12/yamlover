@@ -178,6 +178,23 @@ describe("faithful-render round-trip (render → reparse → same IR)", () => {
     expect(text).toMatch(/^- the tagged chunk$/m);
   });
 
+  it("a bookmarked null keeps the bare `key:` spelling — no `null` token, the `&…` line below", async () => {
+    // 58-genealogy-dag's idiom: `seth:` + own-line `&: eve: seth` IS a null — the syntax spells
+    // null by absence when a bookmark carries the line. The render must reproduce that, and the
+    // spelling must reparse to a null scalar wearing the anchor.
+    const body = "adam:\n  seth:\n    &: eve: seth\neve: {}\n";
+    const text = await renderNode({ ".yo/body.yo": body }, ":");
+    expect(text).toMatch(/^  seth:$/m); // the bare key line — no `null` token
+    expect(text).toMatch(/^    &: eve: seth$/m); // the bookmark on its own line, one step deeper
+    expect(text).not.toMatch(/seth: ?null/);
+    const re = parseYamlover(text, "<rendered>");
+    const adam = re.root.entries!.find((e) => e.key === "adam")!.value as Node;
+    const seth = adam.entries!.find((e) => e.key === "seth")!.value as Node;
+    expect(seth.kind).toBe("scalar");
+    expect((seth as { value?: unknown }).value).toBeNull();
+    expect(seth.meta?.anchors?.length).toBe(1); // the reparsed node carries the bookmark
+  });
+
   // KNOWN GAP (it.fails marks it expected-failing; flip to `it` once fixed). The `&: chief`
   // anchor renders correctly ON boss, but the projection ALSO surfaces the derived root key it
   // creates, as a redundant `chief: :boss` entry (a bare path, not a `*…` pointer). Faithful
