@@ -1,0 +1,69 @@
+# Marketplace counterpart of publish.yml: the single source of truth is the `version` line
+# in tools/jetbrains-plugin/build.gradle.kts. Bump it, push main, and this uploads that
+# version to JetBrains Marketplace — but ONLY when running on real GitHub (the `if` below),
+# never on the Forgejo mirror that shares this file. Idempotent like its npm sibling: it
+# publishes only when the version is not already on Marketplace (the public updates API is
+# the registry analog of publish.yml's `npm view`).
+#
+# Auth: the JETBRAINS_PUBLISH_TOKEN secret — a Marketplace permanent token, read by the
+# publishing block in build.gradle.kts. The first upload had to go through the Marketplace
+# web UI by hand; that upload is what unlocked `publishPlugin` for this plugin id (33432).
+on:
+  push:
+    branches: [main]
+    paths: ['tools/jetbrains-plugin/build.gradle.kts']
+  workflow_dispatch:
+
+jobs:
+  publish:
+    # Real GitHub only. Forgejo already ignores this whole directory (it prefers
+    # .forgejo/workflows, an all-or-nothing fallback), so this guard is the backstop for the
+    # day that directory is emptied — see .forgejo/workflows/ci.yml for the full account.
+    if: github.server_url == 'https://github.com'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tools/jetbrains-plugin
+    steps:
+      - uses: actions/checkout@v4
+
+      # Two JDKs on purpose: the LAST one becomes JAVA_HOME and runs Gradle itself (the
+      # wrapper wants a modern JDK), while 17 stays installed for jvmToolchain(17) — Gradle's
+      # toolchain auto-detection finds prior setup-java installs.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: |
+            17
+            21
+
+      - name: Read version from build.gradle.kts
+        id: v
+        run: |
+          V=$(sed -n 's/^version = "\(.*\)"$/\1/p' build.gradle.kts)
+          [ -n "$V" ] || { echo "no version line found in build.gradle.kts"; exit 1; }
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+
+      - name: Is this version already on Marketplace?
+        id: check
+        # Marketplace refuses a version it has already seen, so re-pushing main must skip
+        # rather than fail the job.
+        run: |
+          if curl -fsSL "https://plugins.jetbrains.com/api/plugins/33432/updates?size=200" \
+            | jq -e --arg v "${{ steps.v.outputs.version }}" 'any(.[]; .version == $v)' >/dev/null; then
+            echo "yamlover ${{ steps.v.outputs.version }} already on Marketplace — nothing to do"
+            echo "new=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "new=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Test gate (nothing is published if this fails)
+        if: steps.check.outputs.new == 'true'
+        # The lexer + pointer-navigation suite — the sync gate against the TS ruleset.
+        run: ./gradlew test
+
+      - name: Publish to JetBrains Marketplace
+        if: steps.check.outputs.new == 'true'
+        run: ./gradlew publishPlugin
+        env:
+          JETBRAINS_PUBLISH_TOKEN: ${{ secrets.JETBRAINS_PUBLISH_TOKEN }}

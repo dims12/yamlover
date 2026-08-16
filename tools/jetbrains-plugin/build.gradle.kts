@@ -14,7 +14,7 @@ plugins {
 }
 
 group = "net.inthemoon.yamlover"
-version = "0.7.0"
+version = "0.7.1"
 
 repositories {
     mavenCentral()
@@ -41,6 +41,12 @@ intellijPlatform {
             // compatible with any newer one (this host also has 2024.3 / 2026.1 backends).
             untilBuild = provider { null }
         }
+    }
+    publishing {
+        // Marketplace permanent token, supplied by CI (.github/workflows/publish-jetbrains.yml).
+        // Absent locally the provider is simply empty, so every task except publishPlugin
+        // is unaffected.
+        token = providers.environmentVariable("JETBRAINS_PUBLISH_TOKEN")
     }
 }
 

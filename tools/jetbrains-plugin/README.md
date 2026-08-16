@@ -61,10 +61,10 @@ Network access is needed once to fetch the IntelliJ Platform SDK.
 ./gradlew runIde        # launches a sandbox IDE with the plugin
 ```
 
-Current version **0.7.0** (the keyless `-` segment, flat-row Ctrl+click paving, and flow
-`()` punct — caught up to highlight.ts / pointer.ts; 0.6.1 was flat-row colouring; 0.6.0
-brought the brand mark as the file-type icon, plus dark variants and a
-Marketplace logo). Built against the **2023.2 (build 232)** platform with an **open-ended**
+Current version **0.7.1** (UTM-tagged links in the Marketplace description; 0.7.0 was the
+keyless `-` segment, flat-row Ctrl+click paving, and flow `()` punct — caught up to
+highlight.ts / pointer.ts; 0.6.1 flat-row colouring; 0.6.0 brought the brand mark as the
+file-type icon, plus dark variants and a Marketplace logo). Built against the **2023.2 (build 232)** platform with an **open-ended**
 upper bound (`since-build=232`, no `until-build`) so one artifact loads on any 2023.2+ backend.
 
 Pin the IDE version in `build.gradle.kts` (`intellijIdeaCommunity("…")`) and the
@@ -72,15 +72,20 @@ Pin the IDE version in `build.gradle.kts` (`intellijIdeaCommunity("…")`) and t
 
 ## Release
 
-The artifact to upload to JetBrains Marketplace is the zip named for `rootProject.name` and
+Releases publish from CI: bump `version` in `build.gradle.kts` (and the line above), push
+`main`, and `.github/workflows/publish-jetbrains.yml` runs the test gate and
+`publishPlugin` with the `JETBRAINS_PUBLISH_TOKEN` secret (a Marketplace permanent token).
+It is idempotent — a version Marketplace already has is skipped, since Marketplace refuses
+a version it has already seen. GitHub only; the Forgejo mirror never triggers it.
+
+For a **manual** upload, the artifact is the zip named for `rootProject.name` and
 the version — `build/distributions/yamlover-jetbrains-<version>.zip` — **not** for this
-directory. Bump `version` in `build.gradle.kts` (and the line above) before each release:
-Marketplace refuses a version it has already seen.
+directory.
 
 `buildPlugin` never cleans, so `build/distributions/` holds **every** zip ever built here,
 going back versions. Read the version in the filename rather than trusting the newest
 timestamp, and rebuild before uploading — a zip can carry the current version number and
 still predate the last edit to the sources.
 
-The first upload has to go through the Marketplace web UI by hand; only afterwards can the
-`publishPlugin` task push releases (no publishing token is configured here yet).
+The first upload had to go through the Marketplace web UI by hand; that upload is what
+unlocked `publishPlugin` (and the CI workflow above) for this plugin id.
