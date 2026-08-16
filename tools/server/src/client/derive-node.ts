@@ -226,6 +226,34 @@ function deriveValue(node: Node, frag: string, segs: Seg[], depth: number, top: 
   if (k === "array" && !format && !anchoredAny) {
     return [...entries.map(project), ...appended.map(projectBack)];
   }
+  // A LEAF that gained bookmark members is an omni: the authored self-value stays, the
+  // incoming `&…:-` backs append as keyless entries (docs/language/logical-graph — bookmark-
+  // created members arrive after owned entries). Without this, an onto whose source is just
+  // `null` rendered empty in the yamlover view.
+  if (k === "scalar" && appended.length > 0) {
+    const marker: Record<string, unknown> = {
+      kind: "omni",
+      value: wireScalar((node as { value?: unknown }).value),
+      entries: appended.map((be) => ({ key: be.label, value: projectBack(be) })),
+    };
+    if (format) marker.format = format;
+    return { [MIX]: marker };
+  }
+  // A MAP that gained KEYLESS backs cannot stuff them into `out[""]` (they would collide).
+  // Promote to mix so each membership is its own positional entry beside the keyed fields.
+  if (k === "object" && appended.some((be) => be.label == null)) {
+    const list = [
+      ...entries.map((o) => ({
+        key: o.e.key,
+        value: project(o),
+        ...((o.e as { nullKey?: boolean }).nullKey === true ? { keyNull: true } : {}),
+      })),
+      ...appended.map((be) => ({ key: be.label, value: projectBack(be) })),
+    ];
+    const marker: Record<string, unknown> = { kind: "mix", entries: list };
+    if (format) marker.format = format;
+    return { [MIX]: marker };
+  }
   if (k === "omni" || k === "mix" || k === "array") {
     const list = [
       ...entries.map((o) => ({
