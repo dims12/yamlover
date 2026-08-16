@@ -1,6 +1,6 @@
 import { ReactNode, useState, Fragment } from "react";
 import { Chevron } from "./chevron";
-import { fragmentOf, isAncestorPath, ROOT_FRAGMENT, canonPath } from "./paths";
+import { fragmentOf, isAncestorPath, ROOT_FRAGMENT, canonPath, urlOfPath } from "./paths";
 import { segToken } from "../../../parser/ts/src/pathseg.ts";
 import type { CommentBucket, CommentMap } from "./api";
 import { isJsonFamily } from "../concrete";
@@ -440,7 +440,7 @@ function linkNode(link: Link, syntax: Syntax, ctx: Ctx): ReactNode {
   return (
     <a
       className="descend"
-      href={link.path}
+      href={urlOfPath(link.path)} // the slash-transport URL — see NavLink
       onClick={(e) => {
         e.preventDefault();
         ctx.nav(link.path);
@@ -490,7 +490,7 @@ function refNode(ref: Ref, syntax: Syntax, ctx: Ctx, display?: string): ReactNod
   return (
     <a
       className="descend"
-      href={target}
+      href={urlOfPath(target)} // the slash-transport URL — see NavLink
       onClick={(e) => {
         e.preventDefault();
         ctx.nav(target);

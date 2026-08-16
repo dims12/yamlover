@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 import type { CommentMap } from "../api";
 import { asLink } from "../render";
-import { canonPath, segsToStr, strToSegs } from "../paths";
+import { canonPath, segsToStr, strToSegs, urlOfPath } from "../paths";
 import { parsePointer } from "../../../../parser/ts/src/pointer.ts";
 
 export const ONTO_FORMAT = "x-yamlover-onto";
@@ -166,7 +166,7 @@ export function TagBadges({ tags, onNavigate }: { tags: TagLink[]; onNavigate: (
             key={t.path}
             className="tagtag"
             style={tagStyle(color)}
-            href={t.path}
+            href={urlOfPath(t.path)} // the slash-transport URL — see NavLink
             title={t.label}
             onClick={(e) => {
               e.preventDefault();

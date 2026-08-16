@@ -1,5 +1,5 @@
 import { useEffect, useState, MouseEvent } from "react";
-import { Seg, strToSegs, segsToStr } from "../paths";
+import { Seg, strToSegs, segsToStr, urlOfPath } from "../paths";
 import { browserWidthCh, projectWidthCh, setBrowserSettingKey } from "../browser-settings";
 
 /**
@@ -68,7 +68,10 @@ export function rewriteRelativeLinks(html: string, anchorPath?: string): string 
     const segs = relativeDocSegs(a.getAttribute("href") || "", anchorPath);
     if (!segs) continue;
     const path = segsToStr(segs);
-    a.setAttribute("href", path);
+    // the two roles are already split here: `data-navpath` is what markupClick hands the
+    // SPA (colon form), `href` is what the BROWSER follows — and markupClick deliberately
+    // lets a modified click through, so that href has to be a URL this server serves
+    a.setAttribute("href", urlOfPath(path));
     a.setAttribute("data-navpath", path);
   }
   return tpl.innerHTML;

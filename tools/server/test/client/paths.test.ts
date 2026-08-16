@@ -64,6 +64,17 @@ describe("client paths", () => {
     expect(pathFromUrl()).toBe(":%40vitejs%2Fplugin-react");
   });
 
+  it("a colon in the pathname is a KEY, never a separator — the URL is slash-transported", () => {
+    // Links once rendered their canonical colon path straight into the href, so `/:meta` was
+    // requestable. It is not a spelling this app serves: the URL is slashed, and a key that
+    // really contains a colon rides percent-encoded (encodeURIComponent escapes `:` to %3A).
+    // So `/:meta` reads as one key named `:meta`, which names no node — an honest miss.
+    window.history.replaceState({}, "", "/:meta?format=chapter");
+    expect(pathFromUrl()).toBe(segsToStr([":meta"]));
+    writeUrl(segsToStr(["a:b"]), "yaml");
+    expect(pathFromUrl()).toBe(segsToStr(["a:b"]));
+  });
+
   it("tracks the page in ?page= (1 is implicit, never written)", () => {
     writeUrl(":doc.pdf", "pdf"); // start clean — no ?page=
     expect(pageFromUrl()).toBe(1);

@@ -17,7 +17,7 @@ import { anchorOf, chapterFlow, childPath, childSlot, flowText } from "./chapter
 import { InlineSubchapter, subchapterTarget } from "./subchapter";
 import { DataChunk } from "./data-chunk";
 import { navigateToFragment } from "./headings";
-import { fragmentOf, isAncestorPath } from "../paths";
+import { fragmentOf, isAncestorPath, urlOfPath } from "../paths";
 import { membershipPaths } from "./tag";
 import { InlineTagChips } from "./tag-resolve";
 import type { CommentMap } from "../api";
@@ -192,7 +192,7 @@ export function SubchapterHeading({
         {linked ? (
           <a
             className="descend"
-            href={inPage && targetFragment ? `#${targetFragment}` : path ?? "#"}
+            href={inPage && targetFragment ? `#${targetFragment}` : path ? urlOfPath(path) : "#"}
             onClick={(e) => {
               e.preventDefault();
               // the in-page jump goes through the shared navigation primitive (headings.ts) —

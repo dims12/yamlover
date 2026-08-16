@@ -17,6 +17,7 @@ vi.mock("../../src/client/api", () => ({
 import { fetchTagged } from "../../src/client/api";
 import type { NodeJson } from "../../src/client/api";
 import { ExplorerView, generalItems, tagItems, buildExplorerItems } from "../../src/client/renderers/explorer";
+import { urlOfPath } from "../../src/client/paths";
 import type { Link } from "../../src/client/render";
 
 const mTagged = fetchTagged as unknown as ReturnType<typeof vi.fn>;
@@ -66,7 +67,7 @@ describe("ExplorerView (a directory)", () => {
     expect(all).toHaveLength(7);
     expect(all[0].className).toContain("dirview-up");
     expect(all[0].textContent).toContain("..");
-    expect(all[0].getAttribute("href")).toBe(":");
+    expect(all[0].getAttribute("href")).toBe("/"); // the slash-transport URL of the root
     expect(all[1].className).toContain("dirview-up");
     expect(all[1].textContent).toContain("//eve");
     expect(all[2].className).not.toContain("dirview-up");
@@ -150,14 +151,14 @@ describe("ExplorerView (a directory)", () => {
     expect(document.activeElement).toBe(all[0]); // selection unchanged — the window handler steps the TOC
   });
 
-  it("tooltips show the decoded path (the href keeps the canonical encoded one)", () => {
+  it("tooltips show the decoded path (the href is the encoded slash-transport URL)", () => {
     const cyr = node({
       value: { "Папка": link({ kind: "object", type: "object", path: ":dir:%D0%9F%D0%B0%D0%BF%D0%BA%D0%B0", count: 1, concrete: "dir" }) },
     });
     render(<ExplorerView node={cyr} view="large" onNavigate={() => {}} />);
     const it_ = items().find((el) => el.textContent?.includes("Папка"))!;
     expect(it_.getAttribute("title")).toBe(": dir: Папка"); // space after each colon
-    expect(it_.getAttribute("href")).toBe(":dir:%D0%9F%D0%B0%D0%BF%D0%BA%D0%B0");
+    expect(it_.getAttribute("href")).toBe("/dir/%D0%9F%D0%B0%D0%BF%D0%BA%D0%B0");
   });
 
   it("notes an empty directory", () => {
@@ -214,9 +215,9 @@ describe("ExplorerView (a tag)", () => {
     await screen.findByText("name:"); // the material arrived
 
     const hrefs = items().map((el) => el.getAttribute("href"));
-    expect(hrefs).toContain(":name");
-    expect(hrefs).not.toContain(":annotations:a1.yo"); // the annotation stays out
-    expect(hrefs.filter((h) => h === ":ontos.yo:yellow:pale")).toHaveLength(1); // deduped
+    expect(hrefs).toContain("/name");
+    expect(hrefs).not.toContain("/annotations/a1.yo"); // the annotation stays out
+    expect(hrefs.filter((h) => h === "/ontos.yo/yellow/pale")).toHaveLength(1); // deduped
   });
 
   it("shows NO uplinks (a tag lists its materials, not a folder to ascend from)", () => {
@@ -229,7 +230,7 @@ describe("ExplorerView (a tag)", () => {
     });
     render(<ExplorerView node={tagWithRel} view="large" onNavigate={() => {}} />);
     expect(items().every((el) => !el.className.includes("dirview-up"))).toBe(true);
-    expect(items().map((el) => el.getAttribute("href"))).not.toContain(":ontos.yo");
+    expect(items().map((el) => el.getAttribute("href"))).not.toContain("/ontos.yo");
   });
 
   it("previews a tagged FRAGMENT by its crop image (the link's `preview`), not a generic glyph", async () => {
@@ -256,7 +257,7 @@ describe("ExplorerView (a tag)", () => {
     ]);
     render(<ExplorerView node={tag} view="large" onNavigate={onNavigate} />);
     const item = await waitFor(() => {
-      const el = items().find((e) => e.getAttribute("href") === frag);
+      const el = items().find((e) => e.getAttribute("href") === urlOfPath(frag));
       if (!el) throw new Error("fragment item not yet rendered");
       return el;
     });

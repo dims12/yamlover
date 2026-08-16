@@ -20,7 +20,7 @@ import type { Node, Path } from "../../../../yed/src/state";
 import type { RefCommit } from "../../../../yed/src/apply";
 import type { Pointer } from "../../../../parser/ts/src/ir.ts";
 import { treeCandidateProvider, type Candidate } from "../query-complete";
-import { canonPath, displayPath, strToSegs } from "../paths";
+import { canonPath, displayPath, strToSegs, urlOfPath } from "../paths";
 import { resolveSpelledPath, spellPointer } from "../pointer-spell";
 import { projectOntos } from "../ontos";
 import { forgetRecent, readRecents, recordRecent } from "../recents";
@@ -117,7 +117,7 @@ function ServerPointerCell(props: ValueCellProps & { navigate: (p: string) => vo
       {refPath !== undefined && (
         <a
           className="descend y2-refnav"
-          href={refPath}
+          href={urlOfPath(refPath)} // the slash-transport URL — see NavLink
           title="go to the target"
           onClick={(e) => { e.preventDefault(); navigate(refPath); }}
         >&#8599;</a>
@@ -146,7 +146,7 @@ function LinkAtomCell(props: ValueCellProps & { navigate: (p: string) => void })
       >
         <a
           className="descend"
-          href={l.path}
+          href={urlOfPath(l.path)} // the slash-transport URL — see NavLink
           tabIndex={-1}
           onClick={(e) => { e.preventDefault(); navigate(l.path); }}
         >{label}</a>

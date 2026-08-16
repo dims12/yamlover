@@ -143,7 +143,7 @@ describe("ChapterView", () => {
     render(<ChapterView node={chapter} onNavigate={onNav} />);
 
     const link = screen.getByText("Installation"); // subchapter by its title
-    expect((link as HTMLAnchorElement).getAttribute("href")).toBe(":4");
+    expect((link as HTMLAnchorElement).getAttribute("href")).toBe("/4"); // the slash-transport URL
     fireEvent.click(link);
     expect(onNav).toHaveBeenCalledWith(":4");
   });

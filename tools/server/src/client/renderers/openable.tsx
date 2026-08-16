@@ -1,4 +1,5 @@
 import { ReactNode } from "react";
+import { urlOfPath } from "../paths";
 
 /**
  * A click-to-open wrapper for an inline chapter chunk (an image or a map). Inside a chapter's flow
@@ -22,7 +23,7 @@ export function OpenChunk({
   return (
     <a
       className="chunk-open"
-      href={path}
+      href={urlOfPath(path)} // the slash-transport URL — see NavLink
       title={title}
       onClick={(e) => {
         e.preventDefault();

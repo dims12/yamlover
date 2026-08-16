@@ -44,7 +44,7 @@ describe("Markdown / AsciiDoc relative links navigate in-app", () => {
     const a = container.querySelector("a[data-navpath]") as HTMLAnchorElement;
     expect(a).toBeTruthy();
     expect(a.getAttribute("data-navpath")).toBe(":dir:sibling.md"); // anchored at the document's directory
-    expect(a.getAttribute("href")).toBe(":dir:sibling.md");
+    expect(a.getAttribute("href")).toBe("/dir/sibling.md"); // href is the URL, data-navpath the in-app path
     fireEvent.click(a);
     expect(onNavigate).toHaveBeenCalledWith(":dir:sibling.md"); // SPA nav, no page reload
   });

@@ -191,7 +191,7 @@ describe("Render", () => {
       />,
     );
     const link = screen.getByText("{ object with 3 properties }");
-    expect(link.getAttribute("href")).toBe(":child");
+    expect(link.getAttribute("href")).toBe("/child");
     fireEvent.click(link);
     expect(onNav).toHaveBeenCalledWith(":child");
   });
@@ -225,7 +225,7 @@ describe("Render", () => {
     );
     const yamlLink = screen.getByText("null");
     expect(yamlLink.tagName).toBe("A");
-    expect(yamlLink.getAttribute("href")).toBe(":adam:seth");
+    expect(yamlLink.getAttribute("href")).toBe("/adam/seth");
     fireEvent.click(yamlLink);
     expect(onNav).toHaveBeenCalledWith(":adam:seth");
 
@@ -268,7 +268,7 @@ describe("Render", () => {
     );
     const link = screen.getByText(":eve");
     expect(link.tagName).toBe("A");
-    expect(link.getAttribute("href")).toBe(":eve");
+    expect(link.getAttribute("href")).toBe("/eve");
     fireEvent.click(link);
     expect(onNav).toHaveBeenCalledWith(":eve");
   });

@@ -37,6 +37,7 @@ import { createRequire } from "node:module";
 import { dirname, join, resolve, extname, sep } from "node:path";
 import fs from "node:fs";
 import { ga4Tag, ga4ConfigFromEnv } from "./ga4.js";
+import { targetUrl, stripBase } from "./request-url.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkgRoot = resolve(__dirname, ".."); // tools/server
@@ -127,21 +128,25 @@ let handle;
 let serveClient;
 
 const server = createHttpServer((req, res) => {
-  let url = new URL(req.url, "http://localhost");
+  // A malformed target is a 400 — never a throw: this listener's exceptions are unhandled,
+  // and an unhandled exception here takes the whole server down (see bin/request-url.js).
+  const parsed = targetUrl(req.url);
+  if (!parsed) {
+    res.statusCode = 400;
+    res.end("bad request");
+    return;
+  }
   // Under `--base-path`, strip the prefix up front (and rewrite req.url) so every downstream —
   // the engine API (exact `/api/...` matches), the static server, and the Vite middleware — sees
   // root-relative paths and stays oblivious to the prefix. Anything outside the prefix is 404.
-  if (basePath) {
-    const p = url.pathname;
-    if (p === basePath || p.startsWith(basePath + "/")) {
-      req.url = (p.slice(basePath.length) || "/") + url.search;
-      url = new URL(req.url, "http://localhost");
-    } else {
-      res.statusCode = 404;
-      res.end("not found");
-      return;
-    }
+  const based = stripBase(parsed, basePath);
+  if (!based) {
+    res.statusCode = 404;
+    res.end("not found");
+    return;
   }
+  const url = based.url;
+  req.url = based.rest;
   if (url.pathname.startsWith("/api/")) {
     handle(req, res, url);
     return;

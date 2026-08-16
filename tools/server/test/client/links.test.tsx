@@ -39,9 +39,12 @@ describe("NavLink", () => {
       <NavLink target=":chunks[1]" documentPath=":doc" onNavigate={onNavigate}>go</NavLink>,
     );
     const a = container.querySelector("a.descend") as HTMLAnchorElement;
-    expect(a.getAttribute("href")).toBe(":doc:chunks:1");
+    // the href is the SLASH-transport URL, not the canonical colon path: onClick routes
+    // in-app, but ⌘/middle-click, "copy link address" and crawlers honour the href, and a
+    // colon path there is not a URL this server serves (it reads `:doc` as a KEY named `:doc`)
+    expect(a.getAttribute("href")).toBe("/doc/chunks/1");
     fireEvent.click(a);
-    expect(onNavigate).toHaveBeenCalledWith(":doc:chunks:1");
+    expect(onNavigate).toHaveBeenCalledWith(":doc:chunks:1"); // navigation still speaks colon form
   });
 
   it("renders an external `.extlink` that does not call onNavigate", () => {

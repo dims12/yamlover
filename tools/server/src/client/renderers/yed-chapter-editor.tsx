@@ -37,7 +37,7 @@ import { fetchContent } from "../content";
 import { irFromContent } from "./yed-content-load";
 import { diffToOps } from "./yed-sync";
 import { anchorOf, CHAPTER_META, childSlot, isSubchapter } from "./chapter-model";
-import { canonPath } from "../paths";
+import { canonPath, urlOfPath } from "../paths";
 import { clearFormatBus, publishFormatBus } from "./chapter-editor/format-bus";
 import { materializeSubchapters, stampBorn, type MaterializeResult } from "./yed-chapter/materialize";
 import { marklowerToEditableHtml } from "./marklower";
@@ -347,7 +347,7 @@ function LinkedPreview({ link, level, budget, chapterPath, onNavigate }: {
   return (
     <section className="chapter-sub" data-chapter-path={link.path}>
       <H className="chapter-title">
-        <a className="descend" href="#" onClick={(e) => { e.preventDefault(); onNavigate(link.path); }}>
+        <a className="descend" href={urlOfPath(link.path)} onClick={(e) => { e.preventDefault(); onNavigate(link.path); }}>
           {link.title ?? link.path}
         </a>
         {failed && <span className="muted"> failed to load: {failed}</span>}

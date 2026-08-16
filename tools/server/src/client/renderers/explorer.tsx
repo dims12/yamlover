@@ -7,7 +7,7 @@ import { useDropConfirm } from "../DropConfirm";
 import { asLink, Link } from "../render";
 import { typeIcon, Glyph } from "../icons";
 import { ONTO_FORMAT, tagLabel, tagBody, resolveTagColor, tagStyle } from "./tag";
-import { displayPath, displayKey } from "../paths";
+import { displayPath, displayKey, urlOfPath } from "../paths";
 import { touchesYamlover, useDiffBump } from "../live";
 import { useExplorerTagMenu } from "./tagmenu";
 import { BoardView } from "./board";
@@ -256,7 +256,7 @@ function Item({ it, active, view, setRef, onFocus, onNavigate, onContext, dnd }:
   return (
     <a
       className={"dirview-item" + (it.up ? " dirview-up" : "") + (over ? " drop-target" : "")}
-      href={link.path}
+      href={urlOfPath(link.path)} // the slash-transport URL — see NavLink
       title={displayPath(link.path)}
       ref={setRef}
       tabIndex={tabIndex}

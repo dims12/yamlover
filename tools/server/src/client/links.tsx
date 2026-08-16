@@ -1,7 +1,7 @@
 import { ReactNode } from "react";
 import { parseLinkTarget } from "../../../parser/ts/src/marklower-links";
 import type { Pointer } from "../../../parser/ts/src/ir";
-import { Seg, segsToStr, strToSegs } from "./paths";
+import { Seg, segsToStr, strToSegs, urlOfPath } from "./paths";
 import { isDeadTarget, useDeadLinksVersion } from "./dead-links";
 
 /**
@@ -166,7 +166,10 @@ export function NavLink({
     return (
       <a
         className="descend"
-        href={path}
+        // the SLASH-transport URL, not the canonical colon path: onClick routes in-app, but
+        // ⌘/middle-click, "copy link address", prefetchers and crawlers all honour the href
+        // and must land on a real page (see urlOfPath — it also carries the --base-path)
+        href={urlOfPath(path)}
         onClick={(e) => {
           e.preventDefault();
           onNavigate(path);

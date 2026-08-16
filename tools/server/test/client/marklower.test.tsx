@@ -139,7 +139,7 @@ describe("marklower (the default format for bare strings)", () => {
     );
     const a = container.querySelector("a.descend") as HTMLAnchorElement;
     expect(a.textContent).toBe("the intro");
-    expect(a.getAttribute("href")).toBe(":examples:book:chunks:0"); // document-relative
+    expect(a.getAttribute("href")).toBe("/examples/book/chunks/0"); // document-relative, slash-transported
     fireEvent.click(a);
     expect(onNavigate).toHaveBeenCalledWith(":examples:book:chunks:0");
     expect(container.textContent).toContain("see ");
@@ -150,7 +150,7 @@ describe("marklower (the default format for bare strings)", () => {
     const { container } = render(
       <MarklowerChunk chunk={chunk("[over there](//examples/other/chunks[1])", ":examples:book")} onNavigate={noop} />,
     );
-    expect(container.querySelector("a.descend")?.getAttribute("href")).toBe(":examples:other:chunks:1");
+    expect(container.querySelector("a.descend")?.getAttribute("href")).toBe("/examples/other/chunks/1");
   });
 
   it("renders an http(s) target as an external link", () => {
@@ -173,7 +173,7 @@ describe("marklower (the default format for bare strings)", () => {
     );
     const a = container.querySelector("a.descend") as HTMLAnchorElement;
     expect(a.textContent).toBe(":children[0]"); // label keeps its brackets
-    expect(a.getAttribute("href")).toBe(":doc:children:0");
+    expect(a.getAttribute("href")).toBe("/doc/children/0");
   });
 
   it("reflows a hard-wrapped source line: a single newline renders as a space", () => {

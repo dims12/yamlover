@@ -235,7 +235,7 @@ describe("NodeView", () => {
     // both relations render with the target's standard title (not a path)
     const links = await screen.findAllByText("{ object with 3 properties }");
     expect(links).toHaveLength(2);
-    expect((links[0] as HTMLAnchorElement).getAttribute("href")).toBe(":adam");
+    expect((links[0] as HTMLAnchorElement).getAttribute("href")).toBe("/adam"); // the slash-transport URL
     fireEvent.click(links[1]);
     // a data-view in-content link PINS the current format across the hop (App keeps it
     // over the target's renderer) — the second arg is the pinFormat flag
