@@ -398,8 +398,31 @@ export function App() {
         p = frag.host;
       }
       const target = tree ? findNode(tree, p) : null;
+      // A fragment LOCATE always lands in the host's RENDERER view — the region is a thing
+      // to SEE (a rectangle on the image, a highlight in the page), so the pinned data
+      // format never wins there. A host OFF the loaded tree (a deep, unexpanded branch —
+      // the tag page's member link) is identified over the wire first, for the same reason:
+      // falling back to the carried data format showed the region as YAML, not as a mark.
+      if (frag && !target) {
+        void fetchTree(p, 0)
+          .then((n) => {
+            const f2 = (rendererName(n, n.concrete) ?? DEFAULT_FORMAT) as Format;
+            writeUrl(p, f2, false);
+            setCurrent(p);
+            if (f2 !== format) setFormat(f2);
+            bcDispatchRef.current?.({ type: "NAVIGATED", path: p });
+            navigateToFragment(fragmentAnchorId(frag.host, frag.slug));
+          })
+          .catch(() => {
+            // unreachable host — open it in the current format; NodeView reports the miss
+            writeUrl(p, format, false);
+            setCurrent(p);
+            bcDispatchRef.current?.({ type: "NAVIGATED", path: p });
+          });
+        return;
+      }
       let f: Format = format;
-      if (target && !(pinFormat && formatTravelsTo(format, target.concrete))) {
+      if (target && !(pinFormat && !frag && formatTravelsTo(format, target.concrete))) {
         const rn = rendererName(target, target.concrete);
         f = rn ?? (formatTravelsTo(format, target.concrete) ? format : DEFAULT_FORMAT);
       }

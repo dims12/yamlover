@@ -83,6 +83,8 @@ export type DiagnosticCode =
   // link — prose-link invariants (the doctor sweep; gathered server-side from the walked
   // doc + store, since a link target's existence is content, not layout)
   | "link/dead-target"
+  // annotations — embedded-shape invariants (the doctor sweep over the walked doc)
+  | "annotations/doubled-fragments"
   // value — RESERVED for meta.yo (docs/meta)
   | "value/type"
   | "value/required"

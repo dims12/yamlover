@@ -48,6 +48,30 @@ describe("GET /api/doctor — corruption is found", () => {
     expect(codesOf(d)).toContain("layout/reserved-overlay-name");
   });
 
+  it("finds a `fragments:` mapping nested inside `yo: fragments:` — pre-fix annotate damage", async () => {
+    // written by the old embed walk over the FLAT `yo: fragments:` spelling; nothing writes
+    // this shape any more, so the doctor surfaces what earlier versions left behind
+    const d = await doctor(
+      tmpTree({
+        "a.txt": "hi\n",
+        ".yo/body.yo":
+          '"a.txt":\n  yo: fragments:\n    fragments:\n      stale: !!<*::yamlover:$defs:fragment>\n        type: "rect"\n        x: 1\n        y: 1\n        w: 2\n        h: 2\n',
+      }),
+    );
+    const hit = d.diagnostics.find((x) => x.code === "annotations/doubled-fragments");
+    expect(hit).toBeTruthy();
+    expect(hit!.message).toContain("fragments");
+    // …and a WELL-FORMED flat spelling never fires it
+    const clean = await doctor(
+      tmpTree({
+        "b.txt": "hi\n",
+        ".yo/body.yo":
+          '"b.txt":\n  yo: fragments:\n    ok1: !!<*::yamlover:$defs:fragment>\n      type: "rect"\n      x: 1\n      y: 1\n      w: 2\n      h: 2\n',
+      }),
+    );
+    expect(codesOf(clean)).not.toContain("annotations/doubled-fragments");
+  });
+
   it("finds an overlay whose only content is sidecar blobs", async () => {
     const d = await doctor(tmpTree({ "World/.yo/thumbnails/ab12.webp": "\u0000" }));
     expect(codesOf(d)).toContain("layout/orphan-overlay");

@@ -346,6 +346,10 @@ export function ExplorerView({ node, view, onNavigate }: { node: NodeJson; view:
     if (!wantFocus.current || !items.length) return;
     wantFocus.current = false;
     if (gridRef.current?.closest(".chunk-body")) return; // embedded — don't steal focus
+    // ...and never while a PICKER stands: the members arrive asynchronously, so this effect
+    // can land AFTER a right-click opened the tag/create menu — it used to yank the caret out
+    // of the menu's path entry, and the user had to click into it before typing (reported).
+    if (document.querySelector(".annotate-menu")) return;
     itemEls.current[0]?.focus({ preventScroll: true });
   }, [items.length, node.path]);
 

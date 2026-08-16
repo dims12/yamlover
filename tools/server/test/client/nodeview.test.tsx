@@ -106,6 +106,31 @@ describe("NodeView", () => {
     expect((screen.getByRole("button", { name: "plaintext" }) as HTMLButtonElement).disabled).toBe(false);
   });
 
+  it("a STALE node never drives a binary fetch for the NEW path (Back from an image locate → a dir)", async () => {
+    // the reported 404 page: on popstate the path flips to the directory while `node` still
+    // holds the previous page's IMAGE for one effect pass — deriving from that mismatched
+    // pair asked /api/blob for the directory, and the rejection stuck as the view's error.
+    // A node speaks only for its own path (the identity guard).
+    mNode.mockImplementation(async (p: string, _d?: unknown, opts?: { binary?: boolean }) => {
+      if (p === ":img.png") {
+        return opts?.binary
+          ? { path: ":img.png", type: "binary", format: "image/png", concrete: "file/binary", title: null, description: null, value: { $yamloverBinary: { format: "image/png", size: 1, base64: "AA==" } } }
+          : { path: ":img.png", type: "binary", format: "image/png", concrete: "file/binary", title: null, description: null, value: null };
+      }
+      if (opts?.binary) throw new Error("HTTP 404"); // the buggy blob fetch — must never fire for :d
+      return { path: ":d", type: "object", concrete: "dir", title: null, description: null,
+        value: { f: { $yamloverLink: { kind: "object", type: "object", path: ":d:f", count: 1 } } } };
+    });
+    const r = render(<NodeView path=":img.png" format="yamlover" onFormat={() => {}} onNavigate={() => {}} />);
+    await waitFor(() => expect(mNode).toHaveBeenCalledWith(":img.png", undefined, { binary: true }));
+    // the Back: path flips to the directory while the image node is still mounted state
+    r.rerender(<NodeView path=":d" format="large-icons" onFormat={() => {}} onNavigate={() => {}} />);
+    await screen.findByRole("button", { name: "large icons" });
+    // no binary fetch was derived for the directory, and no error page stuck
+    expect(mNode.mock.calls.some(([p, , o]) => p === ":d" && (o as { binary?: boolean })?.binary)).toBe(false);
+    expect(document.querySelector(".error")).toBeNull();
+  });
+
   it("fetches a DATA view at the ?depth= setting, but a RENDERER at its OWN depth (regression: the explorer needs depth 1)", async () => {
     window.history.replaceState({}, "", "/?depth=6"); // a high data-view depth setting
     try {

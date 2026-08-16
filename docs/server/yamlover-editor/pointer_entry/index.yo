@@ -20,10 +20,32 @@ description: the pointer_entry state - typing is primary, the completion rides a
   (rankHints; a fully-typed name can never lose to a lookalike) - and its untyped remainder
   rides IN THE CELL as the selected INLINE TAIL: any keystroke replaces it natively, `:` accepts
   it and opens the next segment, Enter/Tab accept it and finish. Arrows walk the dropdown and
-  the tail follows the highlight. Escape closes the DROPDOWN and only the dropdown (the edit
-  survives; typing reopens it); Delete discards the tail (the next typed character re-arms).
+  the tail follows the highlight. Escape closes the hint rows and only them (the edit
+  survives; typing reopens them); Delete discards the tail (the next typed character re-arms).
   An empty cell arms nothing. Hints ADVISE and never validate or gate typing - the grammar
   works identically with no provider at all.
+- >
+  THE RECENTS BAG (complete.ts RecentsProvider - a second, independent seam; the server host
+  serves the per-project `references` list, recents.ts) rides BELOW the hint rows in the same
+  popup: the targets recently pointed at, shown whole from the bare `*` and STATIC while
+  typing - memory, not a filter. A bag row NEVER ARMS and never rides as the inline tail
+  (armed acceptance is commit-valid names for the active cell only); the vertical walk
+  crosses from the last hint into the bag; Enter/Tab or a click on a bag row INSERTS the
+  whole remembered raw into the cells (spelled for the typed scope, caret at the end) - never
+  a commit, exactly the TOC-pick law. The ESCAPE LADDER is two-stage: the first Escape closes
+  the hint rows and the bag STANDS, still pickable; the second closes the bag; only then does
+  the key fall through to the page's own Escape law. A committed reference FILES its target
+  among the recents (apply.ts refCommitOf -> the host's recordRefCommit); no provider means
+  no bag - the pure editor is unchanged.
+- >
+  THE BAG IS NAMED AND CLOSEABLE. A dim `recent` header captions it, so it never reads as
+  more hints, and the header's ✕ collapses the pane - leaving the header itself behind as the
+  reopen affordance (a hidden pane can never be lost). A host may REMEMBER that choice across
+  entries (`recentsPaneOpen`/`onRecentsPane`); with no host it lasts the entry. A row is
+  FORGOTTEN by right-click (`onRecentForget`, carrying the face's `anchor` flag so the host
+  strikes the right list) - a suggestion list must be correctable in place. The hint rows own
+  their own scroll box: a long candidate list can never push the bag below the popup's fold,
+  which is the same as being invisible.
 - >
   The server mount also claims the shared TOC FILTER SESSION for the edit's lifetime
   (yed-toc-pick.ts, host-side - the pure editor stays TOC-blind): the typed query prunes the TOC
@@ -44,11 +66,12 @@ description: the pointer_entry state - typing is primary, the completion rides a
   - ['`colon`', 'the empty first cell, ladder below world - the SCOPE CLIMBS', '`pointer_entry` (stays)']
   - ['`colon`', 'otherwise - the ARMED SUGGESTION (if any) is accepted, the segment COMMITS, the next cell opens (a mid-text colon with no tail splits at the caret)', '`pointer_entry` (stays)']
   - ['`open_bracket`', 'an empty non-first cell - an INDEX folds onto the previous segment', '`pointer_entry` (stays)']
-  - ['`up_arrow` / `down_arrow`', 'the dropdown is up - the highlight walks the list and the INLINE TAIL follows it; with no dropdown the caret walk leaves the cell', '`pointer_entry` (stays)']
+  - ['`up_arrow` / `down_arrow`', 'the popup is up - the highlight walks the hint rows AND ON into the recents bag (the tail follows a hint highlight only; a bag row never arms); with no popup the caret walk leaves the cell', '`pointer_entry` (stays)']
   - ['`left_arrow` / `right_arrow`', 'at a cell edge - the walk crosses SEGMENT cells first, then leaves the reference', '`pointer_entry` (stays)']
-  - ['`escape`', 'the dropdown is up - it CLOSES (and only it: the event never reaches the page''s lock-on-Escape); typing reopens it. With no dropdown the page''s own Escape law applies', '`pointer_entry` (stays)']
+  - ['`escape`', 'THE LADDER: hint rows up - they CLOSE (the bag stands, still pickable); else the bag up - it closes too; each stage swallowed entirely (the event never reaches the page''s lock-on-Escape); typing reopens both. With nothing up the page''s own Escape law applies', '`pointer_entry` (stays)']
   - ['`delete`', 'an inline tail is up - the TAIL goes, the dropdown stays; the next typed character re-arms. With no tail, the grammar''s Delete (cells merge forward)', '`pointer_entry` (stays)']
   - ['`hint_pick`', 'a dropdown row click REPLACES the active cell''s text; the edit continues', '`pointer_entry` (stays)']
+  - ['`bag_pick`', 'a recents-bag row (Enter/Tab on it, or a click) INSERTS the whole remembered raw into the cells - spelled for the typed scope, caret at the end, never a commit (the TOC-pick law)', '`pointer_entry` (stays)']
   - ['`toc_click`', 'the server mount only (yed-toc-pick.ts): the picked path SPELLS into the cells in the typed scope (pointer-spell, relative to the holder) - inserted like a hint, the caret on the last cell; typing meanwhile FILTERS the TOC through the shared session', '`pointer_entry` (stays)']
   - ['`enter` / `tab`', 'the armed suggestion (if any) is ACCEPTED, the joined segments parse as a pointer - it commits as the entry''s ref VALUE (dangling allowed; hints are never validators): SPACED canonical raw in the IR, COMPACT on the wire (yed-sync payloadOf). A reference holds no children, so the next SIBLING hole opens - the one exception to the level rule. Tab NEVER cycles the list; Shift-Tab keeps the level gesture', '[entry_hole](*::server:yamlover-editor:entry_hole)']
   - ['`enter` / `tab`', 'not a pointer the wire can carry - the ring, the segments stand', '[error_flash](*::server:yamlover-editor:error_flash)']

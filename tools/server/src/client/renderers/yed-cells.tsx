@@ -14,11 +14,16 @@
 
 import { type ReactNode } from "react";
 import { Cell, defaultRegistry, type CellRegistry, type ValueCellProps } from "../../../../yed/src/cells";
-import type { Hint, HintProvider } from "../../../../yed/src/complete";
-import { joinPortions } from "../../../../yed/src/grammar/portions";
+import type { Hint, HintProvider, RecentEntry, RecentsProvider } from "../../../../yed/src/complete";
+import { joinPortions, portionsOfRaw } from "../../../../yed/src/grammar/portions";
 import type { Node, Path } from "../../../../yed/src/state";
+import type { RefCommit } from "../../../../yed/src/apply";
 import type { Pointer } from "../../../../parser/ts/src/ir.ts";
 import { treeCandidateProvider, type Candidate } from "../query-complete";
+import { canonPath, displayPath, strToSegs } from "../paths";
+import { resolveSpelledPath, spellPointer } from "../pointer-spell";
+import { projectOntos } from "../ontos";
+import { forgetRecent, readRecents, recordRecent } from "../recents";
 import { serverPathOf } from "./yed-sync";
 
 const pathEq = (a: Path, b: Path): boolean => a.length === b.length && a.every((x, i) => x === b[i]);
@@ -44,6 +49,60 @@ export const treeHints: HintProvider = async (q): Promise<Hint[]> => {
         ? { insert: c.insert, detail: c.node.label !== c.insert ? c.node.label : undefined }
         : { insert: c.insert, detail: c.detail, op: true });
 };
+
+/** The RECENTS BAG provider - the per-project remembered targets (recents.ts) spelled for
+ *  the asking cell's context: the `&` face reads the `bookmarks` list (position-bearing
+ *  paths dropped - a bookmark may not claim a position, makeAnchor refuses them - and the
+ *  MEMBERSHIP form offered: the trailing `-` rides along, the dominant `&tag:-` gesture),
+ *  the `*` face reads `references`. ONE stable value for every mount, like treeHints. */
+const BAG_ROWS = 6; // the bag advises — it must never dwarf the candidate list above it
+export const treeRecents: RecentsProvider = async (q): Promise<RecentEntry[]> => {
+  const kind = q.anchor ? "bookmarks" : "references";
+  const recents = await readRecents(kind);
+  // THE `&` FACE ALSO OFFERS THE VOCABULARY (ontos.ts — the same tags the picker chips show):
+  // a bookmark IS a tag application, and an empty bag on a fresh project would leave the
+  // bookmark face with nothing to suggest while the picker looked rich. Remembered targets
+  // lead; the taxonomy fills the rest. A `*` reference has no vocabulary — any node is a
+  // legitimate target — so it stays pure recents.
+  const seen = new Set(recents.map((r) => canonPath(r.path)));
+  const vocabulary = q.anchor
+    ? (await projectOntos().catch(() => [])).filter((t) => !seen.has(canonPath(t.path)))
+    : [];
+  const holder = serverPathOf(q.host?.base ?? ":", q.doc, q.path);
+  return [...recents, ...vocabulary]
+    .filter((r) => !q.anchor || !strToSegs(r.path).some((s) => typeof s === "number"))
+    .slice(0, BAG_ROWS)
+    .map((r) => ({
+      raw: spellPointer(r.path, holder, q.ladder, q.host?.doc ?? ":") + (q.anchor ? ": -" : ""),
+      label: r.name,
+      detail: displayPath(r.path),
+      key: r.path, // the remembered target itself — the handle a `forget` needs
+    }));
+};
+
+/** Forget one remembered target from the bag a cell is showing (its right-click). The kind
+ *  follows the FACE: a `&` row came from the bookmarks list, a `*` row from the references. */
+export function forgetRecentEntry(entry: RecentEntry, anchor: boolean): void {
+  if (entry.key !== undefined) forgetRecent(anchor ? "bookmarks" : "references", entry.key);
+}
+
+/** File a COMMITTED reference edit (page.tsx's onRefCommit) among the per-project recents:
+ *  the raw resolves back to its target's client path (a trailing `-` membership portion is
+ *  dropped first - the remembered thing is the TARGET), the root and unresolvable spellings
+ *  are skipped. Recording is a convenience - any failure (a stale address, an exotic
+ *  spelling) just skips it, never a gate on the edit. */
+export function recordRefCommit(c: RefCommit, host: { base: string; doc: string }): void {
+  try {
+    const holder = serverPathOf(host.base, c.doc, c.holder);
+    const { ladder, portions } = portionsOfRaw(c.raw);
+    const named = portions[portions.length - 1] === "-" ? portions.slice(0, -1) : portions;
+    const target = resolveSpelledPath(joinPortions(named, ladder), holder, host.doc);
+    if (target === null || canonPath(target) === ":") return;
+    const segs = strToSegs(target);
+    const last = segs[segs.length - 1];
+    recordRecent(c.anchor ? "bookmarks" : "references", { path: target, name: last === null ? "~" : String(last), color: null });
+  } catch { /* recording is never a gate */ }
+}
 
 /** The pointer VALUE cell: the pure face (idle atom / PICK portion cells) plus the server's
  *  go-to-target affordance on the idle atom. */

@@ -150,6 +150,11 @@ body {
   min-height: 1.3em; /* keep the bar from collapsing before the head loads */
   flex: 1 1 auto;
   min-width: 0;
+  /* the path is SOURCE — the same monospace face the editor and the tag popup spell paths
+     in, so a key reads identically wherever it appears (13px keeps the mono row's optical
+     size level with the proportional 14px around it) */
+  font-family: var(--mono);
+  font-size: 13px;
 }
 .crumb {
   color: var(--fg);
@@ -219,6 +224,8 @@ body {
    overflow box — the annotate popup, a scrolling pane — can clip it. */
 .crumb-dd {
   position: fixed;
+  font-family: var(--mono); /* portaled to the body — it inherits no host's face; paths are source */
+  font-size: 13px;
   z-index: 1010; /* above the annotate popup (1000) */
   min-width: 260px;
   max-width: calc(100vw - 8px);
@@ -2173,7 +2180,7 @@ textarea.chapter-latex-src {
   align-items: stretch; /* each row spans the full width */
   gap: 6px;
   padding: 5px 7px;
-  width: 280px;
+  width: 420px; /* the source-shaped header and the `& <path>` cells want room to read */
   min-width: 220px;
   max-width: 90vw;
   max-height: 80vh;
@@ -2184,50 +2191,104 @@ textarea.chapter-latex-src {
   border: 1px solid var(--line);
   border-radius: 6px;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+  /* the whole window spells SOURCE (`key:` / `& path` / onto names) — one monospace face
+     with the editor and the breadcrumb */
+  font-family: var(--mono);
+  font-size: 13px;
 }
-/* the TOP BAR: the draggable path cell (grows) on the left, the ⧉ copy + ✕ close tools at the right */
+/* THE HEADER ROW — the popup reads as the yamlover spelling it writes: `key:` here, the
+   `& <path>` entry row below. The whole row drags the window (inputs/buttons excepted);
+   the target's full path rides as its tooltip. */
 .annotate-topbar {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 0;
   margin: -5px -7px 2px; /* bleed to the TOP and SIDE edges (over the menu padding) */
   padding: 4px 6px;
   border-bottom: 1px solid var(--line);
-}
-.annotate-topbar .annotate-tool { flex: 0 0 auto; min-width: 24px; height: 22px; padding: 0 5px; font-size: 14px; }
-/* the draggable TITLE BAR: the object's path on the left (grab to move the window), the close ✕ on
-   the right. `flex-basis:100%` makes it the full-width top row of the flex-wrap menu. */
-/* the PATH CELL — the grabbable, left-truncating title box; it grows to fill the top bar, letting the
-   copy/close tools sit to its right. `min-width:0` lets it shrink so the long path truncates instead
-   of pushing the tools out. */
-.annotate-titlebar {
-  flex: 1 1 auto;
-  box-sizing: border-box;
-  min-width: 0;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  padding: 3px 8px;
-  border-radius: 4px;
-  background: var(--hover, rgba(127, 127, 127, 0.12));
+  background: var(--hover, rgba(127, 127, 127, 0.08));
   cursor: move;
   user-select: none;
 }
-.annotate-title {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  direction: rtl; /* keep the RIGHT tail visible, ellipsis on the left (the <bdi> keeps text order) */
-  font-size: 12px;
-  color: var(--dim);
-  font-family: var(--mono);
+.annotate-topbar .annotate-tool { flex: 0 0 auto; min-width: 24px; height: 22px; padding: 0 5px; font-size: 14px; margin-left: 4px; }
+/* the KEY field — the target's key, source-styled; editable when the host wires a rename */
+.annotate-key {
+  flex: 0 1 auto;
+  min-width: 3ch;
+  max-width: 60%;
+  background: none;
+  border: none;
+  border-bottom: 1px dashed transparent;
+  padding: 0;
+  color: var(--jb-key, #660e7a);
+  font: inherit; /* the window's monospace face — `key:` reads as the source line it is */
 }
-/* the <bdi> keeps the path readable (left-to-right) while the rtl parent moves the ellipsis to the
-   LEFT — the standard "truncate a path from the left" pattern. `isolate` (bdi's default) is the
-   well-supported form; `plaintext` broke the overflow/ellipsis in some engines. */
-.annotate-title bdi { unicode-bidi: isolate; }
+.annotate-key:not([readonly]):hover { border-bottom-color: var(--dim); }
+.annotate-key:focus { outline: none; border-bottom-color: var(--accent, #1e66f5); }
+.annotate-key::placeholder { color: var(--dim); font-style: italic; }
+/* the colon rides TIGHT against the key (the input keeps half a char of caret room) */
+.annotate-colon { color: var(--fg); margin-left: -0.45ch; }
+.annotate-topgap { flex: 1 1 auto; min-width: 8px; align-self: stretch; }
+/* the ENTRY row — indented under the key, the uneditable `&` sigil leading the path cells */
+.annotate-entry {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding-left: 14px; /* the source indent under `key:` */
+}
+.annotate-amp {
+  flex: 0 0 auto;
+  color: var(--accent, #1e66f5);
+  font-family: var(--mono);
+  font-size: 13px;
+  user-select: none;
+}
+.annotate-entry .annotate-typeahead { flex: 1 1 auto; min-width: 0; }
+/* THE RECENTS PANE — the suggestion bag under the path entry: a dim header naming it, a ✕
+   that collapses it (the header stays, so a hidden pane is always one click from returning).
+   The APPLIED row sits outside it: current state is never hidden by a collapsed suggestion. */
+.annotate-bag {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.annotate-bag-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.annotate-bag-toggle {
+  flex: 1 1 auto;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--dim);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.annotate-bag-toggle:hover { color: var(--fg); }
+.annotate-bag-close {
+  flex: 0 0 auto;
+  background: none;
+  border: none;
+  padding: 0 2px;
+  color: var(--dim);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+.annotate-bag-close:hover { color: var(--fg); }
+/* the APPLIED chips row — same chip face as the bag, its own row (see .annotate-recents) */
+.annotate-applied {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+}
 .annotate-palette {
   display: flex;
   gap: 4px;
@@ -2369,14 +2430,12 @@ textarea.chapter-latex-src {
   outline: none;
   border-color: var(--dim);
 }
-/* the search row: the SHARED query cells (query-cells.tsx) in a bordered field spanning the
-   menu width — the dropdown is body-portaled like everywhere else, so the popup's own
-   overflow box never clips it */
+/* the PATH ENTRY row: the SHARED query cells (query-cells.tsx) in a bordered field spanning
+   the menu width, at the TOP of the dialog (the main part) — the dropdown is body-portaled
+   like everywhere else, so the popup's own overflow box never clips it */
 .annotate-typeahead {
   min-width: 0;
   position: relative;
-  margin-top: auto; /* dock the search input to the BOTTOM — the free space of a stretched window
-                       collects above it, so the title/swatches/tags stay packed at the top */
   display: flex;
   align-items: center;
   padding: 3px 6px;

@@ -17,7 +17,7 @@ import { keyText } from "../../parser/ts/src/serialize-common.ts";
 import { blockBodyOf, blockTextFrom, type Position } from "./apply";
 import { entryAt } from "./state";
 import { isProvisionalValue } from "./template";
-import { rankHints, type Hint, type HintProvider } from "./complete";
+import { rankHints, type Hint, type HintProvider, type RecentEntry, type RecentsProvider } from "./complete";
 
 /** Is the entry at `path` a PROVISIONAL row (the template-cells doctrine's `meta.temporary`)?
  *  Its cells wear the temp frame; the sync withholds it until the first value commit. */
@@ -144,6 +144,22 @@ export interface CellCtx {
   /** COMPLETION hints for the active portion cell (complete.ts) - advisory only, never a
    *  gate on typing. Absent: the portion cells draw no dropdown (the grammar is unchanged). */
   hints?: HintProvider;
+  /** The RECENTS BAG below the hint rows (complete.ts) - a host's remembered targets for
+   *  this entry kind. Advisory like hints; a bag row never arms. Absent: no bag. */
+  recents?: RecentsProvider;
+  /** Insert a WHOLE pointer raw into the portion cells (a bag pick) - fills the cells with
+   *  the caret at the end, never commits (the TOC-pick doctrine: the grammar's Enter stays
+   *  the single commit point). Absent: bag rows are not offered. */
+  onRefRaw?: (raw: string) => void;
+  /** Is the recents pane SHOWN? A host that remembers the ✕ across entries passes it (and
+   *  `onRecentsPane` to store the change); absent ⇒ the pane starts open and the ✕ is
+   *  remembered for this entry only. */
+  recentsPaneOpen?: boolean;
+  onRecentsPane?: (open: boolean) => void;
+  /** FORGET one bag entry (a right-click on its row) - a suggestion list must be
+   *  correctable. `anchor` names the FACE it came from (`&` = the bookmarks bag, `*` = the
+   *  references one), so the host knows which list to strike. Absent: no forgetting. */
+  onRecentForget?: (entry: RecentEntry, anchor: boolean) => void;
   /** Open a fresh entry hole at (path, index) — the ＋ tail affordance's click. Absent ⇒ the
    *  affordance is not drawn (embedded/test mounts that do not want the extra row). */
   onAppend?: (path: Path, index: number) => void;
@@ -311,6 +327,20 @@ function PortionCells({ ctx }: { ctx: CellCtx }) {
   const [sel, setSel] = useState(-1);
   const [dismissed, setDismissed] = useState(false);
   const [tailOff, setTailOff] = useState(false);
+  // THE RECENTS BAG - a host's remembered targets, drawn BELOW the hint rows. Static during
+  // the entry (it does not re-query on typing - the bag is memory, not a filter) and
+  // independently dismissable: Escape closes the hint rows FIRST, the bag stands and stays
+  // pickable; a second Escape closes the bag too. `bagDismissed` resets when the typed
+  // context moves (the same reopen gesture as `dismissed`).
+  const [bag, setBag] = useState<RecentEntry[]>([]);
+  // TWO independent closings, deliberately: `paneShut` is the ✕ (the pane PREFERENCE - the
+  // host may remember it across entries; the header stays behind so it is never lost), while
+  // `bagDismissed` is the second Escape (transient - typing brings the bag back with the
+  // hints, the same reopen gesture).
+  const [paneLocal, setPaneLocal] = useState(true);
+  const [bagDismissed, setBagDismissed] = useState(false);
+  const paneOpen = ctx.recentsPaneOpen ?? paneLocal;
+  const setPaneOpen = (open: boolean): void => { setPaneLocal(open); ctx.onRecentsPane?.(open); };
   const left = r !== undefined ? r.portions.slice(0, active).join("\u0000") : "";
   // the HOLDER the bare scope resolves at — the mapping that HOLDS the reference. A pick's
   // path names the pointer entry itself; a KEY-COMMITTED value hole (`k: *…`, apply.ts's
@@ -333,6 +363,7 @@ function PortionCells({ ctx }: { ctx: CellCtx }) {
     // An Escape-dismissed dropdown REOPENS here — typing is the reopen gesture.
     setSel(-1);
     setDismissed(false);
+    setBagDismissed(false);
     const clear = (): void => { setItems((prev) => (prev.length === 0 ? prev : [])); setSel(-1); };
     if (r === undefined || ctx.hints === undefined) { clear(); return; }
     let live = true;
@@ -351,15 +382,41 @@ function PortionCells({ ctx }: { ctx: CellCtx }) {
     // identity every render), and re-querying is only meaningful when the typed context moved
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [text, active, left, r?.ladder, r === undefined, holder.join("."), anchor]);
+  // the BAG query - keyed on the entry's CONTEXT, never on the typed text: the bag shows
+  // whole at the bare sigil and stands unchanged while the user types (memory, not a filter)
+  useEffect(() => {
+    if (r === undefined || ctx.recents === undefined || ctx.onRefRaw === undefined) { setBag((prev) => (prev.length === 0 ? prev : [])); return; }
+    let live = true;
+    const q = { anchor, ladder: r.ladder, path: holder, doc: ctx.doc, host: ctx.host };
+    Promise.resolve(ctx.recents(q)).then(
+      (b) => { if (live) setBag(b); },
+      () => { if (live) setBag([]); }, // a failed read is an empty bag - memory, never a gate
+    );
+    return () => { live = false; };
+    // ctx.recents stays OUT of the deps for the same reason ctx.hints does above
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [r === undefined, r?.ladder, holder.join("."), anchor]);
   if ((c.at !== "hole" && c.at !== "pick") || !c.ref) return null;
   const pick = (h: Hint): void => { ctx.onText(h.insert); setSel(-1); };
+  // a bag pick INSERTS the whole raw into the cells (caret at the end) - never a commit
+  const pickBag = (b: RecentEntry): void => { ctx.onRefRaw?.(b.raw); setSel(-1); };
   // THE INLINE TAIL (the polish-link-entrance spec): the armed candidate's untyped remainder
   // rides IN THE CELL, selected \u2014 any keystroke replaces it natively, `:` accepts it and opens
   // the next portion, Enter/Tab accept it and finish, Delete discards it, Escape closes the
   // dropdown (and ONLY the dropdown). `dismissed` is the Escape state (typing reopens);
   // `tailOff` is the Delete/Backspace state (deletion must never fight a reappearing tail).
   const open = items.length > 0 && !dismissed;
-  const armed = open && sel >= 0 && items[sel] !== undefined && items[sel].op !== true;
+  // ONE selection over the combined visible rows: the hint rows first (only while open),
+  // then the bag rows - the vertical walk crosses the border seamlessly. Arming and the
+  // inline tail stay HINT-ONLY: a bag row is a whole raw, never a cell-text candidate.
+  const hintRows = open ? items : [];
+  // the bag SECTION stands while the entry has one (its header is the reopen affordance);
+  // only an OPEN pane draws the rows, and only drawn rows join the vertical walk
+  const bagLive = !bagDismissed && ctx.onRefRaw !== undefined && bag.length > 0;
+  const bagRows = bagLive && paneOpen ? bag : [];
+  const totalRows = hintRows.length + bagRows.length;
+  const inBag = sel >= hintRows.length && bagRows[sel - hintRows.length] !== undefined;
+  const armed = open && sel >= 0 && sel < hintRows.length && items[sel] !== undefined && items[sel].op !== true;
   const suggestion = armed && !tailOff ? items[sel].insert : null;
   const shown = suggestion !== null && suggestion !== text ? suggestion : text;
   const suggesting = shown !== text;
@@ -379,12 +436,18 @@ function PortionCells({ ctx }: { ctx: CellCtx }) {
     ...ctx,
     onKey: (e, edges) => {
       if (!e.ctrlKey && !e.metaKey && !e.altKey) {
-        if (open && e.key === "ArrowDown") { e.preventDefault(); setTailOff(false); setSel((s) => (s + 1) % items.length); return; }
-        if (open && e.key === "ArrowUp") { e.preventDefault(); setTailOff(false); setSel((s) => (s <= 0 ? items.length - 1 : s - 1)); return; }
-        // Escape closes the DROPDOWN, never the edit: swallowed entirely (stopPropagation \u2014
-        // the document-level Escape would lock the whole page, the reported catastrophe).
-        // With no dropdown up it falls through to the page's own Escape law.
+        if (totalRows > 0 && e.key === "ArrowDown") { e.preventDefault(); setTailOff(false); setSel((s) => (s + 1) % totalRows); return; }
+        if (totalRows > 0 && e.key === "ArrowUp") { e.preventDefault(); setTailOff(false); setSel((s) => (s <= 0 ? totalRows - 1 : s - 1)); return; }
+        // THE ESCAPE LADDER - one stage per popup layer, each swallowed entirely
+        // (stopPropagation \u2014 the document-level Escape would lock the whole page, the
+        // reported catastrophe): the FIRST Escape closes the hint rows and the bag STANDS
+        // (still pickable by mouse and the vertical walk); the SECOND closes the bag; with
+        // nothing up the key falls through to the page's own Escape law.
         if (open && e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setDismissed(true); setSel(-1); return; }
+        if (bagLive && e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setBagDismissed(true); setSel(-1); return; }
+        // a BAG row selected: Enter/Tab INSERT the whole raw (never forwarded to the
+        // grammar - the insert is not a commit; the next Enter, on the filled cells, is)
+        if (inBag && (e.key === "Enter" || e.key === "Tab")) { e.preventDefault(); pickBag(bagRows[sel - hintRows.length]); return; }
         // Delete discards the tail and nothing else; with no tail it is the grammar's Delete
         if (suggesting && e.key === "Delete") { e.preventDefault(); e.stopPropagation(); setTailOff(true); return; }
         // a deletion must not fight a reappearing tail; the next typed character re-arms
@@ -416,18 +479,61 @@ function PortionCells({ ctx }: { ctx: CellCtx }) {
           {i === r!.active
             ? <span className="y2-portionwrap">
                 <CellInput value={shown} ctx={hctx} autoFocus caret={c.caret} select={selectFrom} />
-                {open && (
+                {(totalRows > 0 || bagLive) && (
                   <span className="y2-hints" data-testid="y2-hints">
-                    {items.map((h, j) => (
-                      <span
-                        key={j}
-                        className={"y2-hint" + (j === sel ? " y2-hint-sel" : "")}
-                        onMouseDown={(e) => { e.preventDefault(); pick(h); }}
-                      >
-                        <span className="y2-hint-insert">{h.label ?? h.insert}</span>
-                        {h.detail !== undefined && <span className="y2-hint-detail">{h.detail}</span>}
+                    {/* the hint rows SCROLL INSIDE THEIR OWN BOX so a long list can never push
+                        the recents bag below the popup's fold (it was reachable only by
+                        scrolling — and so, in practice, invisible) */}
+                    {hintRows.length > 0 && (
+                      <span className="y2-hintlist">
+                        {hintRows.map((h, j) => (
+                          <span
+                            key={j}
+                            className={"y2-hint" + (j === sel ? " y2-hint-sel" : "")}
+                            onMouseDown={(e) => { e.preventDefault(); pick(h); }}
+                          >
+                            <span className="y2-hint-insert">{h.label ?? h.insert}</span>
+                            {h.detail !== undefined && <span className="y2-hint-detail">{h.detail}</span>}
+                          </span>
+                        ))}
                       </span>
-                    ))}
+                    )}
+                    {bagLive && (
+                      // the RECENTS BAG - named by its header (so it never reads as more
+                      // hints) and CLOSEABLE by its ✕, which leaves the header behind as the
+                      // reopen affordance. Every mousedown is prevented, like the hint rows:
+                      // a click must never blur the cell input before the pick lands.
+                      <span className="y2-bag" data-testid="y2-bag">
+                        <span className="y2-bag-head" onMouseDown={(e) => e.preventDefault()}>
+                          <span
+                            className="y2-bag-title"
+                            title={paneOpen ? "hide the recent targets" : "show the recent targets"}
+                            onMouseDown={(e) => { e.preventDefault(); setPaneOpen(!paneOpen); }}
+                          >{paneOpen ? "▾" : "▸"} recent</span>
+                          {paneOpen && (
+                            <span
+                              className="y2-bag-close"
+                              title="hide the recent targets"
+                              onMouseDown={(e) => { e.preventDefault(); setPaneOpen(false); }}
+                            >{"✕"}</span>
+                          )}
+                        </span>
+                        {bagRows.map((b, j) => (
+                          <span
+                            key={"bag" + j}
+                            className={"y2-hint y2-bagrow" + (hintRows.length + j === sel ? " y2-hint-sel" : "")}
+                            title={ctx.onRecentForget && b.key !== undefined ? "right-click to forget this suggestion" : undefined}
+                            onMouseDown={(e) => { e.preventDefault(); pickBag(b); }}
+                            onContextMenu={ctx.onRecentForget && b.key !== undefined
+                              ? (e) => { e.preventDefault(); e.stopPropagation(); ctx.onRecentForget!(b, anchor); }
+                              : undefined}
+                          >
+                            <span className="y2-hint-insert">{b.label}</span>
+                            {b.detail !== undefined && <span className="y2-hint-detail">{b.detail}</span>}
+                          </span>
+                        ))}
+                      </span>
+                    )}
                   </span>
                 )}
               </span>

@@ -143,6 +143,55 @@ export function refFromRaw(raw: string): { ref: RefEntry; text: string } {
   return { ref: { ladder, portions: cells, active: cells.length - 1 }, text: cells[cells.length - 1] };
 }
 
+/** A COMMITTED reference edit, observed across one state transition (page.tsx's apply funnel
+ *  passes every prev→next pair through {@link refCommitOf}) — the host-side recording seam
+ *  (a server mount files the target among its per-project recents). Pure observation: nothing
+ *  here gates or alters the commit. `doc` is the PRE-commit document (the raw spelled against
+ *  the world the user typed it in); `holder` is the container the bare scope resolved at —
+ *  the same rule the portion cells' hints use. */
+export interface RefCommit {
+  anchor: boolean; // `&` (a bookmark body) vs `*` (a pointer)
+  raw: string; // the committed portions joined under the ladder (no sigil)
+  holder: Path;
+  doc: Document;
+}
+
+/** The RefCommit a prev→next transition carries, or null. A commit is: the prev cursor was a
+ *  reference edit (hole/pick with a RefEntry), the next state is not refused, the ref edit
+ *  ENDED (the next cursor carries no RefEntry — mid-entry keystrokes keep it, and the
+ *  provisional row's template updates flip the doc identity while typing), and the DOCUMENT
+ *  changed in this very transition (Escape/dismantle/undo end the edit with the doc
+ *  standing). The raw is read off the LANDED document — never the prev cursor's text, which
+ *  the accept-then-act path (onTextKey) has already left behind. */
+export function refCommitOf(prev: EditorState, next: EditorState): RefCommit | null {
+  const c = prev.cursor;
+  if ((c.at !== "hole" && c.at !== "pick") || c.ref === undefined) return null;
+  const n = next.cursor;
+  const stillEditing = (n.at === "hole" || n.at === "pick") && n.ref !== undefined;
+  if (stillEditing || next.refused === true || next.doc === prev.doc) return null;
+  if (c.at === "hole" && c.anchor === true) {
+    // the BOOKMARK landing: the hole's container gained an anchor — read the appended one
+    const before = (((nodeAt(prev.doc, c.path)?.meta ?? {}) as { anchors?: Anchor[] }).anchors ?? []).length;
+    const anchors = ((nodeAt(next.doc, c.path)?.meta ?? {}) as { anchors?: Anchor[] }).anchors ?? [];
+    const landed = anchors[before];
+    if (landed === undefined) return null;
+    return { anchor: true, raw: anchorBody(landed), holder: c.path, doc: prev.doc };
+  }
+  // the POINTER landing spots: a pick lands AT its own path; a hole's fresh entry lands at
+  // (path, index), and the wholesale empty-container case takes the hole's path itself. The
+  // landed value must be a pointer that CHANGED identity in this transition (the provisional
+  // template at the same spot is a different object).
+  const spots: Path[] = c.at === "pick" ? [c.path] : [[...c.path, c.index], c.path];
+  for (const p of spots) {
+    if (p.length === 0) continue;
+    const v = entryAt(next.doc, p)?.value;
+    if (v === undefined || !isPointer(v)) continue;
+    if (entryAt(prev.doc, p)?.value === v) continue; // stood before — not this commit's landing
+    return { anchor: false, raw: (v as Pointer).raw ?? "", holder: p.slice(0, -1), doc: prev.doc };
+  }
+  return null;
+}
+
 /** A click on an IDLE portion cell: the active cell's text stands (commitless, like the arrow
  *  walk), the clicked one opens with the caret at its end. */
 export function focusPortion(state: EditorState, index: number): EditorState {

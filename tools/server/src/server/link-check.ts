@@ -32,6 +32,38 @@ export function deadLinkDiagnostics(doc: Document, store: Store, dataRoot: strin
   return out;
 }
 
+/** STALE DOUBLED FRAGMENTS: a `fragments:` mapping nested DIRECTLY inside `yo: fragments:`.
+ *  Nothing writes this shape any more (the embed walk reads the flat `yo: fragments:` row
+ *  now), but pre-fix annotates over a flat-spelled overlay left it behind — real fragments
+ *  buried one level too deep, whose member pointers spell the doubled
+ *  `…: fragments: fragments: <slug>` and whose locate can never fire. The doctor surfaces
+ *  the damage; the repair is moving the buried children up one level. */
+export function doubledFragmentDiagnostics(doc: Document): Diagnostic[] {
+  const out: Diagnostic[] = [];
+  const walk = (node: unknown, segs: string[]): void => {
+    const entries = (node as { entries?: { key?: string | null; value?: unknown }[] }).entries ?? [];
+    entries.forEach((e, i) => {
+      const key = typeof e.key === 'string' ? e.key : null;
+      if (
+        key === 'fragments' &&
+        segs[segs.length - 1] === 'fragments' &&
+        segs[segs.length - 2] === 'yo'
+      ) {
+        out.push({
+          code: 'annotations/doubled-fragments',
+          severity: 'warning',
+          message: `a \`fragments:\` mapping nested inside \`yo: fragments:\` — left by a pre-fix annotate over the flat spelling`,
+          path: ':' + [...segs, key].join(':'),
+          hint: 'move its child fragments up one level, into the enclosing fragments mapping',
+        });
+      }
+      if (e.value !== null && typeof e.value === 'object') walk(e.value, [...segs, key ?? String(i)]);
+    });
+  };
+  walk(doc.root, []);
+  return out;
+}
+
 /** The unique dead TARGET store paths — the client's currency (GET /api/dead-links):
  *  NavLink marks a resolved link whose target is in this set as `.deadlink`, closing the
  *  UI half of the invariant (a dead link is visible where it stands, not just logged). */

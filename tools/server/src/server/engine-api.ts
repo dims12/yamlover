@@ -41,7 +41,7 @@ import os from "node:os";
 import { fileURLToPath } from "node:url";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { Store, reindex, reindexAsyncDoc, reindexPathAsync, hashFileAsync, watchTree, walkTree, loadSettings, ensureSettingsFile, mv, relinkMoved, relinkRenamed, evalQuery, isBoundaryRow } from "../../../engine/ts/src/index.ts";
-import { deadLinkDiagnostics, deadLinkTargets, logDeadLinks } from "./link-check.js";
+import { deadLinkDiagnostics, deadLinkTargets, doubledFragmentDiagnostics, logDeadLinks } from "./link-check.js";
 import type { NodeRow, EdgeRow, Settings, SidecarLocation, IndexDiff } from "../../../engine/ts/src/index.ts";
 import { parseYamlover } from "../../../parser/ts/src/yamlover.ts";
 import { parseJson5p } from "../../../parser/ts/src/json5p.ts";
@@ -527,7 +527,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
           // THE LINK INVARIANT rides the same sweep: every in-tree prose link must name a
           // node (link-check.ts). Content warnings, merged after the layout diagnostics.
           const doc = cachedDoc ?? walkTree(dataRoot, walkOpts).doc;
-          sendJson(res, 200, { allowed: v.allowed, diagnostics: [...v.diagnostics, ...deadLinkDiagnostics(doc, s, dataRoot)] });
+          sendJson(res, 200, { allowed: v.allowed, diagnostics: [...v.diagnostics, ...deadLinkDiagnostics(doc, s, dataRoot), ...doubledFragmentDiagnostics(doc)] });
         } catch (e) {
           sendJson(res, 500, { error: String((e as Error).message || e) });
         }
@@ -1154,15 +1154,23 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
           }
           return sendJson(res, 415, { error: `no thumbnail for format: ${fmt ?? "unknown"}` });
         }
-        const serve = (file: string): void => {
+        const serve = (file: string, mime = "image/jpeg"): void => {
           res.statusCode = 200;
-          res.setHeader("Content-Type", "image/jpeg");
+          res.setHeader("Content-Type", mime);
           res.setHeader("Content-Length", String(fs.statSync(file).size));
           res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
           const stream = fs.createReadStream(file);
           stream.on("error", () => res.destroy());
           stream.pipe(res);
         };
+        // FORMAT FURNITURE never grows sidecars of its own: a source living inside `.yo/` (a
+        // fragment crop, a generated thumbnail) is itself a derived product, and deriving
+        // another would ask for a `.yo` inside a `.yo` — the layout law forbids that shape
+        // outright (validate.ts layout/nested-overlay), so the server must never even attempt
+        // it. A crop is region-sized already: serve its own bytes.
+        if (segs.some((g) => String(g) === OVERLAY_DIR)) {
+          return serve(sourceAbs, sourceAbs.endsWith(".png") ? "image/png" : "image/jpeg");
+        }
         const ready = existingThumb(dataRoot, s, settings.sidecars, segs, sourceRow, w, h); // no-write fast path
         if (ready) return serve(ready);
         // Generation writes a sidecar AND splices a `yamlover-thumbnails` overlay entry into the
@@ -1693,6 +1701,7 @@ interface FragmentInput {
   target: string; // the node the region lives in (its JSON path)
   selector: Record<string, unknown>; // { type:"text", exact, … } | { type:"pdf", page, x, y, w, h } | …
   imageBase64?: string; // an optional PNG crop (image-like selections)
+  slug?: string; // an optional USER-CHOSEN key for the fragment (the picker's key field); default: minted
 }
 
 /** A child store-path: `parent` + `:key` (root `:` has no leading owner). */
@@ -2108,7 +2117,14 @@ function embedAnnotation(dataRoot: string, s: Store, mode: SidecarLocation, a: A
  *  write the PNG crop as a sidecar blob the fragment references. Returns its slug + node path. */
 function embedFragment(dataRoot: string, s: Store, mode: SidecarLocation, f: FragmentInput): { slug: string; fragmentPath: string } {
   const segs = strToSegs(f.target || ":");
-  const slug = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  // The USER-CHOSEN key wins (the picker's key field — `keyToken` quotes whatever needs
+  // quoting); a taken one refuses rather than upsert-clobbering the existing fragment.
+  // Default: a minted, collision-free slug.
+  const chosen = typeof f.slug === "string" ? f.slug.trim() : "";
+  if (chosen !== "" && s.node(storePath([...segs, YO_KEY, FRAGS_SUBKEY, chosen]))) {
+    throw new Error(`a fragment \`${chosen}\` already exists on this node`);
+  }
+  const slug = chosen !== "" ? chosen : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   // A chunk target (`:chapter[k]`, a positional prose item) can't be reached by the mapping-key
   // writer — turn the chunk into an omni node and hang `yo: fragments:` off it (docs/annotations/storage).
   if (isChunkTarget(s, segs)) {
@@ -2118,7 +2134,7 @@ function embedFragment(dataRoot: string, s: Store, mode: SidecarLocation, f: Fra
     const lines = fs.readFileSync(bodyFile, "utf8").replace(/\n$/, "").split("\n");
     assertProseChunk(lines, indices); // reject a `*…` / non-text chunk
     const region = chunkFieldRegion(lines, indices, /*ensureOmni*/ true); // convert the chunk to an omni node
-    upsertMapEntryAt(lines, reachBodyAt(lines, region, [YO_KEY]), FRAGS_SUBKEY, slug, (indent) => fragmentBlockLines(slug, f.selector, null, indent));
+    upsertMapEntryAt(lines, reachBodyAt(lines, region, [YO_KEY, FRAGS_SUBKEY]), slug, (indent) => fragmentBlockLines(slug, f.selector, null, indent));
     writeBody(dataRoot, s, bodyFile, lines.join("\n") + "\n");
     return { slug, fragmentPath: segsToStr([...segs, YO_KEY, FRAGS_SUBKEY, slug]) };
   }
@@ -2240,7 +2256,8 @@ function unembedAnnotation(dataRoot: string, s: Store, target: string, tag: stri
     const fragRegion = () => reachBodyAt(lines, chunkFieldRegion(lines, indices, /*ensureOmni*/ false), keys);
     removeBookmarkAt(lines, fragRegion, pred);
     if (isFragmentSegs(keys as Seg[]) && !bookmarksRemainAt(lines, fragRegion())) {
-      removeMapEntryAt(lines, reachBodyAt(lines, chunkFieldRegion(lines, indices, false), keys.slice(0, -2)), FRAGS_SUBKEY, keys[keys.length - 1]);
+      // keys = ["yo", "fragments", "<slug>"] — the map path rides ONE flat-aware walk
+      removeMapEntryAt(lines, chunkFieldRegion(lines, indices, false), keys.slice(0, -1), keys[keys.length - 1]);
       pruneEmptyKeyAt(lines, chunkFieldRegion(lines, indices, false), YO_KEY); // the emptied `yo:` husk
       collapseChunkOmni(lines, indices); // no fields left → back to a plain `- |` chunk
     } else if (keys.length === 0 && !bookmarksRemainAt(lines, fragRegion())) {
@@ -2259,7 +2276,7 @@ function unembedAnnotation(dataRoot: string, s: Store, target: string, tag: stri
   const overlay = overlaidDir(bodyFile) !== null;
   // within = [...host, "yo", "fragments", "<slug>"] for a fragment target; drop it when emptied.
   if (isFragmentSegs(within as Seg[]) && !bookmarksRemain(src, within)) {
-    src = removeMapEntry(src, within.slice(0, -2), FRAGS_SUBKEY, within[within.length - 1]);
+    src = removeMapEntry(src, within.slice(0, -3), [YO_KEY, FRAGS_SUBKEY], within[within.length - 1]);
     src = pruneEmptyYo(src, within.slice(0, -3)); // the emptied `yo:` husk
     src = pruneEmptyAnnotations(src, within.slice(0, -3), overlay); // the host may hold nothing else now
   } else {

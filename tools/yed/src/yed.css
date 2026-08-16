@@ -57,19 +57,46 @@
   display: flex;
   flex-direction: column;
   min-width: 12em;
-  max-height: 14em;
-  overflow-y: auto;
+  max-height: 24em;
   background: var(--bg, #fff);
   border: 1px solid var(--line, #ccc);
   border-radius: 4px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, .12);
   font-size: .92em;
 }
+/* the hint rows own the scroll, NOT the whole popup: the recents bag below them must stay
+   in view however long the candidate list gets */
+.y2-hintlist {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 6em; /* the bag may never squeeze the candidates down to a peephole */
+  max-height: 12em;
+  overflow-y: auto;
+}
 .y2-hint { display: flex; gap: 1em; justify-content: space-between; padding: 1px 8px; cursor: pointer; white-space: pre; }
 .y2-hint:hover { background: var(--sel, #ccd0da); }
 .y2-hint.y2-hint-sel { background: var(--sel, #ccd0da); }
 .y2-hint-insert { color: var(--jb-key, #660e7a); }
 .y2-hint-detail { color: var(--dim, #8c959f); }
+/* the RECENTS BAG - the remembered targets below the hint rows (its own section: it stands
+   when Escape closes the hints). A dim HEADER names it - so it never reads as more hints -
+   and its ✕ collapses the pane, leaving the header as the reopen affordance. Rows reuse the
+   hint face; the border is the seam. */
+.y2-bag { display: flex; flex-direction: column; flex: 0 0 auto; max-height: 11em; overflow-y: auto; border-top: 1px solid var(--line, #ccc); }
+.y2-bag-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 1px 8px;
+  color: var(--dim, #8c959f);
+  font-size: .85em;
+  white-space: pre;
+}
+.y2-bag-title { flex: 1 1 auto; cursor: pointer; }
+.y2-bag-title:hover, .y2-bag-close:hover { color: var(--fg, #333); }
+.y2-bag-close { flex: 0 0 auto; cursor: pointer; }
+.y2-bagrow .y2-hint-insert { color: var(--accent, #1e66f5); }
 /* a DERIVED anchor — a dir member's wire name, dimmed read-only chrome (never a cell) */
 .y2-anchor-derived { color: var(--dim, #777); opacity: 0.8; }
 /* the ＋ tail — a quiet row that opens a fresh entry hole at the document's end */

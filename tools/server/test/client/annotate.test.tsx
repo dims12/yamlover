@@ -8,6 +8,7 @@ const { fetchNode } = vi.hoisted(() => ({ fetchNode: vi.fn() }));
 vi.mock("../../src/client/api", async (orig) => ({ ...(await orig<Record<string, unknown>>()), fetchNode }));
 
 import { AnnotationMenu, AnnotatedMaterial, useAnnotations, useAnnotationMenu, DEFAULT_ONTO, copyText } from "../../src/client/renderers/annotate";
+import { _resetRecentsCacheForTests } from "../../src/client/recents";
 
 // The annotation layer's live-refresh + remembered-tag hygiene: external changes arrive as a
 // `yamlover:diff` window event (App re-broadcasts SSE diffs), and localStorage recents are
@@ -15,7 +16,9 @@ import { AnnotationMenu, AnnotatedMaterial, useAnnotations, useAnnotationMenu, D
 
 const ALIVE = { path: ":ontos:alive", name: "alive", color: null };
 const DEAD = { path: ":ontos:dead", name: "dead", color: null };
-const RECENT_KEY = "yo-annotate-recent-tags";
+// the PER-PROJECT recents key (recents.ts): /api/config and /api/info both 404 under
+// mockFetch, so the project key resolves to the "local" fallback in every test here
+const RECENT_KEY = "yo-recents:bookmarks:local";
 
 /** Route fetches by their decoded `path` query param; undefined → a 404 {error} response.
  *  `fetchNode` (the pruning/liveness probes) is mocked off the same table: a listed path
@@ -44,6 +47,7 @@ function mockFetch(routes: Record<string, unknown>): ReturnType<typeof vi.fn> {
 
 beforeEach(() => {
   localStorage.clear();
+  _resetRecentsCacheForTests();
   fetchNode.mockReset().mockRejectedValue(new Error("no routes — call mockFetch first"));
 });
 afterEach(() => {
@@ -99,9 +103,7 @@ describe("AnnotationMenu remembered-tag pruning", () => {
       <AnnotationMenu x={0} y={0} applied={[DEFAULT_ONTO]} mode="create" onPick={vi.fn()} onClose={vi.fn()} />,
     );
     const badges = () => [...container.querySelectorAll(".annotate-recents .tagtag")].map((b) => b.textContent);
-    expect(badges()).toEqual(["alive", "dead"]); // stored list shows at once
-
-    await waitFor(() => expect(badges()).toEqual(["alive"]));
+    await waitFor(() => expect(badges()).toEqual(["alive"])); // the dead one pruned away
     expect(JSON.parse(localStorage.getItem(RECENT_KEY)!)).toEqual([ALIVE]);
   });
 
@@ -115,8 +117,8 @@ describe("AnnotationMenu remembered-tag pruning", () => {
     const { container } = render(
       <AnnotationMenu x={0} y={0} applied={[ALIVE]} mode="edit" onPick={vi.fn()} onClose={vi.fn()} />,
     );
-    const sel = () => [...container.querySelectorAll(".annotate-recents .tagtag.on")].map((b) => b.textContent);
-    expect(sel()).toEqual(["alive"]); // only the assigned one is framed
+    const sel = () => [...container.querySelectorAll(".annotate-applied .tagtag.on")].map((b) => b.textContent);
+    expect(sel()).toEqual(["alive"]); // only the assigned one is framed, in the APPLIED row
   });
 
   it("shows the assigned named tag even when it aged out of the recents", async () => {
@@ -127,9 +129,11 @@ describe("AnnotationMenu remembered-tag pruning", () => {
     const { container } = render(
       <AnnotationMenu x={0} y={0} applied={[assigned]} mode="edit" onPick={vi.fn()} onClose={vi.fn()} />,
     );
-    const badges = [...container.querySelectorAll(".annotate-recents .tagtag")].map((b) => b.textContent);
-    expect(badges).toEqual(["forgotten", "alive"]); // prepended, ahead of the recents
-    expect(container.querySelector(".annotate-recents .tagtag.on")?.textContent).toBe("forgotten");
+    // the assigned tag stands in the APPLIED row (outlined) even though it aged out of the
+    // bag; the surviving recent stays in the suggestion pane below
+    await waitFor(() => expect([...container.querySelectorAll(".annotate-recents .tagtag")].map((b) => b.textContent)).toEqual(["alive"]));
+    expect([...container.querySelectorAll(".annotate-applied .tagtag")].map((b) => b.textContent)).toEqual(["forgotten"]);
+    expect(container.querySelector(".annotate-applied .tagtag.on")?.textContent).toBe("forgotten");
   });
 
   it("keeps a recent that exists even when it is NOT a tag-format node (any node can be a tag)", async () => {
@@ -146,8 +150,8 @@ describe("AnnotationMenu remembered-tag pruning", () => {
   });
 });
 
-describe("region window (title from the fragment path)", () => {
-  it("openEdit titles the window with the clicked fragment's path (the bug: it was blank)", async () => {
+describe("region window (the yamlover-shaped header)", () => {
+  it("openEdit shows the fragment's KEY in the header (`key:`), the full path as the tooltip", async () => {
     vi.stubGlobal("fetch", mockFetch({})); // all internal lookups 404 → hooks fall back quietly
     const material = { annotations: [], create: vi.fn(), remove: vi.fn(), annotateRegion: vi.fn() };
     let menu: ReturnType<typeof useAnnotationMenu>;
@@ -157,15 +161,130 @@ describe("region window (title from the fragment path)", () => {
     }
     const { container } = render(<Harness />);
     act(() => menu.openEdit({ selector: { type: "rect" }, tag: { path: ":t", name: "t", color: null }, fragmentSlug: "abc123" }, { x: 5, y: 5 }));
-    await waitFor(() => expect(container.querySelector(".annotate-titlebar")).not.toBeNull());
-    const title = container.querySelector(".annotate-title")!.textContent!;
-    expect(title).toContain("yo"); // the fragment's node path, not blank
-    expect(title).toContain("abc123");
-    // the close ✕ sits at the top-right, OUTSIDE the path cell (a sibling in the top bar)
+    await waitFor(() => expect(container.querySelector(".annotate-topbar")).not.toBeNull());
+    const bar = container.querySelector(".annotate-topbar") as HTMLElement;
+    expect(bar.title).toContain("yo"); // the fragment's node path rides the tooltip
+    expect(bar.title).toContain("abc123");
+    // the header spells `key:` — the fragment's slug in the key field, the uneditable colon after
+    expect((container.querySelector(".annotate-key") as HTMLInputElement).value).toBe("abc123");
+    expect(container.querySelector(".annotate-colon")?.textContent).toBe(":");
+    // the entry row below leads with the uneditable `&` sigil
+    expect(container.querySelector(".annotate-entry .annotate-amp")?.textContent).toBe("&");
+    // the ⏎ apply and ✕ close sit docked at the header's right
+    expect(container.querySelector(".annotate-topbar button.ok")).not.toBeNull();
     expect(container.querySelector(".annotate-topbar button.close")).not.toBeNull();
-    expect(container.querySelector(".annotate-titlebar button.close")).toBeNull();
-    // the path is wrapped in <bdi> for LEFT-truncation (right tail visible)
-    expect(container.querySelector(".annotate-title bdi")).not.toBeNull();
+  });
+
+  it("renaming the KEY of an existing fragment rekeys it in place", async () => {
+    vi.stubGlobal("fetch", mockFetch({ ":img.png:yo:fragments:named": { path: ":img.png:yo:fragments:named" } }));
+    const material = { annotations: [], create: vi.fn(), remove: vi.fn(), annotateRegion: vi.fn() };
+    let menu: ReturnType<typeof useAnnotationMenu>;
+    function Harness() {
+      menu = useAnnotationMenu(material as never, ":img.png");
+      return <>{menu.palette}</>;
+    }
+    const { container } = render(<Harness />);
+    act(() => menu.openEdit({ selector: { type: "rect" }, tag: { path: ":t", name: "t", color: null }, fragmentSlug: "abc123" }, { x: 5, y: 5 }));
+    await waitFor(() => expect(container.querySelector(".annotate-key")).not.toBeNull());
+    const key = container.querySelector(".annotate-key") as HTMLInputElement;
+    const rekeyed = vi.fn();
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).includes("/api/rekey")) {
+        rekeyed(JSON.parse(String(init?.body)));
+        return { ok: true, status: 200, json: async () => ({ path: ":img.png:yo:fragments:named" }) } as Response;
+      }
+      return { ok: false, status: 404, json: async () => ({ error: "no" }) } as Response;
+    }));
+    fireEvent.change(key, { target: { value: "named" } });
+    fireEvent.keyDown(key, { key: "Enter" });
+    await waitFor(() => expect(rekeyed).toHaveBeenCalledWith({ path: ":img.png:yo:fragments:abc123", key: "named" }));
+    await waitFor(() => expect((container.querySelector(".annotate-topbar") as HTMLElement).title).toContain("named"));
+  });
+
+  it("a FRESH region's typed key becomes the fragment's slug at the first pick", async () => {
+    vi.stubGlobal("fetch", mockFetch({}));
+    const annotateRegion = vi.fn();
+    const material = { annotations: [], create: vi.fn(), remove: vi.fn(), annotateRegion };
+    let menu: ReturnType<typeof useAnnotationMenu>;
+    function Harness() {
+      menu = useAnnotationMenu(material as never, ":img.png");
+      return <>{menu.palette}</>;
+    }
+    const { container } = render(<Harness />);
+    act(() => menu.openCreate({ type: "rect" }, { x: 5, y: 5 }));
+    await waitFor(() => expect(container.querySelector(".annotate-key")).not.toBeNull());
+    const key = container.querySelector(".annotate-key") as HTMLInputElement;
+    expect(key.value).toBe(""); // unborn — no key yet, the placeholder invites one
+    fireEvent.change(key, { target: { value: "my region" } });
+    fireEvent.keyDown(key, { key: "Enter" });
+    // the first pick carries the chosen name as the fragment slug
+    act(() => {
+      const chip = container.querySelector(".annotate-swatch") as HTMLElement;
+      fireEvent.click(chip);
+    });
+    expect(annotateRegion).toHaveBeenCalledTimes(1);
+    expect(annotateRegion.mock.calls[0][2]).toMatchObject({ slug: "my region" });
+  });
+
+  it("the dialog leads with the path entry, then applied, then the recents pane, palette", async () => {
+    localStorage.setItem(RECENT_KEY, JSON.stringify([{ path: ":ontos:some", name: "some", color: null }]));
+    mockFetch({ ":ontos:some": { path: ":ontos:some", value: {} } });
+    const { container } = render(
+      <AnnotationMenu x={0} y={0} applied={[ALIVE]} mode="create" onPick={vi.fn()} onClose={vi.fn()} />,
+    );
+    await waitFor(() => expect(container.querySelector(".annotate-bag")).not.toBeNull());
+    const menu = container.querySelector(".annotate-menu")!;
+    const order = [...menu.children].map((el) => el.className.split(" ")[0]);
+    const at = (cls: string) => order.indexOf(cls);
+    expect(at("annotate-topbar")).toBe(0);
+    expect(at("annotate-entry")).toBeGreaterThan(at("annotate-topbar")); // the `& <path>` row
+    expect(at("annotate-applied")).toBeGreaterThan(at("annotate-entry"));
+    expect(at("annotate-bag")).toBeGreaterThan(at("annotate-applied"));
+    expect(at("annotate-palette")).toBeGreaterThan(at("annotate-bag"));
+  });
+
+  it("the recents pane CLOSES to its header and the preference is remembered", async () => {
+    localStorage.setItem(RECENT_KEY, JSON.stringify([{ path: ":ontos:some", name: "some", color: null }]));
+    mockFetch({ ":ontos:some": { path: ":ontos:some", value: {} } });
+    const { container } = render(
+      <AnnotationMenu x={0} y={0} applied={[]} mode="create" onPick={vi.fn()} onClose={vi.fn()} />,
+    );
+    await waitFor(() => expect(container.querySelectorAll(".annotate-recents .tagtag").length).toBe(1));
+    fireEvent.click(container.querySelector(".annotate-bag-close")!);
+    expect(container.querySelectorAll(".annotate-recents .tagtag").length).toBe(0); // collapsed…
+    expect(container.querySelector(".annotate-bag-toggle")!.textContent).toContain("recent"); // …to its header
+    expect(localStorage.getItem("yo-recents-pane:picker")).toBe("off");
+    fireEvent.click(container.querySelector(".annotate-bag-toggle")!); // the header reopens it
+    expect(container.querySelectorAll(".annotate-recents .tagtag").length).toBe(1);
+    expect(localStorage.getItem("yo-recents-pane:picker")).toBe("on");
+  });
+
+  it("ESCAPE closes the popup (the dropdown first when it is open)", async () => {
+    mockFetch({});
+    const onClose = vi.fn();
+    render(<AnnotationMenu x={0} y={0} applied={[]} mode="create" onPick={vi.fn()} onClose={onClose} />);
+    // no dropdown up: the FIRST Escape closes the window — from any host (TOC menu, prose,
+    // a PDF region), since the listener rides the document in CAPTURE
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("ENTER with NOTHING TYPED confirms and closes (after a TOC pick the entry stands empty)", async () => {
+    mockFetch({});
+    const onClose = vi.fn();
+    const { container } = render(<AnnotationMenu x={0} y={0} applied={[]} mode="create" onPick={vi.fn()} onClose={onClose} />);
+    await waitFor(() => expect(container.querySelector(".annotate-cells .crumb-cell")).not.toBeNull());
+    const cell = [...container.querySelectorAll<HTMLElement>(".annotate-cells .crumb-cell")].pop()!;
+    fireEvent.focus(cell);
+    // empty entry — Enter is "done", never a dead key (the reported can't-press-Enter)
+    fireEvent.keyDown(cell, { key: "Enter" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+    // …but with TEXT typed, Enter belongs to the cells (it applies the query)
+    onClose.mockClear();
+    cell.textContent = "done";
+    fireEvent.input(cell);
+    fireEvent.keyDown(cell, { key: "Enter" });
+    expect(onClose).not.toHaveBeenCalled();
   });
 });
 
@@ -248,7 +367,7 @@ describe("text material right-click", () => {
     const inner = container.querySelector(".annotated > div") as HTMLElement;
     fireEvent.contextMenu(inner, { clientX: 10, clientY: 10 });
     await waitFor(() => expect(container.querySelector(".annotate-menu")).not.toBeNull());
-    expect(container.querySelector(".annotate-title")?.textContent).toContain("doc");
+    expect((container.querySelector(".annotate-topbar") as HTMLElement).title).toContain("doc");
   });
 });
 

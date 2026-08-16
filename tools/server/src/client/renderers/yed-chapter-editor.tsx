@@ -31,7 +31,8 @@ import {
 import { rolesOf } from "../../../../yed/src/chapter/legend";
 import { createColumnMemory } from "../../../../yed/src/chapter/caret";
 import { editChunks, fetchNode, pasteFileInline, rekeyNode, type NodeJson } from "../api";
-import { makeSourceCells, treeHints } from "./yed-cells";
+import { forgetRecentEntry, makeSourceCells, recordRefCommit, treeHints, treeRecents } from "./yed-cells";
+import { useRecentsPane } from "../recents";
 import { fetchContent } from "../content";
 import { irFromContent } from "./yed-content-load";
 import { diffToOps } from "./yed-sync";
@@ -63,6 +64,7 @@ export function YedChapterEditor({ path, onNavigate }: { path: string; onNavigat
   const inflightRef = useRef(false);
   const failedRef = useRef(false); // a failed sync STOPS auto-retry — the next user edit re-arms
   const columnMemory = useMemo(createColumnMemory, []);
+  const [bagOpen, setBagOpen] = useRecentsPane("editor"); // the inline bag's ✕, remembered
 
   /** Flush the pending diff (+ any DEFERRED MATERIALIZATION, whose ops lead the batch).
    *  Returns the born members synchronously so auto-descend can address them by key.
@@ -243,13 +245,23 @@ export function YedChapterEditor({ path, onNavigate }: { path: string; onNavigat
     sourceCells: makeSourceCells({ navigate: onNavigate }),
     // completion over a source chunk's reference portion cells - the tree-backed provider
     sourceHints: treeHints,
+    // the per-project recents bag below those hints, and the commit-side recording
+    sourceRecents: treeRecents,
+    sourceRecentsPaneOpen: bagOpen,
+    sourceRecentsPane: setBagOpen,
+    sourceRecentForget: forgetRecentEntry,
+    sourceRefCommit: (p, c) => {
+      const doc = stateRef.current?.doc;
+      if (doc) recordRefCommit(c, { base: subchapterServerPath(doc, path, p), doc: path });
+    },
     // a source chunk's wire addresses — its reference cells spell and address from here
     sourceHost: (p) => {
       const doc = stateRef.current?.doc;
       if (!doc) return undefined;
       return { base: subchapterServerPath(doc, path, p), doc: path };
     },
-  }), [path, onNavigate, columnMemory]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [path, onNavigate, columnMemory, bagOpen]);
 
   const debug = ((): boolean => {
     try { return new URLSearchParams(window.location.search).get("yed") === "debug"; } catch { return false; }

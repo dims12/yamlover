@@ -60,6 +60,25 @@ function findKeyLine(lines: string[], lo: number, hi: number, indent: number, ke
   return -1;
 }
 
+/** How many of `keys[k..]` the line spells FLAT — the flattening serializer's single-chain
+ *  row (`yo: fragments:`, docs/language/flattening): each upcoming walk key is stripped off
+ *  the line's head in turn, and consumption stops at the first remainder that is not the
+ *  next key (a value, a deeper flat tail, the line's end). At least 1 — the caller already
+ *  matched `keys[k]`. Without this the descent saw `yo: fragments:` as `yo:` alone and grew
+ *  a SECOND nested `fragments:` mapping (the reported `…fragments: fragments: <slug>`). */
+function flatRun(line: string, keys: string[], k: number): number {
+  let rest = line.trim();
+  let n = 0;
+  while (k + n < keys.length && rest !== "") {
+    const key = keys[k + n];
+    const tok = [key, keyToken(key)].find((t) => rest === `${t}:` || rest.startsWith(`${t}: `));
+    if (tok === undefined) break;
+    rest = rest === `${tok}:` ? "" : rest.slice(tok.length + 2);
+    n++;
+  }
+  return Math.max(1, n);
+}
+
 /** Walk `end` back over trailing blank lines, so an insert lands right after the last content. */
 function trimBack(lines: string[], floor: number, end: number): number {
   let e = end;
@@ -109,15 +128,21 @@ function bodyUnder(lines: string[], L: number, hi: number, indent: number): Regi
 export function reachBodyAt(lines: string[], start: Region, within: string[]): Region {
   let { lo, hi, indent } = start;
 
-  for (const key of within) {
+  for (let k = 0; k < within.length; ) {
+    const key = within[k];
     const L = findKeyLine(lines, lo, hi, indent, key);
     if (L < 0) {
       const at = trimBack(lines, lo - 1, hi); // append the new key at the end of the current body
       lines.splice(at, 0, `${" ".repeat(indent)}${keyToken(key)}:`);
       lo = at + 1; hi = at + 1; indent += 2; // its (empty) body
+      k++;
       continue;
     }
+    // a FLAT row spells several of the upcoming keys on this one line (`yo: fragments:`) —
+    // the walk consumes them all; the region is the line's own block either way
+    const consumed = flatRun(lines[L], within, k);
     ({ lo, hi, indent } = bodyUnder(lines, L, hi, indent));
+    k += consumed;
   }
   return { lo, hi, indent };
 }
@@ -126,10 +151,12 @@ export function reachBodyAt(lines: string[], start: Region, within: string[]): R
  *  prune path needs: {@link reachBody} would re-CREATE a key that a removal just deleted. */
 function findBody(lines: string[], within: string[]): Region | null {
   let region: Region = { lo: 0, hi: lines.length, indent: firstContentIndent(lines) };
-  for (const key of within) {
-    const L = findKeyLine(lines, region.lo, region.hi, region.indent, key);
+  for (let k = 0; k < within.length; ) {
+    const L = findKeyLine(lines, region.lo, region.hi, region.indent, within[k]);
     if (L < 0) return null;
+    const consumed = flatRun(lines[L], within, k); // the flat row (`yo: fragments:`) reads here too
     region = bodyUnder(lines, L, region.hi, region.indent);
+    k += consumed;
   }
   return region;
 }
@@ -176,34 +203,28 @@ export function appendAnnotationAt(lines: string[], region: Region, render: (ind
   }
 }
 
-/** Upsert an `<entryKey>:` entry into the `<mapKey>:` mapping of the node addressed by `within`,
- *  creating the map key (and any missing path) if absent. `render(indent)` returns the entry's
- *  source lines INCLUDING the `<entryKey>:` line, at the mapping's child indent. An entry whose key
- *  already exists is REPLACED (its whole block). The shared engine behind {@link upsertFragment}
- *  and {@link upsertThumbnail}. */
-function upsertMapEntry(text: string, within: string[], mapKey: string, entryKey: string, render: (indent: number) => string[]): string {
+/** Upsert an `<entryKey>:` entry into the mapping at `mapPath` under the node addressed by
+ *  `within`, creating the map keys (and any missing path) if absent. `render(indent)` returns
+ *  the entry's source lines INCLUDING the `<entryKey>:` line, at the mapping's child indent. An
+ *  entry whose key already exists is REPLACED (its whole block). The shared engine behind
+ *  {@link upsertFragment} and {@link upsertThumbnail}. `mapPath` rides ONE walk with `within`,
+ *  so a flat-spelled chain (`yo: fragments:`) is descended, never doubled. */
+function upsertMapEntry(text: string, within: string[], mapPath: string[], entryKey: string, render: (indent: number) => string[]): string {
   const lines = text.replace(/\n$/, "").split("\n");
-  upsertMapEntryAt(lines, reachBody(lines, within), mapKey, entryKey, render);
+  upsertMapEntryAt(lines, reachBody(lines, [...within, ...mapPath]), entryKey, render);
   return lines.join("\n") + "\n";
 }
 
-/** {@link upsertMapEntry} rooted at an already-resolved `region` (mutates `lines`). */
-export function upsertMapEntryAt(lines: string[], region: Region, mapKey: string, entryKey: string, render: (indent: number) => string[]): void {
-  let mapLine = findKeyLine(lines, region.lo, region.hi, region.indent, mapKey);
-  if (mapLine < 0) {
-    const at = trimBack(lines, region.lo - 1, region.hi);
-    lines.splice(at, 0, `${" ".repeat(region.indent)}${keyToken(mapKey)}:`);
-    mapLine = at;
-  }
-  const mapIndent = region.indent + 2;
-  const mapBody: Region = { lo: mapLine + 1, hi: blockEnd(lines, mapLine + 1, lines.length, region.indent + 1), indent: mapIndent };
-  const existing = findKeyLine(lines, mapBody.lo, mapBody.hi, mapIndent, entryKey);
+/** {@link upsertMapEntry}'s entry half, rooted at the mapping's already-resolved BODY region
+ *  (mutates `lines`): replace the existing `<entryKey>:` block, else append at the body's end. */
+export function upsertMapEntryAt(lines: string[], body: Region, entryKey: string, render: (indent: number) => string[]): void {
+  const existing = findKeyLine(lines, body.lo, body.hi, body.indent, entryKey);
   if (existing >= 0) {
-    const end = blockEnd(lines, existing + 1, mapBody.hi, mapIndent + 1);
-    lines.splice(existing, end - existing, ...render(mapIndent));
+    const end = blockEnd(lines, existing + 1, body.hi, body.indent + 1);
+    lines.splice(existing, end - existing, ...render(body.indent));
   } else {
-    const at = trimBack(lines, mapLine, mapBody.hi);
-    lines.splice(at, 0, ...render(mapIndent));
+    const at = trimBack(lines, body.lo - 1, body.hi);
+    lines.splice(at, 0, ...render(body.indent));
   }
 }
 
@@ -212,7 +233,7 @@ export function upsertMapEntryAt(lines: string[], region: Region, mapKey: string
  *  fragment's source lines INCLUDING the `<slug>:` line, at the mapping's child indent. A slug
  *  that already exists is REPLACED (its whole block). */
 export function upsertFragment(text: string, within: string[], slug: string, render: (indent: number) => string[]): string {
-  return upsertMapEntry(text, [...within, YO_KEY], FRAGMENTS_SUBKEY, slug, render);
+  return upsertMapEntry(text, within, [YO_KEY, FRAGMENTS_SUBKEY], slug, render);
 }
 
 /** Drop the bare `key:` line at `region` when its block holds no content — the husk pruner for a
@@ -307,7 +328,7 @@ export function pruneEmptyYo(text: string, within: string[]): string {
  *  the key (and any missing path) if absent. `render(indent)` returns the entry's source line
  *  INCLUDING the resolution key. The same `[w, h]` resolution is REPLACED if already present. */
 export function upsertThumbnail(text: string, within: string[], resKey: string, render: (indent: number) => string[]): string {
-  return upsertMapEntry(text, within, THUMBNAILS_KEY, resKey, render);
+  return upsertMapEntry(text, within, [THUMBNAILS_KEY], resKey, render);
 }
 
 /** Whether the node at `within` still has at least one `yamlover-annotations:` element. Read-only:
@@ -371,33 +392,51 @@ export function pruneEmptyAnnotations(text: string, within: string[], pruneHosts
   return droppedHusk || droppedHosts ? lines.join("\n") + "\n" : text;
 }
 
-/** Remove the `<entryKey>:` block from the `<mapKey>:` mapping of the node at `within` (e.g. drop one
- *  slug from `yo: fragments:`). Returns the text unchanged when the map or entry is absent. When
- *  the mapping is left empty, its `<mapKey>:` line is removed too, so no bare `fragments:`
- *  husk lingers. */
-export function removeMapEntry(text: string, within: string[], mapKey: string, entryKey: string): string {
+/** Flat-aware, READ-ONLY lookup of the mapping at `mapPath` under `region`: the physical LINE
+ *  that carries the mapping's key (the LAST line consumed — the flat `yo: fragments:` row is
+ *  one line for both keys), and the mapping's body. Null when any key is absent. */
+function findMapping(lines: string[], region: Region, mapPath: string[]): { line: number; body: Region } | null {
+  let r = region;
+  let line = -1;
+  for (let k = 0; k < mapPath.length; ) {
+    const L = findKeyLine(lines, r.lo, r.hi, r.indent, mapPath[k]);
+    if (L < 0) return null;
+    const consumed = flatRun(lines[L], mapPath, k);
+    line = L;
+    r = bodyUnder(lines, L, r.hi, r.indent);
+    k += consumed;
+  }
+  return line < 0 ? null : { line, body: r };
+}
+
+/** Remove the `<entryKey>:` block from the mapping at `mapPath` under the node at `within`
+ *  (e.g. drop one slug from `yo: fragments:`). Returns the text unchanged when the map or entry
+ *  is absent. When the mapping is left empty, its key line is removed too — the FLAT spelling
+ *  (`yo: fragments:`) drops as the one line it is, so no husk lingers either way. */
+export function removeMapEntry(text: string, within: string[], mapPath: string[], entryKey: string): string {
   const lines = text.replace(/\n$/, "").split("\n");
-  return removeMapEntryAt(lines, reachBody(lines, within), mapKey, entryKey) ? lines.join("\n") + "\n" : text;
+  const region = findBody(lines, within);
+  if (!region) return text;
+  return removeMapEntryAt(lines, region, mapPath, entryKey) ? lines.join("\n") + "\n" : text;
 }
 
 /** {@link removeMapEntry} at an already-resolved `region` (mutates `lines`); returns whether anything
  *  was removed (so callers can skip a no-op re-write). */
-export function removeMapEntryAt(lines: string[], region: Region, mapKey: string, entryKey: string): boolean {
-  const mapLine = findKeyLine(lines, region.lo, region.hi, region.indent, mapKey);
-  if (mapLine < 0) return false;
-  const mapIndent = region.indent + 2;
-  const mapHi = blockEnd(lines, mapLine + 1, lines.length, region.indent + 1);
-  const entry = findKeyLine(lines, mapLine + 1, mapHi, mapIndent, entryKey);
+export function removeMapEntryAt(lines: string[], region: Region, mapPath: string[], entryKey: string): boolean {
+  const map = findMapping(lines, region, mapPath);
+  if (!map) return false;
+  const entry = findKeyLine(lines, map.body.lo, map.body.hi, map.body.indent, entryKey);
   if (entry < 0) return false;
-  const end = blockEnd(lines, entry + 1, mapHi, mapIndent + 1);
+  const end = blockEnd(lines, entry + 1, map.body.hi, map.body.indent + 1);
   lines.splice(entry, end - entry);
-  // the mapping now empty (no child key at mapIndent left) → drop its key line as well
-  const newHi = blockEnd(lines, mapLine + 1, lines.length, region.indent + 1);
+  // the mapping now empty (no child key left) → drop its key line (and block) as well
+  const mapIndent = indentOf(lines[map.line]);
+  const newHi = blockEnd(lines, map.line + 1, lines.length, mapIndent + 1);
   let hasChild = false;
-  for (let i = mapLine + 1; i < newHi; i++) {
-    if (isContentLine(lines[i]) && indentOf(lines[i]) === mapIndent) { hasChild = true; break; }
+  for (let i = map.line + 1; i < newHi; i++) {
+    if (isContentLine(lines[i]) && indentOf(lines[i]) === map.body.indent) { hasChild = true; break; }
   }
-  if (!hasChild) lines.splice(mapLine, blockEnd(lines, mapLine + 1, lines.length, region.indent + 1) - mapLine);
+  if (!hasChild) lines.splice(map.line, newHi - map.line);
   return true;
 }
 

@@ -1,7 +1,7 @@
 import { ReactNode, useEffect, useRef, useState } from "react";
-import { Annotation, TagRef, annotate, deleteAnnotation, fetchAnnotations } from "../api";
+import { Annotation, TagRef, annotate, deleteAnnotation, fetchAnnotations, rekeyNode } from "../api";
 import { AnnotationMenu, rememberTag, withinQueryDropdown, withinTocPane, type CreateEntry } from "./annotate";
-import { canonPath, displayPath } from "../paths";
+import { canonPath, displayPath, strToSegs } from "../paths";
 import { creatablesFor, useCreatableLabels } from "./create";
 import { READ_ONLY } from "../base";
 
@@ -96,6 +96,17 @@ export function useExplorerTagMenu(opts?: {
 
   // the node's applied tags (resolved from its annotations) — the menu OUTLINES these and toggles
   const applied = current.map((a) => a.tag).filter((t): t is TagRef => !!t);
+  // THE KEY ROW: the target's own key (its last segment) — the header reads as the yamlover
+  // spelling `key: & tag`. A KEYED node renames through /api/rekey (the same verb the editor
+  // uses — inbound pointers follow); a position/root target shows no editable key.
+  const lastSeg = menu ? strToSegs(menu.target).pop() : undefined;
+  const keyText = typeof lastSeg === "string" ? lastSeg : "";
+  const renameKey = (name: string): void => {
+    if (!menu || typeof lastSeg !== "string" || name === "") return;
+    rekeyNode(menu.target, name)
+      .then((r) => { setMenu((m) => (m ? { ...m, target: r.path } : m)); reload(r.path); })
+      .catch((e) => window.alert(`rename failed: ${(e as Error).message}`));
+  };
   // the object-creation entries for this target (a "＋ New <schema>" + concrete selector each)
   const creates: CreateEntry[] | undefined =
     menu?.node && opts?.onCreate
@@ -108,7 +119,11 @@ export function useExplorerTagMenu(opts?: {
         }))
       : undefined;
   const tagMenu = menu ? (
-    <AnnotationMenu menuRef={ref} x={menu.x} y={menu.y} applied={applied} mode="create" onPick={add} onUnpick={remove} onClose={close} creates={creates} title={displayPath(menu.target)} targetPath={menu.target} />
+    <AnnotationMenu
+      menuRef={ref} x={menu.x} y={menu.y} applied={applied} mode="create" onPick={add} onUnpick={remove}
+      onClose={close} creates={creates} title={displayPath(menu.target)} targetPath={menu.target}
+      keyText={keyText} onRenameKey={typeof lastSeg === "string" ? renameKey : undefined}
+    />
   ) : null;
   return { openAt, tagMenu };
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { appendBookmark, upsertFragment, removeBookmark, bookmarksRemain, keyToken } from "../src/server/embed";
+import { appendBookmark, upsertFragment, removeBookmark, removeMapEntry, bookmarksRemain, keyToken } from "../src/server/embed";
 
 // Surgical embedding of fragments + membership bookmarks into a yamlover host body
 // (docs/annotations). Pure string transforms — no fs / Store; the round-trip target is
@@ -68,6 +68,56 @@ describe("upsertFragment", () => {
     expect(out).toBe(
       `"a.pdf":\n  yo:\n    fragments:\n      slug1:\n        type: pdf\n        page: 1\n`,
     );
+  });
+
+  // THE FLAT ROW (docs/language/flattening): the serializer spells the single-child chain as
+  // `yo: fragments:` on ONE line. The walk must read it as both keys — descending it as `yo:`
+  // alone grew a SECOND nested `fragments:` mapping (the reported doubled
+  // `…: yo: fragments: fragments: <slug>` member pointer).
+  it("adds a slug under a FLAT `yo: fragments:` row — never a nested duplicate mapping", () => {
+    const src = `"a.jpg":\n  yo: fragments:\n    slug0: !!<*::yamlover:$defs:fragment>\n      type: "rect"\n      x: 1\n`;
+    const out = upsertFragment(src, ["a.jpg"], "slug1", (i) => [
+      `${" ".repeat(i)}slug1:`,
+      `${" ".repeat(i + 2)}type: "rect"`,
+    ]);
+    expect(out).toBe(
+      `"a.jpg":\n  yo: fragments:\n    slug0: !!<*::yamlover:$defs:fragment>\n      type: "rect"\n      x: 1\n    slug1:\n      type: "rect"\n`,
+    );
+    expect(out).not.toContain("fragments:\n    fragments:");
+  });
+
+  it("replaces an existing slug under a FLAT `yo: fragments:` row", () => {
+    const src = `"a.jpg":\n  yo: fragments:\n    slug0:\n      x: 9\n`;
+    const out = upsertFragment(src, ["a.jpg"], "slug0", (i) => [`${" ".repeat(i)}slug0:`, `${" ".repeat(i + 2)}x: 1`]);
+    expect(out).toBe(`"a.jpg":\n  yo: fragments:\n    slug0:\n      x: 1\n`);
+  });
+});
+
+describe("the flat `yo: fragments:` row across the OTHER verbs", () => {
+  const FLAT = `"a.jpg":\n  yo: fragments:\n    slug0:\n      type: "rect"\n      ${TAG.slice(0)}\n`;
+
+  it("appendBookmark reaches a fragment under the flat row", () => {
+    const src = `"a.jpg":\n  yo: fragments:\n    slug0:\n      type: "rect"\n`;
+    const out = appendBookmark(src, ["a.jpg", "yo", "fragments", "slug0"], [TAG]);
+    expect(out).toBe(`"a.jpg":\n  yo: fragments:\n    slug0:\n      type: "rect"\n      ${TAG}\n`);
+  });
+
+  it("removeBookmark + bookmarksRemain read through the flat row", () => {
+    expect(bookmarksRemain(FLAT, ["a.jpg", "yo", "fragments", "slug0"])).toBe(true);
+    const out = removeBookmark(FLAT, ["a.jpg", "yo", "fragments", "slug0"], () => true);
+    expect(out).toBe(`"a.jpg":\n  yo: fragments:\n    slug0:\n      type: "rect"\n`);
+    expect(bookmarksRemain(out, ["a.jpg", "yo", "fragments", "slug0"])).toBe(false);
+  });
+
+  it("removeMapEntry drops the slug, and the emptied FLAT row goes as the one line it is", () => {
+    const out = removeMapEntry(FLAT, ["a.jpg"], ["yo", "fragments"], "slug0");
+    expect(out).toBe(`"a.jpg":\n`);
+  });
+
+  it("removeMapEntry keeps the flat row while a sibling slug remains", () => {
+    const src = `"a.jpg":\n  yo: fragments:\n    slug0:\n      x: 1\n    slug1:\n      x: 2\n`;
+    const out = removeMapEntry(src, ["a.jpg"], ["yo", "fragments"], "slug0");
+    expect(out).toBe(`"a.jpg":\n  yo: fragments:\n    slug1:\n      x: 2\n`);
   });
 });
 

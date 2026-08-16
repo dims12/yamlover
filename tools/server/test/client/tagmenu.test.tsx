@@ -86,10 +86,12 @@ describe("AnnotationMenu — applied tags outline, no duplicates", () => {
     const onPick = vi.fn();
     const onUnpick = vi.fn();
     const { container } = render(<AnnotationMenu x={0} y={0} applied={[NAMED]} mode="create" onPick={onPick} onUnpick={onUnpick} onClose={() => {}} />);
-    // the applied named tag is shown ONCE, as an OUTLINED badge (no separate "current" chip)
-    const badges = [...container.querySelectorAll(".annotate-recents .tagtag")].map((b) => b.textContent);
+    // the applied named tag is shown ONCE, as an OUTLINED badge in the APPLIED row (state,
+    // never inside the collapsible suggestion pane — a hidden bag must not hide the untag)
+    const badges = [...container.querySelectorAll(".annotate-applied .tagtag")].map((b) => b.textContent);
     expect(badges).toEqual(["done"]);
-    expect(container.querySelector(".annotate-recents .tagtag.on")?.textContent).toBe("done");
+    expect(container.querySelector(".annotate-applied .tagtag.on")?.textContent).toBe("done");
+    expect([...container.querySelectorAll(".annotate-recents .tagtag")].map((b) => b.textContent)).not.toContain("done");
     expect(container.querySelector(".annotate-current")).toBeNull(); // the ad-hoc row is gone
     // clicking the applied badge toggles it OFF (remove), not add
     fireEvent.click(screen.getByText("done"));
@@ -101,7 +103,7 @@ describe("AnnotationMenu — applied tags outline, no duplicates", () => {
     const yellow = { path: "::yamlover:ontos:colors:yellow", name: "yellow", color: "#f9e2af" };
     const { container } = render(<AnnotationMenu x={0} y={0} applied={[yellow]} mode="create" onPick={() => {}} onUnpick={() => {}} onClose={() => {}} />);
     // a color tag stays in the swatch row (outlined), and does NOT appear as a named badge
-    expect([...container.querySelectorAll(".annotate-recents .tagtag")].map((b) => b.textContent)).toEqual([]);
+    expect([...container.querySelectorAll(".annotate-recents .tagtag, .annotate-applied .tagtag")].map((b) => b.textContent)).toEqual([]);
     expect(container.querySelector(".annotate-swatch.on")).toBeTruthy();
   });
 });
@@ -195,7 +197,9 @@ describe("AnnotationMenu — default chips from the four sources", () => {
     const sib = { path: ":ontos:sibling", name: "sibling", color: null };
     const { container } = render(<AnnotationMenu x={0} y={0} applied={[]} nodeTags={[sib]} mode="create" onPick={() => {}} onUnpick={() => {}} onClose={() => {}} />);
     await waitFor(() => expect(mQuery).toHaveBeenCalled());
-    expect([...container.querySelectorAll(".annotate-recents .tagtag")].map((b) => b.textContent)).toContain("sibling"); // (3)
+    // a sibling component's tag is CURRENT state of the node — the applied row, beside the
+    // target's own (it is one click from being applied here too)
+    expect([...container.querySelectorAll(".annotate-applied .tagtag")].map((b) => b.textContent)).toContain("sibling"); // (3)
   });
 });
 
@@ -405,16 +409,41 @@ describe("AnnotationMenu — Enter commit semantics", () => {
 // ---- recents: the root can never be a suggested tag ---- //
 describe("recent tags — the root is never filed nor surfaced", () => {
   it("filters a stale ':' recent from storage and refuses to file the root anew", async () => {
-    const { rememberTag, recentTags } = await import("../../src/client/renderers/annotate");
-    // a pre-fix localStorage may hold the root: a failed root-tag attempt used to file it
+    const { rememberTag } = await import("../../src/client/renderers/annotate");
+    const { readRecents, _resetRecentsCacheForTests } = await import("../../src/client/recents");
+    _resetRecentsCacheForTests();
+    // the mocked config has no `uri` and no fetchInfo — the project key falls back to "local"
+    const KEY = "yo-recents:bookmarks:local";
+    // a stale localStorage list may hold the root: a failed root-tag attempt used to file it
     // BEFORE the write round-trip — it then showed as a bare ':' chip in every popup
-    localStorage.setItem("yo-annotate-recent-tags", JSON.stringify([
+    localStorage.setItem(KEY, JSON.stringify([
       { path: ":", name: ":", color: null },
       { path: ":ontos:ok", name: "ok", color: null },
     ]));
-    expect(recentTags().map((t) => t.path)).toEqual([":ontos:ok"]); // the stale root is invisible
+    expect((await readRecents("bookmarks")).map((t) => t.path)).toEqual([":ontos:ok"]); // the stale root is invisible
     rememberTag({ path: ":", name: ":", color: null }); // and can never be filed again
-    expect(recentTags().some((t) => t.path === ":")).toBe(false);
+    await new Promise((r) => setTimeout(r, 0)); // recordRecent is fire-and-forget
+    expect((await readRecents("bookmarks")).some((t) => t.path === ":")).toBe(false);
+  });
+
+  it("files a picked tag under the PROJECT key, newest first, deduped on the canonical path", async () => {
+    const { recordRecent, readRecents, _resetRecentsCacheForTests, MAX_RECENTS } = await import("../../src/client/recents");
+    _resetRecentsCacheForTests();
+    const KEY = "yo-recents:bookmarks:local";
+    recordRecent("bookmarks", { path: ":ontos:a", name: "a", color: null });
+    await new Promise((r) => setTimeout(r, 0));
+    recordRecent("bookmarks", { path: ":ontos:b", name: "b", color: null });
+    await new Promise((r) => setTimeout(r, 0));
+    recordRecent("bookmarks", { path: "::ontos:a", name: "a", color: null }); // same node, scope-spelled
+    await new Promise((r) => setTimeout(r, 0));
+    expect((await readRecents("bookmarks")).map((t) => t.path)).toEqual(["::ontos:a", ":ontos:b"]);
+    expect(JSON.parse(localStorage.getItem(KEY)!).length).toBeLessThanOrEqual(MAX_RECENTS);
+    // the color palette never files — the swatch row already shows those
+    recordRecent("bookmarks", { path: "::yamlover:ontos:colors:sky", name: "sky", color: "#89dceb" });
+    await new Promise((r) => setTimeout(r, 0));
+    expect((await readRecents("bookmarks")).some((t) => t.name === "sky")).toBe(false);
+    // the references bag is its OWN list — a bookmark record never leaks into it
+    expect(await readRecents("references")).toEqual([]);
   });
 });
 

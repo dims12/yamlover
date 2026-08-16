@@ -39,6 +39,39 @@ export interface HintQuery {
  *  cannot answer (an unresolvable context, a scope it has no knowledge of) returns []. */
 export type HintProvider = (q: HintQuery) => Hint[] | Promise<Hint[]>;
 
+// ---------------------------------------------------------------------------- //
+// THE RECENTS BAG - a second, independent seam over the same portion cells: the
+// recently-used TARGETS (a host remembers them; the pure editor stays storage-blind).
+// A bag row is NOT a hint: it carries a WHOLE pointer raw (host-spelled for this
+// context), it never ARMS and never rides as the inline tail (armed acceptance is
+// commit-valid names for the ACTIVE cell only), and picking it INSERTS the raw into
+// the cells - committing stays the grammar's Enter, exactly like a TOC pick.
+// ---------------------------------------------------------------------------- //
+
+export interface RecentEntry {
+  raw: string; // the full pointer raw to insert (no sigil), spelled for this context's scope
+  label: string; // the row's text (the target's name)
+  detail?: string; // dim right-hand note (the target's full path)
+  /** The remembered TARGET's own address, as the host spells it - the handle a `forget`
+   *  needs (the raw is context-spelled, so it cannot identify the entry). */
+  key?: string;
+}
+
+/** What the bag asks: whether the entry is a BOOKMARK (`&` - the bookmarks list, positions
+ *  filtered) or a REFERENCE (`*` - the references list), plus the same addressing context
+ *  hints carry (ladder, container path, document, host) so one stable provider can spell
+ *  each remembered target for THIS cell. */
+export interface RecentsQuery {
+  anchor: boolean;
+  ladder: Ladder;
+  path: Path;
+  doc: Document;
+  host?: { base: string; doc: string };
+}
+
+/** Sync or async, like HintProvider. No provider ⇒ no bag (the pure editor unchanged). */
+export type RecentsProvider = (q: RecentsQuery) => RecentEntry[] | Promise<RecentEntry[]>;
+
 /** Rank hints against the typed prefix: the EXACT match first (typed-in-full must never be
  *  overridden by a lookalike — the pet1/extra_pet1 trap), then prefix matches, then
  *  substrings; non-matches drop. Case-insensitive; an empty prefix keeps everything (capped). */

@@ -28,7 +28,7 @@ const TEXT_MATERIALS = new Set(["chapter", "markdown", "asciidoc", "marklower"])
 const EDITABLE_RENDERERS = new Set(["chapter", "task", "table"]);
 import { TagBadges, splitTagRefs } from "./renderers/tag";
 import { Render } from "./render";
-import { strToSegs } from "./paths";
+import { canonPath, strToSegs } from "./paths";
 import { segToken } from "../../../parser/ts/src/pathseg.ts";
 
 // The data representations, in order: `yamlover` (the default, YAML-family syntax), `json5p`
@@ -492,6 +492,12 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
     setSchema(null);
     setBin(null);
     if (!node) return;
+    // THE IDENTITY GUARD: on a navigation this effect fires in the same commit where `path`
+    // has already moved but `node` still holds the PREVIOUS page's node (the main fetch
+    // effect clears it, but not for this pass). Deriving fetches from that mismatched pair
+    // asked /api/blob for a DIRECTORY (Back from an image locate) — a 404 that stuck as the
+    // whole view's error. A node speaks only for its own path.
+    if (canonPath(node.path) !== canonPath(path)) return;
     const { tabs: tabsE, allRenderers } = tabModel(node);
     const eff = effectiveFormat(format, node, tabsE);
     if (allRenderers.some((r) => r.name === eff)) return; // a rendered view reads node.value (already fetched)

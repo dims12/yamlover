@@ -261,9 +261,10 @@ export function fetchConfig(): Promise<ConfigPayload> {
 
 /** Create a FRAGMENT — a marked region in the node at `target` (docs/annotations). Returns its slug
  *  and full node path, which is then the `target` for {@link annotate}. `imageBase64` is an
- *  optional PNG crop for image-like selections. */
-export function createFragment(target: string, selector: Record<string, unknown>, imageBase64?: string): Promise<{ slug: string; fragmentPath: string }> {
-  return postJson(api("/api/fragment"), { target, selector, ...(imageBase64 ? { imageBase64 } : {}) });
+ *  optional PNG crop for image-like selections; `slug` an optional USER-CHOSEN key (the
+ *  picker's key field — the server refuses a taken one, and mints a slug when absent). */
+export function createFragment(target: string, selector: Record<string, unknown>, imageBase64?: string, slug?: string): Promise<{ slug: string; fragmentPath: string }> {
+  return postJson(api("/api/fragment"), { target, selector, ...(imageBase64 ? { imageBase64 } : {}), ...(slug ? { slug } : {}) });
 }
 
 /** Apply the tag at `tag` to the node at `target` (a whole node OR a fragment path) — appends to

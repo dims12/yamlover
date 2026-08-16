@@ -171,15 +171,15 @@ describe("ChapterEditor (unlocked)", () => {
     await vi.waitFor(() => expect(onNavigate).toHaveBeenCalledWith(":doc[9]"));
   });
 
-  it("the context menu is a titled, movable window (path title + close at top-right + drag)", async () => {
+  it("the context menu is a movable window (path tooltip on the header + close at top-right + drag)", async () => {
     const { container } = renderUnlocked(chapterNode(["First"]));
     const page = container.querySelector(".chapter-page") as HTMLElement;
     await act(async () => { fireEvent.contextMenu(page, { clientX: 20, clientY: 30 }); });
-    const bar = container.querySelector(".annotate-titlebar") as HTMLElement;
-    expect(bar.querySelector(".annotate-title")?.textContent).toContain("doc"); // displayPath(":doc")
-    // the ✕ sits at the top-right, OUTSIDE the draggable path cell (a sibling in the top bar)
+    const bar = container.querySelector(".annotate-topbar") as HTMLElement;
+    expect(bar.title).toContain("doc"); // displayPath(":doc") rides the tooltip now
+    // the header spells the node's key (`doc:`), and holds the ✕ at the top-right
+    expect((bar.querySelector(".annotate-key") as HTMLInputElement).value).toBe("doc");
     expect(container.querySelector(".annotate-topbar button.close")).not.toBeNull();
-    expect(bar.querySelector("button.close")).toBeNull();
     const menu = container.querySelector(".annotate-menu") as HTMLElement;
     const left0 = menu.style.left;
     act(() => { fireEvent.mouseDown(bar, { clientX: 100, clientY: 100 }); });

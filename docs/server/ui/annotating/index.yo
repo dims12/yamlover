@@ -17,13 +17,25 @@ description: select a region, pick an onto - the flow shared by prose, images, m
   **2.** A small **picker** pops up by the selection (its cells are [the query
   editor](*::server:query-editor) in pick mode). **Nothing is pre-selected** - a new mark starts
   blank, and the selected text / dragged rectangle stays shown in a **neutral** color while the
-  picker is open, so it's clear what you're marking without implying an onto. The controls:
+  picker is open, so it's clear what you're marking without implying an onto. The window is
+  SHAPED LIKE THE SOURCE it writes:
+
+      key:
+        & <onto path>
+
+  Row one is the **key** (see below), an uneditable `:`, and the **⏎ apply** / ⧉ / ✕ tools;
+  the row itself drags the window, and the target's full path rides as its tooltip. Row two is
+  the indented, uneditable `&` sigil followed by the **path input**. Then the applied chips,
+  the recent pane, and the swatches. The controls:
 - !!<*yamlover: $defs: bullets>
+  - '**The key** - the target''s own key, editable where a rename is possible: an EXISTING member fragment rekeys in place (`/api/rekey` - inbound pointers follow), a whole NODE (the right-click menu) renames the node itself, and a FRESH region''s typed name becomes its fragment key at the first pick (`/api/fragment` refuses a taken one). A fresh region left unnamed gets a minted slug - and a **named text selection** becomes an explicit `yo: fragments:` member (an inline token has no key to give). Escape in the key field reverts a dirty draft first.'
+  - '**⏎ apply** - commits the typed path, exactly like pressing Enter in the cells.'
+  - '**A path input** (after the `&` - the picker''s MAIN part) - type any onto''s node path and press **Enter** to file the region there. A **bare name** (no path) works too: if no such onto exists yet it is **created on the spot** - appended to the project''s ontologies (the `ontos: *:: ontos` setting in `.yo/settings.yo`, `<root>/ontos` by default) as `<name>: !!<*::yamlover:$defs:onto>` - and then applied.'
+  - '**The applied row** - the ontos this target already carries (shown **outlined**) and those on the same node''s other parts; click an outlined one to remove it. Always visible - hiding the suggestions below can never hide the way to untag.'
+  - '**The recent pane** - your **recently-used** ontos (a per-project, browser-local list - the same bag the yamlover editor''s `&` entry offers) followed by the project''s ontologies; click one to apply it, **right-click** one to forget the suggestion. The **✕** collapses the pane to its header (remembered until you open it again from that header).'
   - '**Color swatches** - the six built-in pure color ontos; click one to apply it.'
-  - '**Named chips** - the ontos already on this target (shown **outlined**), those on the same node''s other parts, your **recently-used** ones, and the project''s ontologies; click one to apply it.'
-  - '**A path input** - type any onto''s node path and press **Enter** to file the region there. A **bare name** (no path) works too: if no such onto exists yet it is **created on the spot** - appended to the project''s ontologies (the `ontos: *:: ontos` setting in `.yo/settings.yo`, `<root>/ontos` by default) as `<name>: !!<*::yamlover:$defs:onto>` - and then applied.'
   - '**Copy** (prose only) - copies the selected text to the clipboard and creates **no** fragment.'
-  - '**Close** (or click anywhere outside) - closes the picker, committing nothing.'
+  - '**Close** - the ✕, **Escape**, or a click anywhere outside; nothing is committed. With the path input''s candidate list open, the first Escape closes just that list. **Enter with nothing typed** is "done" too - after filing through a TOC click or a chip the entry stands empty, and Enter there confirms and closes (it is never a dead key).'
 - >
   **3. Picking IS the apply.** Each pick files the region at once and the menu stays open, so
   you can add several; an **applied** onto shows outlined, and clicking it again **removes** the
@@ -39,6 +51,11 @@ description: select a region, pick an onto - the flow shared by prose, images, m
   mark's current ontos (shown outlined): pick another to add, click an outlined one to remove,
   or close to leave it. Removing the last membership removes the fragment - and in prose,
   unwraps its token, restoring the text byte-exact.
+- >
+  **A fragment link LOCATES.** Clicking a fragment's member pointer anywhere (an onto page's
+  member list, a data view) opens the host material **in its renderer view** - the image, the
+  page - scrolled to the region, never the fragment node as a data page. The region is a
+  thing to see.
 - >
   The built-in ontologies ship with the yamlover project (at its root: `ontos/colors`, beside
   `$defs/`); the engine grafts the **self-import key `yamlover`** into every served root -

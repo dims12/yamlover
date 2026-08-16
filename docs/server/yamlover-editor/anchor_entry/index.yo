@@ -18,6 +18,21 @@ description: the anchor_entry state, and the committed anchor rows
   segments and parses-or-refuses through makeAnchor; a valid body commits the anchor and the
   hole RETURNS at its own index, empty - the bookmark is a decoration, no entry was born, so
   there is nothing to descend into. Backspace on the emptied floor undoes the `&` decision.
+- >
+  THE RECENTS BAG rides below the hints here too (the pointer_entry law - rows never arm, a
+  pick INSERTS, the two-stage Escape ladder), reading the per-project `bookmarks` list - the
+  SAME list the tag picker files into (a tag application IS a membership bookmark). Two
+  anchor-only differences: a remembered path bearing a POSITION segment is not offered
+  (makeAnchor refuses position claims), and the offered raw carries the MEMBERSHIP form -
+  the trailing `: -` rides along, so the pick fills the dominant `&tag:-` gesture whole and
+  Enter commits it. A committed bookmark files its TARGET (the `-` stripped) back into the
+  list.
+- >
+  AND THE `&` BAG ALSO OFFERS THE VOCABULARY: with the remembered list short or empty, the
+  project's ontos fill the rest (ontos.ts - the same tags the picker shows as chips, the
+  grafted taxonomy plus the configured `settings.ontos` location). A bookmark IS a tag
+  application, so the two surfaces must suggest the same words; without this a fresh project
+  left the bookmark face with nothing to offer while the picker looked rich.
 - !!<*yamlover: $defs: table>
   header:
     - Event
@@ -31,6 +46,8 @@ description: the anchor_entry state, and the committed anchor rows
   - ['`colon`', 'otherwise - the segment COMMITS, the next cell opens', '`anchor_entry` (stays)']
   - ['`open_bracket`', 'NO index fold - a bookmark may not claim a position; the `[` is plain text', '`anchor_entry` (stays)']
   - ['`hint_pick`', 'a dropdown row (Tab/Enter on the ARMED row, or a click) REPLACES the active cell''s text - position rows are never offered', '`anchor_entry` (stays)']
+  - ['`bag_pick`', 'a recents-bag row INSERTS the remembered bookmark whole - the membership `: -` included, position-bearing paths never offered; Enter then commits', '`anchor_entry` (stays)']
+  - ['`escape`', 'the two-stage ladder (pointer_entry): hints close first, the bag stands; then the bag; then the page''s law', '`anchor_entry` (stays)']
   - ['`enter`', 'the joined body is a bookmark spelling (keys walked, a trailing `-` for keyless membership) - the anchor commits on the CONTAINER and the hole returns at its own index', '[entry_hole](*::server:yamlover-editor:entry_hole)']
   - ['`enter`', 'a position claim or no body - the ring, the segments stand', '[error_flash](*::server:yamlover-editor:error_flash)']
   - ['`backspace`', 'at the head of a non-first segment - the cells MERGE at the junction', '`anchor_entry` (stays)']

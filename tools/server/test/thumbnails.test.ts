@@ -120,6 +120,33 @@ describe("GET /api/thumb", () => {
     expect(fs.readdirSync(path.join(root, ".yo", "thumbnails"))).toHaveLength(1);
   });
 
+  it("never derives a sidecar from a node INSIDE .yo/ — format furniture serves its own bytes", async () => {
+    // the reported `\`.yo\` cannot nest inside another \`.yo\`` failure: asking /api/thumb for a
+    // fragment crop (or a generated thumbnail — anything living under .yo/) used to ATTEMPT
+    // generation, whose sidecar target would be a .yo inside a .yo. The rule now: derived
+    // products never grow sidecars of their own — serve the bytes themselves.
+    const root = tmpTree({});
+    await writePng(root, "pic.png", 400, 400);
+    const h = handlers(root);
+    await h.ready;
+    await callStream(h, "/api/thumb", { path: ":pic.png", w: "128", h: "128" }); // births the sidecar node
+    const probe = new Store(path.join(root, ".yo", "index.db"));
+    onTestFinished(() => probe.close());
+    const edge = probe.relationships(":pic.png:yamlover-thumbnails").out.find((e) => e.label === "[128, 128]");
+    expect(edge).toBeTruthy();
+
+    const r = await callStream(h, "/api/thumb", { path: edge!.to, w: "64", h: "64" });
+    expect(r.status).toBe(200);
+    expect(r.type).toBe("image/jpeg");
+    // the bytes are the sidecar ITSELF (128px — no 64×64 re-encode happened)…
+    const { Jimp } = await import("jimp");
+    const decoded = await Jimp.read(r.body);
+    expect(decoded.bitmap.width).toBe(128);
+    // …and no nested .yo grew anywhere under the overlay
+    expect(fs.existsSync(path.join(root, ".yo", "thumbnails", ".yo"))).toBe(false);
+    expect(fs.readdirSync(path.join(root, ".yo", "thumbnails"))).toHaveLength(1);
+  });
+
   it("returns 415 for a format with no decoder (the explorer falls back to the glyph)", async () => {
     const root = tmpTree({});
     // a tiny non-image blob with a known-but-undecodable format (PDF magic)

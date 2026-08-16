@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { Annotation, TagRef, createOnto, fetchAnnotations, fetchNode, query, createFragment, annotate, deleteAnnotation, fetchConfig } from "../api";
+import { Annotation, TagRef, createOnto, fetchAnnotations, fetchNode, createFragment, annotate, deleteAnnotation, rekeyNode } from "../api";
 import { explicitColor, isColorTagPath, resolveTagColor, tagFields, tagStyle } from "./tag";
 import { TagTip } from "./tagtip";
 import { canonPath, displayPath, fragmentAnchorId, strToSegs } from "../paths";
@@ -7,6 +7,8 @@ import { touchesYamlover, useDiffBump } from "../live";
 import { QueryCells, useQueryCellHost } from "../query-cells";
 import { splitQueryPortions, treeCandidateProvider } from "../query-complete";
 import { TocFilterHandle, useTocFilter } from "../toc-filter-session";
+import { indexToRefs, invalidateOntos, projectOntos, tagNameOf } from "../ontos";
+import { forgetRecent, recordRecent, useRecents, useRecentsPane } from "../recents";
 import { READ_ONLY } from "../base";
 
 /**
@@ -50,7 +52,6 @@ export const DEFAULT_COLOR = DEFAULT_ONTO.color!;
 // picked — "no tag chosen yet". A new selection preselects nothing, so it is deliberately NOT a tag
 // color (a muted gray, not the palette's yellow default).
 export const SELECTION_COLOR = "#9399b2";
-const RECENT_KEY = "yo-annotate-recent-tags"; // recently-applied NAMED tags, a browser-local convenience list
 
 /** An annotation's display color — its applied tag's (explicit color, else name-derived hue);
  *  the default for legacy marks saved before annotations carried a tag. */
@@ -120,116 +121,46 @@ export function useColorOntos(): TagRef[] {
   return tags;
 }
 
-// Enumerate every NAMED tag in the project for the picker typeahead: a document-root recursive
-// descent, format-filtered (docs/language/pointers/queries/idioms "all tag nodes"). Document-root scope finds tags wherever
-// `settings.ontos.location` puts them — the client need not know that path. The grafted COLOR
-// palette lives off the document root (link scope `::yamlover:…`) so it is naturally absent;
-// the defensive filter below also drops any color tag a project re-themes in-tree (those are the
-// swatch row, not the suggestion list).
-const ONTO_QUERY = ": ...: !!<format: x-yamlover-onto>";
+// The onto VOCABULARY and the "which tags are offered without typing" rule live in the shared
+// policy module (ontos.ts) — the yamlover editor's `&` bag suggests the SAME vocabulary, and a
+// rule spelled twice is a rule that drifts.
+export { indexToRefs };
 
-export function indexToRefs(paths: string[]): TagRef[] {
-  // A tag is just a NODE at a real path — keep each path AS-IS (no namespace rewriting). A project's
-  // OWN tags (`:ontos:…`, `:67-pdf-tags:ontos:…`) and the GLOBAL self-import tags (`:yamlover:ontos:…`)
-  // are DISTINCT nodes and BOTH belong in the picker (IMPORTS.md — a tag lives anywhere, reached by
-  // `:`/`::yamlover`). Dedup only EXACT duplicates (one node spelled two scope-ways), and drop the
-  // color palette (it is the swatch row, not a suggestion).
-  const byKey = new Map<string, string>();
-  for (const p of paths) {
-    if (isColorTagPath(p)) continue;
-    const key = canonPath(p);
-    if (!byKey.has(key)) byKey.set(key, p);
-  }
-  return [...byKey.values()].map((p) => ({ path: p, name: tagNameOf(p), color: null }));
-}
-
-/** The project's named tags, enumerated once and re-enumerated when a `.yo` source changes
- *  (so a freshly created tag appears). Feeds the picker's typeahead suggestions. */
+/** The project's SUGGESTABLE named tags, re-enumerated when a `.yo` source changes (so a
+ *  freshly created tag appears at once). Feeds the picker's chips. */
 export function useOntoIndex(): TagRef[] {
   const [tags, setTags] = useState<TagRef[]>([]);
   const bump = useDiffBump(touchesYamlover);
   useEffect(() => {
     let cancelled = false;
-    query(ONTO_QUERY)
-      .then((paths) => { if (!cancelled) setTags(indexToRefs(paths)); })
+    invalidateOntos(); // a diff may have BORN a tag — re-ask
+    projectOntos()
+      .then((t) => { if (!cancelled) setTags(t); })
       .catch(() => { if (!cancelled) setTags([]); });
     return () => { cancelled = true; };
   }, [bump]);
   return tags;
 }
 
-// The roots whose tags the picker shows AS CHIPS by default (no typing): the grafted yamlover
-// self-import taxonomy (always present) plus the project's CONFIGURED tags location. Tags living
-// elsewhere in the tree (e.g. a sub-document's own `tags/`) stay reachable through the typeahead.
-const GRAFT_ONTO_ROOTS = [":yamlover:ontos", "::yamlover:ontos"];
-
-/** The project's configured tags location (`settings.ontos`), or null until config loads / on error. */
-export function useConfigTagsLocation(): string | null {
-  const [loc, setLoc] = useState<string | null>(null);
-  useEffect(() => {
-    let live = true;
-    fetchConfig().then((c) => { if (live) setLoc(c.settings.ontos ?? null); }).catch(() => { /* keep null → graft scope only */ });
-    return () => { live = false; };
-  }, []);
-  return loc;
-}
-
-/** Whether `path` is at-or-under one of `roots` (segment-boundary aware, scope-spelling tolerant). */
-function underAnyRoot(path: string, roots: (string | null)[]): boolean {
-  const cp = canonPath(path);
-  return roots.some((r) => { if (!r) return false; const rc = canonPath(r); return cp === rc || cp.startsWith(rc + ":"); });
-}
-
-/** File a just-applied tag among the recents (a browser-local convenience list; color tags live in
- *  the swatch row already). There is NO project-scoped "last tag" any more — a new selection
- *  preselects nothing, so the only thing an apply remembers is the recents suggestions. */
+/** File a just-applied tag among the PER-PROJECT recents (recents.ts — the same `bookmarks`
+ *  bag the yamlover editor's `&` entry reads; a tag application IS a membership bookmark).
+ *  Color tags live in the swatch row already and are refused by the bag itself. */
 export function rememberTag(t: TagRef): void {
-  rememberRecent(t);
-}
-
-/** The recently applied NAMED tags (newest first, capped). The ROOT is filtered out even when an
- *  old localStorage list holds it (a failed root-tag attempt used to file it before the write) —
- *  it can never be a tag, so it must never surface as a clickable chip. */
-export function recentTags(): TagRef[] {
-  try {
-    const r = JSON.parse(localStorage.getItem(RECENT_KEY) || "[]") as TagRef[];
-    if (Array.isArray(r)) return r.filter((t) => t?.path && t?.name && canonPath(t.path) !== ":");
-  } catch { /* no/invalid recents */ }
-  return [];
-}
-
-function rememberRecent(t: TagRef): void {
-  if (canonPath(t.path) === ":") return; // the root can never be a tag — never file it
-  if (canonPath(t.path).startsWith(":yamlover:ontos:colors:")) return; // the swatch row already shows these
-  const next = [t, ...recentTags().filter((r) => r.path !== t.path)].slice(0, 6);
-  localStorage.setItem(RECENT_KEY, JSON.stringify(next));
-}
-
-/** Drop recents whose node is GONE: the localStorage recents list outlives the tags
- *  themselves, so a deleted tag would linger as a clickable badge forever. Each recent is
- *  checked against the server; survivors are written back. ANY existing node counts — any
- *  node can be a tag now, so liveness is existence, not format. */
-function pruneRememberedTags(): Promise<TagRef[]> {
-  const isLive = (t: TagRef): Promise<boolean> =>
-    fetchNode(t.path, 0).then(() => true).catch(() => false);
-  const recents = recentTags();
-  return Promise.all(recents.map((t) => isLive(t).then((live) => (live ? t : null)))).then((kept) => {
-    const live = kept.filter(Boolean) as TagRef[];
-    if (live.length !== recents.length) localStorage.setItem(RECENT_KEY, JSON.stringify(live));
-    return live;
-  });
+  recordRecent("bookmarks", t);
 }
 
 /** Apply `tag` to the material at `target`. With a `selector`, first create a FRAGMENT (the
- *  region, plus an optional PNG crop) and tag THAT; without one, tag the whole node. */
+ *  region, plus an optional PNG crop, under the optional USER-CHOSEN `slug`) and tag THAT;
+ *  without one, tag the whole node. */
 export async function createAnnotation(
   target: string,
   selector: Record<string, unknown> | null,
   tag: TagRef,
   imageBase64?: string,
+  slug?: string,
 ): Promise<unknown> {
   if (!selector) return annotate({ target, tag: tag.path });
-  const { fragmentPath } = await createFragment(target, selector, imageBase64);
+  const { fragmentPath } = await createFragment(target, selector, imageBase64, slug);
   return annotate({ target: fragmentPath, tag: tag.path });
 }
 
@@ -264,14 +195,15 @@ export function useAnnotations(path: string, bump = 0): Annotation[] {
  *  round-trip lands. */
 export interface MaterialAnnotations {
   annotations: Annotation[];
-  create: (selector: Record<string, unknown> | null, tag: TagRef, opts?: { silent?: boolean; imageBase64?: string; target?: string }) => void;
+  create: (selector: Record<string, unknown> | null, tag: TagRef, opts?: { silent?: boolean; imageBase64?: string; target?: string; slug?: string }) => void;
   remove: (ann: Annotation) => void;
   /** Add `tag` to the REGION identified by `selector`: the FIRST tag creates the fragment (with the
-   *  optional crop), later tags annotate that same fragment — never a second one, even if clicked
-   *  before the first create's server round-trip lands (those queue and drain on the next fetch).
-   *  `target` is the node the fragment hangs off — the enclosing CHUNK for a chapter selection, else
-   *  the material (default). `silent` suppresses the failure alert. */
-  annotateRegion: (selector: Record<string, unknown>, tag: TagRef, opts?: { imageBase64?: string; silent?: boolean; target?: string }) => void;
+   *  optional crop, under the optional USER-CHOSEN `slug` — the picker's key field), later tags
+   *  annotate that same fragment — never a second one, even if clicked before the first create's
+   *  server round-trip lands (those queue and drain on the next fetch). `target` is the node the
+   *  fragment hangs off — the enclosing CHUNK for a chapter selection, else the material
+   *  (default). `silent` suppresses the failure alert. */
+  annotateRegion: (selector: Record<string, unknown>, tag: TagRef, opts?: { imageBase64?: string; silent?: boolean; target?: string; slug?: string }) => void;
 }
 
 /** A material's annotations + optimistic create/delete/re-tag. The displayed list merges the
@@ -322,11 +254,11 @@ export function useMaterialAnnotations(path: string): MaterialAnnotations {
     setOptimistic((o) => o.filter((x) => x !== entry));
     if (!silent) window.alert("save failed: " + (e as Error).message);
   };
-  const create = (selector: Record<string, unknown> | null, tag: TagRef, opts?: { silent?: boolean; imageBase64?: string; target?: string }) => {
+  const create = (selector: Record<string, unknown> | null, tag: TagRef, opts?: { silent?: boolean; imageBase64?: string; target?: string; slug?: string }) => {
     const target = opts?.target ?? path; // the node the fragment hangs off (a chunk, else the material)
     const entry = { path: "(pending)", node: target, selector: selector ?? undefined, tag } as Annotation;
     setOptimistic((o) => [...o, entry]);
-    createAnnotation(target, selector, tag, opts?.imageBase64).then(refresh).catch((e) => rollback(entry, e, opts?.silent));
+    createAnnotation(target, selector, tag, opts?.imageBase64, opts?.slug).then(refresh).catch((e) => rollback(entry, e, opts?.silent));
   };
   const remove = (ann: Annotation) => {
     if (!ann?.tag) return;
@@ -347,11 +279,13 @@ export function useMaterialAnnotations(path: string): MaterialAnnotations {
     return real ? annotationTarget(path, real) : null;
   };
 
-  const annotateRegion = (selector: Record<string, unknown>, tag: TagRef, opts?: { imageBase64?: string; silent?: boolean; target?: string }) => {
+  const annotateRegion = (selector: Record<string, unknown>, tag: TagRef, opts?: { imageBase64?: string; silent?: boolean; target?: string; slug?: string }) => {
     const node = opts?.target ?? path; // the region's host node (a chunk, else the material)
-    if (selector.type === "text") {
+    if (selector.type === "text" && !opts?.slug) {
       // the INLINE token spelling: one call per pick — the server wraps the words on the first
-      // and appends further memberships to the same token's label (docs/documents/marklower/grammar)
+      // and appends further memberships to the same token's label (docs/documents/marklower/grammar).
+      // A NAMED region (`opts.slug`) skips this: an inline token has no key, so naming it is
+      // choosing the explicit `yo: fragments:` member spelling — it falls through to create().
       const entry = { path: "(pending)", node, selector, tag } as Annotation;
       setOptimistic((o) => [...o, entry]);
       annotate({ target: node, tag: tag.path, selector }).then(refresh).catch((e) => rollback(entry, e, opts?.silent));
@@ -396,12 +330,6 @@ export function useMaterialAnnotations(path: string): MaterialAnnotations {
     annotations.push(a);
   }
   return { annotations, create, remove, annotateRegion };
-}
-
-/** A tag's display name from its node path (its last segment). */
-function tagNameOf(path: string): string {
-  const segs = strToSegs(path);
-  return segs.length ? String(segs[segs.length - 1]) : path;
 }
 
 /** An OMNI node's scalar self-value (the `$yamloverMixed` marker) as its display title — a
@@ -485,7 +413,7 @@ function CreateRow({ schema, label, concretes, defaultConcrete, onCreate }: Crea
 }
 
 export function AnnotationMenu({
-  x, y, applied, nodeTags = [], mode, onPick, onUnpick, onCopy, onClose, menuRef, creates, title, targetPath,
+  x, y, applied, nodeTags = [], mode, onPick, onUnpick, onCopy, onClose, menuRef, creates, title, targetPath, keyText, onRenameKey,
 }: {
   x: number; y: number; applied: TagRef[]; nodeTags?: TagRef[]; mode: "create" | "edit";
   onPick: (t: TagRef) => void; onUnpick?: (t: TagRef) => void;
@@ -493,18 +421,37 @@ export function AnnotationMenu({
   menuRef?: React.Ref<HTMLDivElement>;
   /** Object-creation entries shown at the top (e.g. "＋ New chapter" with a concrete selector). */
   creates?: CreateEntry[];
-  /** The path/label of the object the menu was opened for — shown in the draggable title bar. */
+  /** The path/label of the object the menu was opened for — the header row's tooltip. */
   title?: string;
   /** The node the menu tags (canonical client path). A TOC/query pick of this very node CLOSES the
    *  menu instead of tagging — clicking the node again reads as "dismiss", and a node never tags
    *  itself. */
   targetPath?: string;
+  /** The target's KEY, shown in the header row (the popup reads as the yamlover spelling it
+   *  writes: `key:` above, `& <path>` below). A fragment's slug, a node's key — or "" for a
+   *  fresh region whose fragment is not born yet (typing a name there CHOOSES its key). */
+  keyText?: string;
+  /** Commit a key rename (Enter/blur in the key field). Absent ⇒ the key is read-only. */
+  onRenameKey?: (name: string) => void;
 }) {
   const colorTags = useColorOntos();
   const tagIndex = useOntoIndex(); // named tags (whole tree) — the scoped ones show as default chips
-  const tagsLoc = useConfigTagsLocation(); // the configured tags location → its tags show as default chips
-  const [recents, setRecents] = useState(recentTags); // shown at once; pruned against the server
+  // the PER-PROJECT recents bag (recents.ts): shown at once, 404-pruned quietly on open,
+  // and closeable — the pane preference is remembered per surface
+  const recents = useRecents("bookmarks", { prune: true });
+  const [paneOpen, setPaneOpen] = useRecentsPane("picker");
   const [busy, setBusy] = useState(false); // a lookup/create round-trip is in flight
+  // THE KEY FIELD's draft — committed to the host on Enter/blur (a rename, or a fresh
+  // region's chosen name); an outside change (the host echoing a landed rename) resyncs it
+  const [keyDraft, setKeyDraft] = useState(keyText ?? "");
+  const keyJustFocused = useRef(false); // the click that focused it must not collapse the select-all
+  useEffect(() => { setKeyDraft(keyText ?? ""); }, [keyText]);
+  const commitKey = (): void => {
+    if (onRenameKey === undefined) return;
+    const name = keyDraft.trim();
+    if (name === (keyText ?? "").trim()) return;
+    onRenameKey(name); // "" reaches the host too — a fresh region's name cleared back to auto
+  };
   const verb = mode === "edit" ? "re-tag" : "tag";
   const session = useTocFilter(); // the shared TOC filter — typing here filters the TOC too
 
@@ -615,12 +562,60 @@ export function AnnotationMenu({
     hostRef.current.dispatch({ type: "FOCUS_CELL", index: SEED_CELLS.length - 1, caret: "end" });
   }, []);
 
-  // A deleted tag must not survive as a badge: on open, drop remembered tags the server no
-  // longer holds (the stored list is shown immediately; the pruned one replaces it quietly).
+  // THE POPUP IS NEVER A DEAD SURFACE (the editor-never-locks law, applied here): whenever the
+  // cells fall idle while the popup stands — a blur to NOWHERE, a stray async focus grab, the
+  // window drag's mousedown — the caret comes back to the trailing cell, so typing always
+  // lands. Only a focus that went to `<body>` is reclaimed: focus the user MOVED somewhere
+  // real (a chip, the TOC, another pane) is theirs.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   useEffect(() => {
-    let on = true;
-    pruneRememberedTags().then((live) => { if (on) setRecents(live); });
-    return () => { on = false; };
+    if (host.state.mode !== "idle") return;
+    const id = requestAnimationFrame(() => {
+      if (document.activeElement !== document.body && document.activeElement !== null) return;
+      hostRef.current.dispatch({ type: "FOCUS_CELL", index: SEED_CELLS.length - 1, caret: "end" });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [host.state.mode]);
+
+  // ESCAPE CLOSES THE POPUP — the ladder, taken in CAPTURE so it is decided here and the cells
+  // never strand the caret on a plain `ESCAPE` (their handler stops propagation, and leaving
+  // the editor would drop focus to `<body>` with the window still up): with the candidate
+  // dropdown open the cells own the key (it closes the dropdown only, the edit survives);
+  // otherwise the popup closes, from every host — the TOC menu, a region in prose, a PDF or
+  // map selection alike. AND: Enter with NOTHING TYPED is "done" — after tagging through the
+  // TOC (or the chips) the entry stands empty, and Enter there used to be a dead key (the
+  // reported "I can't press Enter afterwards"); an empty query names nothing to apply, so
+  // the only meaning left is to confirm and close.
+  const searchingRef = useRef(searching);
+  searchingRef.current = searching;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const inKeyField = !!(e.target as Element | null)?.closest?.(".annotate-key");
+      const st = hostRef.current.state;
+      if (e.key === "Escape") {
+        if (inKeyField) return; // the key field reverts/closes itself
+        if (st.mode === "editing" && st.dropdown?.open) return; // the cells close their dropdown first
+        e.preventDefault();
+        e.stopPropagation();
+        onCloseRef.current();
+        return;
+      }
+      if (e.key === "Enter") {
+        // only the ENTRY's own Enter — a button, a select, the key field keep theirs
+        if (!(e.target as Element | null)?.closest?.(".annotate-cells")) return;
+        if (searchingRef.current) return; // a typed query — the cells' Enter applies it
+        // an open dropdown defers Enter only when a row is ARMED (hi >= 0): the unarmed list
+        // over an EMPTY cell is "every child", and Enter there used to commit the empty
+        // query — a dead key
+        if (st.mode === "editing" && st.dropdown?.open && st.dropdown.hi >= 0) return;
+        e.preventDefault();
+        e.stopPropagation();
+        onCloseRef.current(); // nothing typed — Enter confirms what is applied and closes
+      }
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
   }, []);
 
   // A tag chip shows its NAME only; its full path (its spine location) and text value are revealed
@@ -642,13 +637,44 @@ export function AnnotationMenu({
     return out;
   };
 
-  // The chips shown by the popup — the four sources, most-relevant first: (a) tags APPLIED to
-  // this target, (b) tags borne by OTHER components of the same node (sibling fragments), (c)
-  // the last-used / recent tags, (d) the project taxonomy — the grafted yamlover tags plus the
-  // configured tags location. ANYTHING else in the tree is reachable through the query cells
-  // (the dropdown + the filtered TOC), so the chip row no longer doubles as a search result.
-  const scopedIndex = tagIndex.filter((t) => underAnyRoot(t.path, [...GRAFT_ONTO_ROOTS, tagsLoc]));
-  const view = dedupeNamed([...applied, ...nodeTags, ...recents, ...scopedIndex]);
+  // TWO ROWS, two meanings. (a) THE APPLIED row — the tags in effect on this target plus the
+  // ones borne by other components of the same node: current STATE, and the outlined chip is
+  // the untag affordance, so it is always shown (a collapsed bag must never hide the way to
+  // remove a tag). (b) THE RECENTS PANE — the suggestion bag: the per-project recently-used
+  // tags then the project taxonomy (the grafted yamlover tags plus the configured location).
+  // Anything else in the tree is reachable through the query cells above.
+  const scopedIndex = tagIndex; // already scoped to the graft roots + the configured location (ontos.ts)
+  const appliedRow = dedupeNamed([...applied, ...nodeTags]);
+  const shownNames = new Set(appliedRow.map((t) => t.name.toLowerCase()));
+  const bagRow = dedupeNamed([...recents, ...scopedIndex]).filter((t) => !shownNames.has(t.name.toLowerCase()));
+  // a recents chip can be FORGOTTEN in place (right-click) — a suggestion list must be
+  // correctable; the taxonomy chips are not remembered entries, so they have nothing to forget
+  const recentPaths = new Set(recents.map((t) => canonPath(t.path)));
+  const forget = (t: TagRef) => { if (recentPaths.has(canonPath(t.path))) forgetRecent("bookmarks", t.path); };
+
+  /** One chip row (applied state / the suggestion bag) — the same face, one meaning apart. */
+  const chips = (list: TagRef[], cls: string) => (
+    <div className={cls} role="listbox">
+      {list.map((t) => (
+        <span key={t.path} className="tagframe">
+          <TagTip tag={t}>
+            <button
+              type="button"
+              role="option"
+              aria-selected={isApplied(t.path)}
+              className={"tagtag" + (isApplied(t.path) ? " on" : "")}
+              style={tagStyle(resolveTagColor(t))}
+              onClick={() => toggle(t)}
+              onContextMenu={recentPaths.has(canonPath(t.path)) ? (e) => { e.preventDefault(); forget(t); } : undefined}
+              title={recentPaths.has(canonPath(t.path)) ? "right-click to forget this suggestion" : undefined}
+            >
+              <span className="tt-label">{t.name}</span>
+            </button>
+          </TagTip>
+        </span>
+      ))}
+    </div>
+  );
 
   // Keep the fixed-position menu fully on-screen: it opens at the selection (x = left, y = the
   // selection's BOTTOM), but near the right/bottom edge that clips it — the tag input then sits
@@ -679,9 +705,9 @@ export function AnnotationMenu({
     if (left !== pos.left || top !== pos.top) setPos({ left, top });
   });
 
-  // Drag the window by its title bar (a click on the ✕ inside it is not a drag — see the guard).
+  // Drag the window by its header row (a click on its tools or INTO the key input is not a drag).
   const onTitleDown = (e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).closest("button")) return; // the close button, not a drag
+    if ((e.target as HTMLElement).closest("button, input")) return; // a tool / the key field, not a drag
     e.preventDefault();
     const dx = e.clientX - pos.left;
     const dy = e.clientY - pos.top;
@@ -694,20 +720,87 @@ export function AnnotationMenu({
 
   return (
     <div ref={setRefs} className="annotate-menu" style={{ left: pos.left, top: pos.top }} role="menu">
-      {/* the TOP BAR: a draggable PATH CELL (grab-to-move) on the left, then the ⧉ copy and ✕ close
-          tools DOCKED at the top-right (outside the path cell). The path is LEFT-truncated (the right
-          TAIL stays visible — the head is already in the breadcrumb): a `direction: rtl` container puts
-          the ellipsis at the start, a `<bdi>` keeps the text readable. */}
-      <div className="annotate-topbar">
-        <div className="annotate-titlebar" onMouseDown={onTitleDown} title={title}>
-          <span className="annotate-title"><bdi>{title ?? ""}</bdi></span>
-        </div>
+      {/* THE HEADER — the popup reads as the yamlover spelling it writes:
+              key:
+                & <path>
+          Row one: the target's KEY (editable when the host wires a rename; typing a name for
+          a FRESH region chooses its fragment key), an uneditable `:`, then the ⏎ apply, ⧉
+          copy and ✕ close tools docked right. The row is the drag handle (grab anywhere that
+          is not the key input or a button); the target's full path rides as its tooltip. */}
+      <div className="annotate-topbar" onMouseDown={onTitleDown} title={title}>
+        <input
+          className="annotate-key"
+          value={keyDraft}
+          placeholder="name…"
+          readOnly={onRenameKey === undefined}
+          style={{ width: `${Math.max(3, keyDraft.length || 5) + 0.5}ch` }}
+          onChange={(e) => setKeyDraft(e.target.value)}
+          // clicking the key PRESELECTS the whole name — renaming is the common intent, and
+          // typing then replaces it outright. (The mouseup guard keeps the click that gave
+          // focus from collapsing that selection to a caret; a later click inside places the
+          // caret normally.)
+          onFocus={(e) => { keyJustFocused.current = true; e.currentTarget.select(); }}
+          onMouseUp={(e) => { if (keyJustFocused.current) { e.preventDefault(); keyJustFocused.current = false; } }}
+          onBlur={() => { keyJustFocused.current = false; commitKey(); }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") { e.preventDefault(); commitKey(); }
+            if (e.key === "Escape") {
+              // its own ladder (the capture listener defers to this field): a DIRTY draft
+              // reverts first; a clean one closes the window like everywhere else
+              e.preventDefault();
+              e.stopPropagation();
+              if (keyDraft !== (keyText ?? "")) setKeyDraft(keyText ?? "");
+              else onClose();
+            }
+          }}
+        />
+        <span className="annotate-colon">:</span>
+        <span className="annotate-topgap" />
+        <button
+          type="button" className="annotate-tool ok" title="apply the typed path (Enter)"
+          onMouseDown={(e) => e.preventDefault() /* never blur the cells before the commit */}
+          onClick={() => host.dispatch({ type: "ENTER" })}
+        >✓</button>
         {onCopy && <button type="button" className="annotate-tool copy" title="copy text to clipboard (don't annotate)" onClick={onCopy}>⧉</button>}
-        <button type="button" className="annotate-tool close" title="close" onClick={onClose}>✕</button>
+        <button type="button" className="annotate-tool close" title="close (Escape)" onClick={onClose}>✕</button>
       </div>
-      {creates && creates.length > 0 && (
-        <div className="annotate-actions">
-          {creates.map((c) => <CreateRow key={c.schema} {...c} />)}
+      {/* the ENTRY row — indented under the key like the source line it writes: an uneditable
+          `&` sigil, then the shared query cells (breadcrumb machinery, pick mode, PROJECT
+          scope) — the dropdown offers real nodes as TOC rows, the TOC filters live, Enter
+          assigns the typed path or creates a fresh named tag, a TOC click toggles that node
+          directly (the popup's own target closes instead — see pickPath). Backspace at the
+          first cell's start steps the ladder down. */}
+      <div className="annotate-entry">
+        <span className="annotate-amp">&</span>
+        <div className="annotate-typeahead" title={`${verb}: type a name (creates on miss), a path, or any query ⏎`}>
+          {busy ? (
+            <span className="annotate-busy">creating tag…</span>
+          ) : (
+            <QueryCells host={host} idlePortions={[...SEED_CELLS]} leadingSep idleLadder={2} scopeKeys placeholder="tag name…" className="annotate-cells" />
+          )}
+        </div>
+      </div>
+      {/* the APPLIED row — what this target carries right now (an outlined chip untags it);
+          always shown, never inside the collapsible pane */}
+      {appliedRow.length > 0 && chips(appliedRow, "annotate-applied")}
+      {/* the BAG of recent entries, right under the path entry — a CLOSEABLE pane (the ✕
+          collapses it to its header, remembered per surface, so it can never be lost) */}
+      {bagRow.length > 0 && (
+        <div className="annotate-bag">
+          <div className="annotate-bag-head">
+            <button
+              type="button"
+              className="annotate-bag-toggle"
+              title={paneOpen ? "hide the recent suggestions" : "show the recent suggestions"}
+              onClick={() => setPaneOpen(!paneOpen)}
+            >
+              {paneOpen ? "▾" : "▸"} recent
+            </button>
+            {paneOpen && (
+              <button type="button" className="annotate-bag-close" title="hide the recent suggestions" onClick={() => setPaneOpen(false)}>✕</button>
+            )}
+          </div>
+          {paneOpen && chips(bagRow, "annotate-recents")}
         </div>
       )}
       <div className="annotate-palette">
@@ -722,38 +815,11 @@ export function AnnotationMenu({
           </TagTip>
         ))}
       </div>
-      {view.length > 0 && (
-        <div className="annotate-recents" role="listbox">
-          {view.map((t) => (
-            <span key={t.path} className="tagframe">
-              <TagTip tag={t}>
-                <button
-                  type="button"
-                  role="option"
-                  aria-selected={isApplied(t.path)}
-                  className={"tagtag" + (isApplied(t.path) ? " on" : "")}
-                  style={tagStyle(resolveTagColor(t))}
-                  onClick={() => toggle(t)}
-                >
-                  <span className="tt-label">{t.name}</span>
-                </button>
-              </TagTip>
-            </span>
-          ))}
+      {creates && creates.length > 0 && (
+        <div className="annotate-actions">
+          {creates.map((c) => <CreateRow key={c.schema} {...c} />)}
         </div>
       )}
-      {/* the SEARCH row: the shared query cells (breadcrumb machinery, pick mode, PROJECT
-          scope) — the dropdown offers real nodes as TOC rows, the TOC filters live, Enter
-          toggles the first match or creates a fresh named tag, a TOC click toggles that node
-          directly (the popup's own target closes instead — see pickPath). Backspace at the
-          first cell's start steps the ladder down (document scope). */}
-      <div className="annotate-typeahead" title={`${verb}: type a name (creates on miss), a path, or any query ⏎`}>
-        {busy ? (
-          <span className="annotate-busy">creating tag…</span>
-        ) : (
-          <QueryCells host={host} idlePortions={[...SEED_CELLS]} leadingSep idleLadder={2} scopeKeys placeholder="tag name…" className="annotate-cells" />
-        )}
-      </div>
     </div>
   );
 }
@@ -785,7 +851,16 @@ function creatableNameOf(query: string): string | null {
  *  a one-shot create/edit. `create` marks a freshly-DRAWN region (vs editing an existing one): only
  *  then does the neutral preview keep the marquee up before the first tag — editing an existing
  *  region down to zero tags must let it disappear (untag). */
-type OpenRegion = { selector: Record<string, unknown>; nodePath: string; create: boolean; copy?: () => void; imageBase64?: string; x: number; y: number; title: string };
+type OpenRegion = {
+  selector: Record<string, unknown>; nodePath: string; create: boolean; copy?: () => void;
+  imageBase64?: string; x: number; y: number; title: string;
+  /** The header's KEY: an existing fragment's slug, or the CHOSEN name of a fresh region
+   *  (used as the fragment key at first tag; "" = auto/inline). */
+  keyText: string;
+  /** The existing fragment's node path — set only in EDIT mode over a member fragment;
+   *  renaming rekeys it in place. A fresh region and an inline-token mark have none. */
+  fragPath?: string;
+};
 
 /** Drives the floating picker for a material's REGIONS: `openCreate` after a fresh selection,
  *  `openEdit` on a click on an existing mark — both open the SAME selector-keyed picker, so tagging
@@ -811,11 +886,34 @@ export function useAnnotationMenu(a: MaterialAnnotations, path: string): {
   // else the material). The title bar shows the fragment's path (existing region) or the material's.
   const openCreate = (selector: Record<string, unknown>, screen: { x: number; y: number }, copy?: () => void, imageBase64?: string, nodePath?: string) => {
     if (READ_ONLY) return; // a fresh region exists only to be tagged — a write; existing marks still render
-    setOpen({ selector, nodePath: nodePath ?? path, create: true, copy, imageBase64, x: screen.x, y: screen.y, title: displayPath(nodePath ?? path) });
+    setOpen({ selector, nodePath: nodePath ?? path, create: true, copy, imageBase64, x: screen.x, y: screen.y, title: displayPath(nodePath ?? path), keyText: "" });
   };
   const openEdit = (ann: Annotation, screen: { x: number; y: number }) => {
     if (READ_ONLY) return; // the picker only adds/removes tags — both writes
-    setOpen({ selector: (ann.selector ?? {}) as Record<string, unknown>, nodePath: ann.node ?? path, create: false, x: screen.x, y: screen.y, title: displayPath(annotationTarget(path, ann)) });
+    // a MEMBER fragment carries its key (renamable); an inline-token mark has no node of its
+    // own, so its key row stays empty and read-only
+    const fragPath = ann.fragmentSlug && !ann.inline ? annotationTarget(path, ann) : undefined;
+    setOpen({
+      selector: (ann.selector ?? {}) as Record<string, unknown>, nodePath: ann.node ?? path, create: false,
+      x: screen.x, y: screen.y, title: displayPath(annotationTarget(path, ann)),
+      keyText: fragPath !== undefined ? String(ann.fragmentSlug) : "", fragPath,
+    });
+  };
+
+  // THE KEY COMMIT: in CREATE mode the name is only REMEMBERED — it becomes the fragment's
+  // key when the first tag births it (create-on-first-tag stands; naming alone writes
+  // nothing). In EDIT mode over a member fragment it REKEYS the node in place — the crop
+  // pointer and the memberships ride inside the block, so they follow for free.
+  const renameKey = (name: string): void => {
+    setOpen((o) => {
+      if (!o) return o;
+      if (o.create) return { ...o, keyText: name };
+      if (o.fragPath === undefined || name === "") return o;
+      rekeyNode(o.fragPath, name)
+        .then((r) => setOpen((cur) => (cur ? { ...cur, keyText: name, fragPath: r.path, title: displayPath(r.path) } : cur)))
+        .catch((e) => window.alert(`rename failed: ${(e as Error).message}`));
+      return o;
+    });
   };
 
   // The region's tag applications, live from the material — toggles reflect at once (optimistic).
@@ -839,7 +937,8 @@ export function useAnnotationMenu(a: MaterialAnnotations, path: string): {
     if (!open) return;
     rememberTag(t); // file it among the recents (no project-scoped "last tag" any more)
     if (applied.some((r) => canonPath(r.path) === canonPath(t.path))) return; // already applied (defensive)
-    a.annotateRegion(open.selector, t, { imageBase64: open.imageBase64, target: open.nodePath });
+    const slug = open.create && open.keyText.trim() !== "" ? open.keyText.trim() : undefined;
+    a.annotateRegion(open.selector, t, { imageBase64: open.imageBase64, target: open.nodePath, slug });
   };
   const onUnpick = (t: TagRef) => {
     if (!open) return;
@@ -885,6 +984,8 @@ export function useAnnotationMenu(a: MaterialAnnotations, path: string): {
       onPick={onPick} onUnpick={onUnpick}
       onCopy={open.copy ? () => { open.copy!(); close(); } : undefined}
       onClose={close} title={open.title} targetPath={open.nodePath}
+      keyText={open.keyText}
+      onRenameKey={open.create || open.fragPath !== undefined ? renameKey : undefined}
     />
   ) : null;
 

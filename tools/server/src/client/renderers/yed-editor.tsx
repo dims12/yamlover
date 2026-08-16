@@ -18,7 +18,8 @@ import type { CellRegistry } from "../../../../yed/src/cells";
 import { type Document, type EditorState } from "../../../../yed/src/state";
 import { editChunks, rekeyNode } from "../api";
 import { fetchContent } from "../content";
-import { makeSourceCells, treeHints } from "./yed-cells";
+import { forgetRecentEntry, makeSourceCells, recordRefCommit, treeHints, treeRecents } from "./yed-cells";
+import { useRecentsPane } from "../recents";
 import { irFromContent } from "./yed-content-load";
 import { diffToOps } from "./yed-sync";
 import { useTocRefPick } from "./yed-toc-pick";
@@ -32,6 +33,7 @@ export function YedEditor({ path, onNavigate, cells }: { path: string; onNavigat
   const serverCells = useMemo(() => makeSourceCells({ navigate: onNavigate }), [onNavigate]);
   const [state, setState] = useState<EditorState | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [bagOpen, setBagOpen] = useRecentsPane("editor"); // the inline bag's ✕, remembered
   const stateRef = useRef<EditorState | null>(null);
   const committedRef = useRef<Document | null>(null); // the doc the SERVER has (per the last acked flush)
   const timerRef = useRef<number | null>(null);
@@ -107,5 +109,12 @@ export function YedEditor({ path, onNavigate, cells }: { path: string; onNavigat
   const debug = ((): boolean => {
     try { return new URLSearchParams(window.location.search).get("yed") === "debug"; } catch { return false; }
   })();
-  return <EditorView state={state} setState={update} debug={debug} cells={cells ?? serverCells} host={{ base: path, doc: docPathRef.current }} hints={treeHints} />;
+  return (
+    <EditorView
+      state={state} setState={update} debug={debug} cells={cells ?? serverCells}
+      host={{ base: path, doc: docPathRef.current }} hints={treeHints} recents={treeRecents}
+      onRefCommit={(c) => recordRefCommit(c, { base: path, doc: docPathRef.current })}
+      recentsPaneOpen={bagOpen} onRecentsPane={setBagOpen} onRecentForget={forgetRecentEntry}
+    />
+  );
 }

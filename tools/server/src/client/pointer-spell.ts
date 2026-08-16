@@ -11,7 +11,7 @@
 import { parsePointer, renderPointer } from "../../../parser/ts/src/pointer.ts";
 import type { PointerBase, Step } from "../../../parser/ts/src/ir.ts";
 import { Ladder, quoteKey, splitQueryPortions } from "./query-complete";
-import { Seg, strToSegs } from "./paths";
+import { Seg, segsToStr, strToSegs } from "./paths";
 
 /** Client-path segments → pointer steps. `strToSegs` has already percent-DECODED the
  *  keys (the pitfall pointerRaw guards against server-side) — the renderer re-escapes. */
@@ -65,6 +65,47 @@ export function spellPointer(target: string, holder: string, ladder: Ladder, doc
   const base: PointerBase = ups === 0 ? { scope: "current" } : { scope: "parent" };
   const upSteps: Step[] = Array.from({ length: Math.max(0, ups - 1) }, () => ({ sel: "parent" }) as Step);
   return renderPointer({ kind: "pointer", base, steps: [...upSteps, ...stepsOf(rest)], raw: "" });
+}
+
+/** The INVERSE of {@link spellPointer}: a spelled pointer raw → the canonical client path it
+ *  targets, or null where no single node is named (unparsable mid-edit text, a trailing `-`
+ *  append, a relindex, a `:::` world URI, a `..` climbing past the root). `current`/`parent`
+ *  bases resolve at `holder`; the `document` base at `docRoot`; a `::` link base at its
+ *  authority as the root child. Used by the recents recording — a resolution failure just
+ *  skips the record (memory, never a gate). */
+export function resolveSpelledPath(raw: string, holder: string, docRoot = ":"): string | null {
+  if (raw.trim() === "") return null; // parsePointer takes "" as the bare current scope — it names nothing
+  let p: ReturnType<typeof parsePointer>;
+  try {
+    p = parsePointer(raw.trim());
+  } catch {
+    return null;
+  }
+  let segs: Seg[];
+  switch (p.base.scope) {
+    case "current": segs = strToSegs(holder); break;
+    case "parent": {
+      const h = strToSegs(holder);
+      if (h.length === 0) return null;
+      segs = h.slice(0, -1);
+      break;
+    }
+    case "document": segs = strToSegs(docRoot); break;
+    case "link":
+      if (p.base.world === true) return null; // a `:::` URI names a world, not a node here
+      segs = [p.base.authority];
+      break;
+  }
+  for (const st of p.steps) {
+    if (st.sel === "key") segs = [...segs, st.name];
+    else if (st.sel === "index") segs = [...segs, st.n];
+    else if (st.sel === "nullkey") segs = [...segs, null];
+    else if (st.sel === "parent") {
+      if (segs.length === 0) return null;
+      segs = segs.slice(0, -1);
+    } else return null; // append (`-`) / relindex — no single-node path
+  }
+  return segsToStr(segs);
 }
 
 /** An existing pointer raw → its scope ladder + query-cell portions (indices folded onto

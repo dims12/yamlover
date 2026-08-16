@@ -7,17 +7,17 @@
 // state, the corpus picker and document-level copy/paste.
 
 import { useMemo, useState } from "react";
-import { applyKey, applyText, blockEditText, commitPending, copySubtree, focusPortion, positionsOf, siteOf, watchdog, type Position } from "./apply";
+import { applyKey, applyText, blockEditText, commitPending, copySubtree, focusPortion, positionsOf, refCommitOf, refFromRaw, siteOf, watchdog, type Position, type RefCommit } from "./apply";
 import { pasteText } from "./paste";
 import { interpret } from "./grammar/dispatch";
 import { defaultRegistry, DocCells, type CellCtx, type CellRegistry } from "./cells";
 import { lineDiff } from "./diff";
 import { Legend } from "./legend";
 import { anchorDecorations, initialState, parseSource, schemaTextOf, sourceOf, trySourceOf, type Cursor, type EditorState } from "./state";
-import { docHints, type HintProvider } from "./complete";
+import { docHints, type HintProvider, type RecentEntry, type RecentsProvider } from "./complete";
 import { portionsOfRaw } from "./grammar/portions";
 
-export function EditorView({ state, setState, debug = true, cells = defaultRegistry, plantCaret = true, host, hints }: { state: EditorState; setState: (s: EditorState) => void; debug?: boolean; cells?: CellRegistry; plantCaret?: boolean; host?: { base: string; doc: string }; hints?: HintProvider }) {
+export function EditorView({ state, setState, debug = true, cells = defaultRegistry, plantCaret = true, host, hints, recents, onRefCommit, recentsPaneOpen, onRecentsPane, onRecentForget }: { state: EditorState; setState: (s: EditorState) => void; debug?: boolean; cells?: CellRegistry; plantCaret?: boolean; host?: { base: string; doc: string }; hints?: HintProvider; recents?: RecentsProvider; onRefCommit?: (c: RefCommit) => void; recentsPaneOpen?: boolean; onRecentsPane?: (open: boolean) => void; onRecentForget?: (e: RecentEntry, anchor: boolean) => void }) {
   const site = siteOf(state);
   const source = sourceOf(state.doc);
   const last = state.log[state.log.length - 1];
@@ -26,6 +26,14 @@ export function EditorView({ state, setState, debug = true, cells = defaultRegis
   // THE ALARM — the red panel below, impossible to miss — and logs the full error.
   const [alarm, setAlarm] = useState<string | null>(null);
   const apply = (next: EditorState): void => {
+    // THE COMMIT OBSERVATION seam (recents recording): every commit path — grammar Enter,
+    // accept-then-act, walk-away, the pick kit — crosses this ONE funnel, so a landed
+    // reference edit is announced here. Pure observation; a throwing observer must never
+    // block the edit itself.
+    if (onRefCommit !== undefined) {
+      const rc = refCommitOf(state, next);
+      if (rc !== null) { try { onRefCommit(rc); } catch { /* recording is never a gate */ } }
+    }
     setState(next);
     if (debug) {
       try { watchdog(next); setAlarm(null); }
@@ -110,6 +118,18 @@ export function EditorView({ state, setState, debug = true, cells = defaultRegis
     },
     onPortion: (index) => apply(focusPortion(state, index)),
     hints,
+    recents,
+    recentsPaneOpen,
+    onRecentsPane,
+    onRecentForget,
+    // a bag pick lands the WHOLE raw in the portion cells (caret on the last) — inserted,
+    // not committed: the same state write a TOC pick makes (yed-toc-pick.ts)
+    onRefRaw: (raw) => {
+      const c = state.cursor;
+      if ((c.at === "hole" || c.at === "pick") && c.ref !== undefined) {
+        apply({ ...state, cursor: { ...c, ...refFromRaw(raw), caret: "end" }, refused: false });
+      }
+    },
     onAppend: (path, index) => apply({ ...state, cursor: { at: "hole", path, index, text: "", key: null }, refused: false }),
     onFocus: (pos: Position) => {
       const cursor: Cursor =

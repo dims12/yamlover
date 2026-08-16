@@ -25,9 +25,9 @@ import type { EditorState, Entry, Node, Path, Value } from "../state";
 import { isPointer } from "../../../parser/ts/src/ir.ts";
 import { Cell, type CellRegistry } from "../cells";
 import { defaultRegistry } from "../cells";
-import type { HintProvider } from "../complete";
+import type { HintProvider, RecentEntry, RecentsProvider } from "../complete";
 import { EditorView } from "../page";
-import type { Position } from "../apply";
+import type { Position, RefCommit } from "../apply";
 import { proseNode, type ChapterState, type SplitPayload } from "./apply";
 import type { ChapterIntent, ChapterKey } from "./dispatch";
 import type { ChapterEdges } from "./site";
@@ -67,6 +67,18 @@ export interface ChapterCellsAdapter {
    *  computes them (subchapterServerPath) so the chunk's reference cells can spell and
    *  address; default: none, the pure layer runs server-free. */
   sourceHost?(path: Path): { base: string; doc: string } | undefined;
+  /** The RECENTS BAG for a source chunk's reference portion cells (complete.ts) — a host's
+   *  remembered targets below the hints; default: none (no bag). */
+  sourceRecents?: RecentsProvider;
+  /** The bag pane's remembered visibility (the ✕) and its writer; default: per-entry only. */
+  sourceRecentsPaneOpen?: boolean;
+  sourceRecentsPane?(open: boolean): void;
+  /** Forget one remembered target (a right-click on its bag row); default: not offered. */
+  sourceRecentForget?(entry: RecentEntry, anchor: boolean): void;
+  /** A source chunk's COMMITTED reference edit (apply.ts refCommitOf) — the host records
+   *  the target among its recents. `path` is the chunk's chapter path (the sourceHost
+   *  addressing base). Default: none. */
+  sourceRefCommit?(path: Path, c: RefCommit): void;
   /** A read-only format's renderer face (csv, images, …); default: a labeled box. */
   renderReadonly?(node: Value, path: Path): ReactNode;
   /** A linked subchapter's inline preview; default: a descend heading. */
@@ -701,6 +713,11 @@ function SourceCell({ path }: { path: Path }): ReactNode {
           cells={ctx.adapter.sourceCells ?? defaultRegistry}
           host={ctx.adapter.sourceHost?.(path)}
           hints={ctx.adapter.sourceHints}
+          recents={ctx.adapter.sourceRecents}
+          recentsPaneOpen={ctx.adapter.sourceRecentsPaneOpen}
+          onRecentsPane={ctx.adapter.sourceRecentsPane}
+          onRecentForget={ctx.adapter.sourceRecentForget}
+          onRefCommit={ctx.adapter.sourceRefCommit && ((c) => ctx.adapter.sourceRefCommit!(path, c))}
           plantCaret={focused}
         />
       </div>
@@ -777,6 +794,11 @@ function PointerChunkCell({ path }: { path: Path }): ReactNode {
           cells={ctx.adapter.sourceCells ?? defaultRegistry}
           host={ctx.adapter.sourceHost?.(path.slice(0, -1))}
           hints={ctx.adapter.sourceHints}
+          recents={ctx.adapter.sourceRecents}
+          recentsPaneOpen={ctx.adapter.sourceRecentsPaneOpen}
+          onRecentsPane={ctx.adapter.sourceRecentsPane}
+          onRecentForget={ctx.adapter.sourceRecentForget}
+          onRefCommit={ctx.adapter.sourceRefCommit && ((c) => ctx.adapter.sourceRefCommit!(path.slice(0, -1), c))}
           plantCaret={focused}
         />
       </div>
