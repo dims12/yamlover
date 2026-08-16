@@ -1,6 +1,6 @@
 {
   "name": "yamlover",
-  "version": "0.3.52",
+  "version": "0.3.53",
   "description": "A local-first, editable knowledge graph for humans and LLMs: npx yamlover <root> serves a browser UI over a plain-text directory, with an editor, live queries, pointers, and an LLM-agent API.",
   "type": "module",
   "license": "MIT",
