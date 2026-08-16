@@ -18,6 +18,7 @@ description: YAML with pointers – the language, its storage model, and its doc
   - AI/LLM memory and context management
   - Simple text markup (called Marklower)
   - Personal note-taking, tagging, knowledge organization, mind management, and self-education
+  - OSINT research: sources, entities, and findings kept in one linkable, revisable graph
   - Knowledge graph storage and representation
   - Local-first data ownership and support for cloudless work
   - Controlled synchronization and collaboration over LAN or the internet
