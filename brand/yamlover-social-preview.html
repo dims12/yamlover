@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      /* GitHub renders the social preview at 1280x640 and crops nothing, but Twitter/Slack
+         cards letterbox it — so everything lives inside a generous safe area. */
+      * { box-sizing: border-box; margin: 0; }
+      html, body { width: 1280px; height: 640px; }
+      body {
+        font: 16px/1.4 Inter, "Segoe UI", system-ui, sans-serif;
+        color: #111827;
+        background: radial-gradient(120% 90% at 50% -20%, #e8efff 0%, #fbfcfe 60%);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        /* extra bottom padding lifts the centred block clear of the URL line below it */
+        padding: 96px 104px 168px;
+        position: relative;
+      }
+      /* explicit height + flex:none — a flex column will otherwise shrink the SVG box, and
+         preserveAspectRatio then re-centres the artwork away from the text's left edge */
+      .lockup { width: 520px; height: 158px; flex: none; align-self: flex-start; display: block; }
+      h1 {
+        margin-top: 56px;
+        font-size: 52px;
+        line-height: 1.18;
+        font-weight: 650;
+        letter-spacing: -0.025em;
+        max-width: 1000px;
+      }
+      .verbs {
+        margin-top: 36px;
+        display: flex;
+        gap: 18px;
+        align-items: center;
+        font-size: 27px;
+        color: #5b6570;
+      }
+      .verbs b { font-weight: 600; color: #246bfd; }
+      .sep { color: #c3cbd6; }
+      .url {
+        position: absolute;
+        left: 104px;
+        bottom: 64px;
+        font-size: 22px;
+        letter-spacing: 0.01em;
+        color: #8b95a1;
+      }
+      /* a hairline of brand cobalt along the bottom edge, so the card reads as ours
+         even as a 260px-wide thumbnail in a timeline */
+      .rule { position: absolute; left: 0; right: 0; bottom: 0; height: 10px; background: #246bfd; }
+    </style>
+  </head>
+  <body>
+    <svg class="lockup" viewBox="0 0 420 128" xmlns="http://www.w3.org/2000/svg">
+      <g transform="translate(5 16)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M15 15 43 43 71 15M43 43 15 71" stroke="#111827" stroke-width="10"/>
+        <circle cx="59.970563" cy="59.970563" r="24" stroke="#246BFD" stroke-width="10"/>
+      </g>
+      <g transform="translate(5 16)">
+        <g fill="#111827">
+          <circle cx="15" cy="15" r="8"/>
+          <circle cx="71" cy="15" r="8"/>
+          <circle cx="15" cy="71" r="8"/>
+        </g>
+        <circle cx="59.970563" cy="59.970563" r="8" fill="#246BFD"/>
+      </g>
+      <text x="104" y="89" font-family="Inter, Arial, sans-serif" font-size="72" font-weight="650" letter-spacing="-4"><tspan fill="#111827">yaml</tspan><tspan fill="#246BFD">over</tspan></text>
+    </svg>
+
+    <h1>A local-first, plain-text knowledge graph<br />for humans and LLMs</h1>
+
+    <div class="verbs">
+      <span>edit it like <b>notes</b></span>
+      <span class="sep">·</span>
+      <span>query it like a <b>database</b></span>
+      <span class="sep">·</span>
+      <span>version it with <b>git</b></span>
+    </div>
+
+    <div class="url">yamlover.inthemoon.net</div>
+    <div class="rule"></div>
+  </body>
+</html>

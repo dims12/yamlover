@@ -14,6 +14,9 @@
 - `yo-wordmark.svg` — compact shorthand lockup.
 - `yamlover-lockup.svg` — primary full-name lockup.
 - `yamlover-logo-system.png` — visual overview and concept board.
+- `yamlover-social-preview.png` — the 1280×640 card GitHub shows when the repo is linked
+  anywhere (Settings → General → Social preview; it cannot be set from the API or `gh`).
+  `yamlover-social-preview.html` is its source: open it at 1280×640 and screenshot to redraw.
 
 The mark is two-coloured: the `y` in ink, the `o` in cobalt — the same split the lockup makes at
 `yaml`/`over`. Reversed onto a cobalt ground (the app icon, the favicon tile, an active toolbar
