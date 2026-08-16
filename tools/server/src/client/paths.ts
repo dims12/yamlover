@@ -107,6 +107,17 @@ export function fragmentAnchorId(materialPath: string, fragmentSlug: string): st
   return fragmentOf(materialPath, fragNode);
 }
 
+/** Split a fragment node path (`<host>:yo:fragments:<slug>`) into its host material and slug.
+ *  Null when the path is not a fragment member. */
+export function splitFragmentPath(path: string): { host: string; slug: string } | null {
+  const segs = strToSegs(path);
+  if (segs.length < 3) return null;
+  if (segs[segs.length - 3] !== "yo" || segs[segs.length - 2] !== "fragments") return null;
+  const slug = segs[segs.length - 1];
+  if (typeof slug !== "string" || !slug) return null;
+  return { host: segsToStr(segs.slice(0, -3)), slug };
+}
+
 /** A human-readable form of a canonical path: each key decoded (so a percent-encoded
  *  segment like `%D0%9F…` shows as its actual characters), colon-separated with a SPACE
  *  after each colon (matching the yamlover source spelling and the tag hover-card), indices

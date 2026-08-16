@@ -13,6 +13,7 @@ import {
   pageFromUrl,
   writePageToUrl,
   fragmentAnchorId,
+  splitFragmentPath,
 } from "../../src/client/paths";
 
 describe("client paths", () => {
@@ -91,5 +92,14 @@ describe("client paths", () => {
       .toBe("/yo/fragments/mr0zbe2l-rqyow7");
     // root material: still leading-slashed
     expect(fragmentAnchorId(":", "abc")).toBe("/yo/fragments/abc");
+  });
+
+  it("splitFragmentPath reads <host>:yo:fragments:<slug>", () => {
+    expect(splitFragmentPath(":72-images:eiffel-tower:IMG.jpg:yo:fragments:abc"))
+      .toEqual({ host: ":72-images:eiffel-tower:IMG.jpg", slug: "abc" });
+    expect(splitFragmentPath(":68-math-chapter:0:yo:fragments:mqgwoar6-xbn407"))
+      .toEqual({ host: ":68-math-chapter:0", slug: "mqgwoar6-xbn407" });
+    expect(splitFragmentPath(":68-math-chapter")).toBeNull();
+    expect(splitFragmentPath(":doc:yo:other:x")).toBeNull();
   });
 });

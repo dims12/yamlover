@@ -248,6 +248,22 @@ describe("ExplorerView (a tag)", () => {
     expect(img.getAttribute("src")).toBe(`/api/thumb?path=${encodeURIComponent(crop)}&w=256&h=256`);
   });
 
+  it("clicking a tagged fragment reports the fragment path (App locates it in the host document)", async () => {
+    const onNavigate = vi.fn();
+    const frag = ":72-images:eiffel-tower:IMG.jpg:yo:fragments:abc";
+    mTagged.mockResolvedValue([
+      link({ kind: "object", type: "object", format: "x-yamlover-fragment", path: frag, count: 1 }),
+    ]);
+    render(<ExplorerView node={tag} view="large" onNavigate={onNavigate} />);
+    const item = await waitFor(() => {
+      const el = items().find((e) => e.getAttribute("href") === frag);
+      if (!el) throw new Error("fragment item not yet rendered");
+      return el;
+    });
+    fireEvent.click(item);
+    expect(onNavigate).toHaveBeenCalledWith(frag);
+  });
+
   it("shows the description in the header (no badge — the bar already names the tag) and badge-styled subtags", () => {
     render(<ExplorerView node={tag} view="large" onNavigate={() => {}} />);
     expect(document.querySelector(".dirhead .tagtag-current")).toBeNull();

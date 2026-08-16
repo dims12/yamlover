@@ -493,24 +493,6 @@ body {
   display: flex;
   flex-direction: column;
 }
-.fragments-head {
-  position: sticky;
-  top: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  background: var(--panel);
-  border-bottom: 1px solid var(--line);
-  flex: 0 0 auto;
-}
-.fragments-title {
-  font-weight: 600;
-}
-.fragments-count {
-  color: var(--dim);
-  font-size: 12px;
-}
 .fragments-list {
   list-style: none;
   margin: 0;
@@ -524,10 +506,11 @@ body {
   gap: 4px;
   padding: 8px 10px;
   border-bottom: 1px solid var(--line);
+  cursor: pointer;
 }
 .fragment-main {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 6px;
 }
 .fragment-locate {
@@ -544,14 +527,14 @@ body {
 }
 .fragment-delete {
   flex: 0 0 auto;
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   padding: 0;
   background: none;
   border: none;
   border-radius: 4px;
   color: var(--dim);
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1;
   cursor: pointer;
 }
@@ -578,6 +561,8 @@ body {
 }
 .fragment-tags {
   display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
   flex-wrap: wrap;
   align-items: center;
   gap: 4px;

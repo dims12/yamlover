@@ -16,7 +16,7 @@ const isStandardFormat = (f: Format) => (FORMATS as string[]).includes(f);
  *  `json5p`, which the target node only offers when it is a json-family file. */
 const formatTravelsTo = (f: Format, concrete?: string | null) =>
   isStandardFormat(f) && (f !== "json5p" || isJsonConcrete(concrete));
-import { canonPath, formatFromUrl, isAncestorPath, pathFromUrl, segsToStr, strToSegs, writeUrl } from "./paths";
+import { canonPath, formatFromUrl, fragmentAnchorId, isAncestorPath, pathFromUrl, segsToStr, splitFragmentPath, strToSegs, writeUrl } from "./paths";
 import { navigateToFragment } from "./renderers/headings";
 import { useLandingProgress, useUnfoldProgress } from "./landing-progress";
 import { getTocPresence, useTocCurrentPath } from "./toc-presence";
@@ -383,6 +383,20 @@ export function App() {
   // WINS over the target's renderer (as long as it can travel there).
   const navigate = useCallback(
     (p: string, pinFormat = false) => {
+      // A fragment node's default click is LOCATE: open its host material at `#/yo/fragments/<slug>`
+      // (the in-document region), never the fragment node as a page. Already on a page that
+      // renders the host (the material itself, or a chapter that inlines the chunk) → just the hash.
+      const frag = splitFragmentPath(p);
+      if (frag) {
+        const id = fragmentAnchorId(frag.host, frag.slug);
+        const hostKey = canonPath(frag.host);
+        const presence = getTocPresence();
+        if (document.getElementById(id) || presence.anchors.has(hostKey) || canonPath(current) === hostKey) {
+          navigateToFragment(id);
+          return;
+        }
+        p = frag.host;
+      }
       const target = tree ? findNode(tree, p) : null;
       let f: Format = format;
       if (target && !(pinFormat && formatTravelsTo(format, target.concrete))) {
@@ -393,8 +407,9 @@ export function App() {
       setCurrent(p);
       if (f !== format) setFormat(f);
       bcDispatchRef.current?.({ type: "NAVIGATED", path: p });
+      if (frag) navigateToFragment(fragmentAnchorId(frag.host, frag.slug));
     },
-    [format, tree],
+    [format, tree, current],
   );
 
   // Selecting a TOC row navigates AND hands keyboard focus to the RHS pane, so
@@ -753,7 +768,7 @@ export function App() {
               onToggle={() => setRightCollapsed((v) => !v)}
               onDragStart={() => startDrag("right")}
             />
-            {showFragments && <Fragments path={current} groups={fragGroups} width={rightWidth} onNavigate={navigate} />}
+            {showFragments && <Fragments path={current} groups={fragGroups} width={rightWidth} />}
           </>
         )}
       </div>
