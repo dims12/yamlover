@@ -1,0 +1,1 @@
+walkDir keeps array: false on the dir-backed omni root (a directory is keyed storage, even when the body consumed every member into positions) — the serialized file's body is ALL-KEYLESS since the fragment moved onto its chunk, so the golden reparses with array: true
