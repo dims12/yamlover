@@ -209,7 +209,7 @@ DEMO_DRIVER=docker DEMO_IMAGE=yamlover-demo DOCS_IMAGE=yamlover-docs \
 | `MAX_DEMOS` | `50` | global concurrent-running cap |
 | `DB_PATH` | `tools/demo/.data/demos.db` | sqlite registry |
 | `EMAIL_PROVIDER` | `console` | `console` or `resend` |
-| `EMAIL_FROM` / `RESEND_API_KEY` | — | Resend sender + key |
+| `EMAIL_FROM` / `RESEND_API_KEY` | `yamlover demo <noreply@…>` / — | Resend sender + key |
 | `REGISTER_PER_HOUR` | `3` | per-IP registration rate limit |
 | `DEMO_IMAGE` | `dimskraft/yamlover-demo:latest` | docker image (Docker Hub) |
 | `DEMO_IMAGE_PULL` | `1` | `docker pull` the images on startup (`0` to skip) |

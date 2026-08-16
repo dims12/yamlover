@@ -35,7 +35,7 @@ git submodule update --init
 
 | impl | json5p | yamlover | notes |
 |------|--------|----------|-------|
-| `ts/`   | ✅ done | ✅ practical subset | 199 tests green; Node ≥22 native TS, `node:test` |
+| `ts/`   | ✅ done | ✅ practical subset | full `node:test` suite green; Node ≥22 native TS |
 | `rust/` | — | — | planned |
 
 json5p is gated by the full JSON + JSON5 positive corpora. yamlover covers block/flow,

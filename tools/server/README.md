@@ -7,8 +7,8 @@ serves a browser UI (tree, editor, renderers, live queries) over a yamlover
 directory, and an HTTP API an agent can drive directly.
 
 - **Repo:** https://github.com/dims12/yamlover
-- **Live demo** (no install): https://yamlover.inthemoon.net/
-- **Docs** (written in yamlover, click-through): https://yamlover.inthemoon.net/docs
+- **Live demo** (no install): [yamlover.inthemoon.net](https://yamlover.inthemoon.net/?utm_source=npm&utm_medium=readme&utm_content=demo)
+- **Docs** (written in yamlover, click-through): [yamlover.inthemoon.net/docs](https://yamlover.inthemoon.net/docs?utm_source=npm&utm_medium=readme&utm_content=docs)
 
 ```console
 $ npx yamlover [ROOT] [--port N] [--headless] [--host ADDR] [--base-path PREFIX] [--no-gitignore] [--prod] [--read-only]
@@ -93,8 +93,8 @@ splitting its path at the page boundary and replacing that `/` with `#`: for a f
 path `a/b/c/d` whose served page is `a/b`, the *scrollable* URL is `a/b#c/d` — the
 page loads `a/b` and scrolls to the `c/d` node within it. A **fragment** (a tagged
 region — see `docs/annotations`) is one instance: a region of `…/IMG.jpg` lives at
-`…/IMG.jpg/yamlover-fragments/<slug>`, so its scrollable URL is
-`…/IMG.jpg#yamlover-fragments/<slug>` — opening it (or clicking the region in the
+`…/IMG.jpg/yo/fragments/<slug>`, so its scrollable URL is
+`…/IMG.jpg#yo/fragments/<slug>` — opening it (or clicking the region in the
 fragments panel) scrolls/pans to **and briefly flashes** the region.
 
 ## How it works

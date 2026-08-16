@@ -3,6 +3,8 @@
 > ⚠️ **DEPRECATED (2026-06-07).** Superseded by `tools/parser/` + `tools/engine/`. It builds
 > a **Yamlover JSON Schema** (the old schema-as-storage model), which the instance-only
 > design retired. Kept for reference only — do not extend. See [`../LEGACY.md`](../LEGACY.md).
+> The worked example below predates the `examples/` renumbering (its `10-array-of-files`
+> is today's `56-array-of-files`); the transcript is a historical snapshot.
 
 Assemble a yamlover tree into a single **Yamlover JSON Schema**.
 

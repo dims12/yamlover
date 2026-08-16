@@ -32,11 +32,12 @@ engine/
   offline reconcile at startup, move inference with auto-relink. **Mediated `mv`**
   (`ts/src/mv.ts`/`rewrite.ts`) moves a file/dir and surgically rewrites inbound refs.
 - **query evaluator** (`ts/src/query.ts`) — done. The 3g colon-grammar match templates
-  over the store, gated by the 77-case corpus (`query.cases.ts`).
+  over the store, gated by the query-case corpus (`query.cases.ts`).
 - **settings** (`ts/src/settings.ts`) — done. Loads/materializes `.yo/settings.yo`.
 - **engine API protocol** (versioned, per `../../ENGINE.md`) — TODO. Today the server
   (`tools/server`) consumes the engine directly: relative-path imports in dev, an esbuild
   bundle (`dist/server.js`) in the published package.
 
-Imports the parser via relative path (`../../../parser/ts/src/…`); no npm install (Node ≥22
-native type-stripping, `node:test`). Run: `npm test`.
+Imports the parser via relative path (`../../../parser/ts/src/…`). Node ≥22 (native
+type-stripping, `node:test`); one root `npm install` is still needed — the workspace hoists
+the engine's single dependency, `xxhash-wasm`. Run: `npm test`.

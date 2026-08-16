@@ -7,8 +7,9 @@ file-update flow (FS watcher → `/api/events` SSE) works unchanged inside the w
 
 ## How it works
 
-- `main.js` builds the server (`vite build` + esbuild → `tools/server/dist`), then
-  `utilityProcess.fork`s `tools/server/bin/yamlover.js <root> --prod`. The server is
+- `npm start` builds the server first (`build:server` → `vite build` + esbuild →
+  `tools/server/dist`); `main.js` then `utilityProcess.fork`s
+  `tools/server/bin/yamlover.js <root> --prod`. The server is
   run in **Electron's bundled Node**, which is why this app requires an Electron
   whose Node is **≥ 22.5** (the engine's store uses `node:sqlite`). Electron 35+
   ships Node 22.x — see the version floor in `package.json`.
