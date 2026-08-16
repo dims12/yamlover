@@ -2872,6 +2872,11 @@ mark.yo-inline-fragment {
 .tagswatch:hover {
   filter: var(--hover-filter);
 }
+/* a swatch as a BUTTON (the board lane heads' removable color tags) — the circle only */
+button.tagswatch {
+  padding: 0;
+  appearance: none;
+}
 .tagdesc {
   text-align: left;
   color: var(--dim);
@@ -2916,10 +2921,6 @@ mark.yo-inline-fragment {
   padding: 12px;
 }
 .board-col {
-  background: var(--bg-alt);
-  border: 1px solid var(--line);
-  border-top: 2px solid var(--line); /* the lane's color bar (inline borderTopColor re-inks it) */
-  border-radius: 8px;
   display: flex;
   flex-direction: column;
   max-height: calc(100vh - 160px);
@@ -2930,21 +2931,21 @@ mark.yo-inline-fragment {
 }
 .board-col-body {
   display: flex;
-  flex-direction: column;     /* groups stack vertically (the merged terminal column has several) */
-  padding: 8px;
+  flex-direction: column;     /* compartments stack vertically, one rounded box each */
+  gap: 8px;
   overflow-y: auto;
 }
-/* A drop zone: one state's cards. The cards flow LEFT-TO-RIGHT and WRAP into rows, so a wide
-   column holds several constant-width cards per row (YouTrack-style). */
+/* A drop zone: one compartment's cards — and every compartment IS a lane box of its own:
+   the same rounded frame + colored top bar (inline borderTopColor per compartment), so a
+   stacked compartment looks exactly like a lane top. Cards flow LEFT-TO-RIGHT and WRAP into
+   rows, so a wide column holds several constant-width cards per row. */
 .board-group {
-  border-radius: 6px;
-  padding: 2px;
-  min-height: 40px;           /* an empty group is still a drop target */
-}
-.board-group-split {
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px dashed var(--line);   /* the vertical divider between merged sub-states */
+  background: var(--bg-alt);
+  border: 1px solid var(--line);
+  border-top: 2px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+  min-height: 40px;           /* an empty compartment is still a drop target */
 }
 .board-group-over {
   background: color-mix(in srgb, var(--accent) 16%, transparent);
@@ -3005,6 +3006,55 @@ mark.yo-inline-fragment {
   margin-bottom: 6px;
   line-height: 1.3;
 }
+/* the node's type/format glyph at the card's top-left corner (the TOC-row trio) */
+.board-card-icon {
+  margin-right: 6px;
+  font-size: 12px;
+}
+/* the card's OWN tags — miniature chips at the card bottom, beside priority/assignee (the
+   containing compartment's tags are omitted; "other" shows them all) */
+.board-card-tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  align-items: center;
+}
+.board-card-tags .tagtag {
+  font-size: 9px;
+  cursor: inherit; /* the CARD is the click target — chips here are labels */
+}
+.board-card-tags .tagswatch {
+  width: 10px;
+  height: 10px;
+  cursor: inherit;
+}
+/* the compartment head doubles as the lane's drag handle (drop on another column to stack) */
+.board-comp-head {
+  cursor: grab;
+}
+/* an image member's preview strip — the server's downscaled /api/thumb, capped so a tall
+   image never swallows the lane */
+.board-card-thumb {
+  display: block;
+  width: 100%;
+  max-height: 110px;
+  object-fit: cover;
+  border-radius: 4px;
+  margin-bottom: 6px;
+}
+/* the ghost "＋" tile that births a new card in this compartment */
+.board-add-card {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  background: none;
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  color: var(--dim);
+  cursor: pointer;
+  font: inherit;
+  padding: 8px 14px;
+}
+.board-add-card:hover { color: var(--fg); border-color: var(--accent); }
 .board-card-meta {
   display: flex;
   flex-wrap: wrap;
@@ -3074,7 +3124,6 @@ mark.yo-inline-fragment {
   flex: 1 1 auto;
 }
 .board-lane-add,
-.board-lane-del,
 .board-group-del {
   background: none;
   border: none;
@@ -3084,21 +3133,18 @@ mark.yo-inline-fragment {
   padding: 0;
   line-height: 1;
 }
+/* the ADD-TAG button — "＋ tag", the labeled sibling of the "＋ lane" ghosts */
 .board-lane-add {
-  color: var(--dim);
-  border: 1px dashed var(--line);
-  border-radius: 10px;
-  padding: 0 5px;
-}
-.board-lane-add:hover { color: var(--fg); border-color: var(--accent); }
-.board-lane-del {
-  color: var(--dim);
   font-size: 0.85em;
-  flex: 0 0 auto;
-  opacity: 0.5;
+  color: var(--fg);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 2px 8px;
+  white-space: nowrap;
 }
-.board-lane-del:hover { opacity: 1; }
-/* the sublane head's remove button — same quiet affordance as the lane delete */
+.board-lane-add:hover { border-color: var(--accent); color: var(--accent); }
+/* the lane's remove button — the one deletion verb (a column dies with its last compartment) */
 .board-group-del {
   color: var(--dim);
   font-size: 0.85em;
@@ -3121,9 +3167,10 @@ mark.yo-inline-fragment {
 }
 .board-add-lane:hover { color: var(--fg); border-color: var(--accent); }
 /* the per-column "＋ lane" (compartment adder) below the lane box — the trailing
-   ＋ lane ghost's vertical twin, sitting a bit OUTSIDE the column like that one does */
+   ＋ lane ghost's vertical twin, sitting a bit OUTSIDE the column like that one does,
+   aligned to the column's left edge */
 .board-add-comp {
-  align-self: stretch;
+  align-self: flex-start;
   background: none;
   border: 1px dashed var(--line);
   border-radius: 8px;
@@ -3131,9 +3178,15 @@ mark.yo-inline-fragment {
   cursor: pointer;
   font: inherit;
   padding: 8px 12px;
-  text-align: center;
 }
 .board-add-comp:hover { color: var(--fg); border-color: var(--accent); }
+/* a dragged lane hovering its drop ghost — the ghost lights up as the landing slot */
+.board-add-comp.board-drop-over,
+.board-add-lane.board-drop-over {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
 
 /* The BACKLOG — the directory's chapters no compartment references, cards like any lane's,
    a drag source and target (dropping here removes the source compartment's shared tags). */

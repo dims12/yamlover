@@ -59,6 +59,15 @@ export const SmallIconsIcon = () => (
   </TabSvg>
 );
 
+/** Tag board: kanban lanes — three columns of standing cards, at differing heights. */
+export const BoardIcon = () => (
+  <TabSvg>
+    <rect x="1.75" y="2" width="3.5" height="8.5" rx="1" />
+    <rect x="6.25" y="2" width="3.5" height="12" rx="1" />
+    <rect x="10.75" y="2" width="3.5" height="5.5" rx="1" />
+  </TabSvg>
+);
+
 /** Details: tight rows, each an entry with its columns of text. */
 export const DetailsIcon = () => (
   <TabSvg>

@@ -673,7 +673,7 @@ describe("/api/board (lanes of compartments)", () => {
     // the display reconcile filed task-a into the ready compartment; task-b is a structural orphan
     expect(cardPaths(g.json.lanes[1][0].items)).toEqual([":task-a.yo"]);
     expect(cardPaths(g.json.backlog)).toEqual([":task-b.yo"]);
-    expect(g.json.lanes[1][0].items[0]).toMatchObject({ title: "Wire the widget", tags: [READY] });
+    expect(g.json.lanes[1][0].items[0]).toMatchObject({ title: "Wire the widget", tags: [expect.objectContaining({ path: READY })] });
     // merely reading never materializes
     expect(fs.readFileSync(path.join(root, ".yo", "body.yo"), "utf8")).toBe(before);
   });
@@ -801,7 +801,7 @@ describe("/api/board (lanes of compartments)", () => {
     expect(cardPaths(mv.json.lanes[1][1].items)).toEqual([":task.yo"]);
   });
 
-  it("a zero-tag compartment is manual-only: reconcile leaves it alone, a move in adds no tags", async () => {
+  it("a TAGLESS compartment holds no member tickets: a move in bounces back to the backlog", async () => {
     const root = tmpTree({
       ".yo/body.yo": "!!<*yamlover:$defs:board>\n",
       "ontos/.yo/body.yo": "!!<*yamlover:$defs:onto>\na: !!<*yamlover:$defs:onto> A\n",
@@ -812,14 +812,80 @@ describe("/api/board (lanes of compartments)", () => {
     await callBody(h, "POST", "/api/board", {
       path: ":", op: "structure", structure: [[{ tags: [], items: [] }]],
     });
+    // the client refuses this drop up front (drop-policy); a direct API move still cannot
+    // violate the principle — the follow-up reconcile releases the ticket to the backlog
     const mv = await callBody(h, "POST", "/api/board", {
       path: ":", op: "move", task: ":task.yo", from: null, to: { lane: 0, comp: 0 },
     });
-    expect(cardPaths(mv.json.lanes[0][0].items)).toEqual([":task.yo"]);
-    expect(fs.readFileSync(path.join(root, "task.yo"), "utf8")).not.toContain("&"); // untouched
-    // and a reconcile keeps the manual filing
-    const rec = await callBody(h, "POST", "/api/board", { path: ":", op: "reconcile" });
-    expect(cardPaths(rec.json.lanes[0][0].items)).toEqual([":task.yo"]);
+    expect(cardPaths(mv.json.lanes[0][0].items)).toEqual([]);
+    expect(cardPaths(mv.json.backlog)).toEqual([":task.yo"]);
+    expect(fs.readFileSync(path.join(root, "task.yo"), "utf8")).not.toContain("&"); // never retagged
+  });
+
+  it("EVERY file-backed member is a card — scalar-walked files, empty leafs, and blobs included (55-meta parity)", async () => {
+    // the reported shape: large-icons showed 4 members, the board's "other" only 2 — the
+    // scalar-walked text file and the empty leaf file were wrongly filtered as inline fields
+    const root = tmpTree({
+      ".yo/body.yo": "!!<*yamlover:$defs:board>\n",
+      "age": "",
+      "as-text.txt": "name: Whiskers\nspecies: cat\n",
+      "as-tree.yaml": "name: Whiskers\nspecies: cat\n",
+      "sample.png": "\x89PNG\r\n\x1a\n binary-ish",
+    });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const g = call(h, "/api/board", { path: ":" });
+    expect(cardPaths(g.json.backlog).sort()).toEqual([":age", ":as-text.txt", ":as-tree.yaml", ":sample.png"]);
+  });
+
+  it("turn-on cleanup: a HAND-AUTHORED tagless compartment holding a ticket is cleaned by op:reconcile", async () => {
+    // the reported shape: the user untagged every compartment on disk, one still lists a task —
+    // opening the board view (the client fires op:"reconcile") must release it to "other"
+    const root = tmpTree({
+      ".yo/body.yo": [
+        "!!<*yamlover:$defs:board>",
+        "yo:",
+        "  lanes:",
+        "  - -",
+        "      - *::task.yo",
+        "  - -",
+        "",
+      ].join("\n"),
+      "task.yo": "!!<*yamlover:$defs:task>\ntitle: Stranded in a tagless lane\n",
+    });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+
+    const r = await callBody(h, "POST", "/api/board", { path: ":", op: "reconcile" });
+    expect(r.status).toBe(201);
+    expect(r.json.seeded).toBe(false);
+    expect(r.json.lanes.flat().every((c: any) => c.items.length === 0)).toBe(true);
+    expect(cardPaths(r.json.backlog)).toEqual([":task.yo"]);
+    // …and the fix is ON DISK, not just in the answer
+    expect(fs.readFileSync(path.join(root, ".yo", "body.yo"), "utf8")).not.toContain("*::task.yo");
+    expect(fs.readFileSync(path.join(root, "task.yo"), "utf8")).not.toContain("&"); // never retagged
+  });
+
+  it("emptying a compartment's tag list releases its tickets to their tags' homes", async () => {
+    const root = tmpTree({
+      ".yo/body.yo": "!!<*yamlover:$defs:board>\n",
+      "ontos/.yo/body.yo": "!!<*yamlover:$defs:onto>\na: !!<*yamlover:$defs:onto> A\n",
+      "task.yo": "!!<*yamlover:$defs:task>\ntitle: Tagged item\n&::ontos:a:-\n",
+    });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const st = await callBody(h, "POST", "/api/board", {
+      path: ":", op: "structure", structure: [[{ tags: [":ontos:a"], items: [] }]],
+    });
+    expect(cardPaths(st.json.lanes[0][0].items)).toEqual([":task.yo"]);
+    // the tag-list edit: same compartment, tags emptied — its ticket falls to the backlog
+    // (no other compartment wants it), its own bookmark untouched
+    const cleared = await callBody(h, "POST", "/api/board", {
+      path: ":", op: "structure", structure: [[{ tags: [], items: [{ path: ":task.yo" }] }]],
+    });
+    expect(cardPaths(cleared.json.lanes[0][0].items)).toEqual([]);
+    expect(cardPaths(cleared.json.backlog)).toEqual([":task.yo"]);
+    expect(fs.readFileSync(path.join(root, "task.yo"), "utf8")).toContain("&::ontos:a:-");
   });
 });
 

@@ -1,0 +1,8 @@
+!!<*yamlover:$defs:task>
+Clean the oven
+description: The full works — racks out, soda paste overnight, wipe down.
+priority: normal
+assignee: dims
+- Done last weekend; the racks soaked in the bathtub with a dryer sheet.
+&::yamlover:ontos:workflow:dev:done:-
+&::yamlover:ontos:colors:yellow:-

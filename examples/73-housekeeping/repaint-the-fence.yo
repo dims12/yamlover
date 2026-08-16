@@ -1,0 +1,17 @@
+# A chore with SUBTASKS — a subtask is a positional body element that is itself a $defs:task
+# (the task tree, the recursion), interleaved with the chore's own chunks. Like any chapter,
+# a task is FULLY OMNI: its scalar SELF-VALUE is the title (no `title:` key).
+!!<*yamlover:$defs:task>
+Repaint the garden fence
+description: The south side peeled over the winter — strip and repaint before the rains.
+priority: normal
+assignee: dims
+due: "2026-08-30"
+estimate: 2d
+- Check the forecast first — the paint needs two dry days.
+- Scrape and sand the peeled boards
+  - The heat gun is faster on the thick patches.
+- Prime the bare wood
+- Two coats of the green from the shed
+  - About half a can is left; buy one more.
+&::yamlover:ontos:workflow:dev:in-progress:-

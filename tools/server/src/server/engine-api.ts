@@ -781,10 +781,10 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
               };
               if (op === "structure") {
                 const st = sanitizeBoardStructure(b.structure);
-                const rec = reconcileBoard(st, memberTagSets(s, boardMembers(s, boardStore)));
+                const rec = reconcileBoard(st, memberTagSets(s, boardMembers(dataRoot, s, boardStore)));
                 await writeStructure(rec.structure);
                 scheduleHasher();
-                return { seeded: false, ...resolveBoard(s, boardMembers(s, boardStore), rec.structure) };
+                return { seeded: false, ...resolveBoard(dataRoot, s, boardMembers(dataRoot, s, boardStore), rec.structure) };
               }
               if (op === "move") {
                 const task = String(b.task ?? "");
@@ -799,18 +799,18 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
                 // the structure half: move this instance, then reconcile with the POST-retag tags
                 // (the tag change may relocate the task's OTHER instances too)
                 const moved = applyMove(structure, task, from, to);
-                const rec = reconcileBoard(moved, memberTagSets(s, boardMembers(s, boardStore)));
+                const rec = reconcileBoard(moved, memberTagSets(s, boardMembers(dataRoot, s, boardStore)));
                 await writeStructure(rec.structure);
                 scheduleHasher();
-                return { seeded: false, ...resolveBoard(s, boardMembers(s, boardStore), rec.structure) };
+                return { seeded: false, ...resolveBoard(dataRoot, s, boardMembers(dataRoot, s, boardStore), rec.structure) };
               }
               if (op === "reconcile") {
-                const rec = reconcileBoard(structure, memberTagSets(s, boardMembers(s, boardStore)));
+                const rec = reconcileBoard(structure, memberTagSets(s, boardMembers(dataRoot, s, boardStore)));
                 // a still-seeded legacy board reconciles IN MEMORY only — merely opening the
                 // view must not dirty the repo; the first USER write materializes it
                 if (read !== null && rec.changed) await writeStructure(rec.structure);
                 scheduleHasher();
-                return { seeded: read === null, ...resolveBoard(s, boardMembers(s, boardStore), rec.structure) };
+                return { seeded: read === null, ...resolveBoard(dataRoot, s, boardMembers(dataRoot, s, boardStore), rec.structure) };
               }
               throw new Error(`unknown board op: ${op || "(none)"}`);
             }),
@@ -1160,9 +1160,9 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
         const row = s.node(p);
         if (!row) return notFound(res, url);
         const read = readBoardStructure(s, p);
-        const members = boardMembers(s, p);
+        const members = boardMembers(dataRoot, s, p);
         const { structure } = reconcileBoard(read ?? seedBoardStructure(s, p), memberTagSets(s, members));
-        sendJson(res, 200, { seeded: read === null, ...resolveBoard(s, members, structure) });
+        sendJson(res, 200, { seeded: read === null, ...resolveBoard(dataRoot, s, members, structure) });
         return;
       }
 
@@ -2012,16 +2012,19 @@ function seedBoardStructure(s: Store, boardStore: string): BoardStructure {
 }
 
 /** The board's CARD members — its direct entities, not config/taxonomy/graft, not the hidden
- *  overlay, not a tag/workflow/board, and not a plain inline data field (a leaf scalar with no
- *  children and no backing document). The server twin of the client's cardMemberPaths. */
-function boardMembers(s: Store, boardStore: string): string[] {
+ *  overlay, not a tag/workflow/board, and not a plain INLINE data field (a leaf scalar with no
+ *  children and nothing on disk — `priority: normal` on an object board). Anything FILE- or
+ *  DIRECTORY-backed is a member entity whatever its shape (a scalar-walked text file, an empty
+ *  leaf file, a blob) — the explorer lists them all, and the board must show the same set. */
+function boardMembers(dataRoot: string, s: Store, boardStore: string): string[] {
   const out: string[] = [];
   for (const c of s.children(boardStore)) {
     if (!c.label || BOARD_CONFIG_KEYS.has(c.label) || isHidden(s, c.to)) continue;
     const n = s.node(c.to);
     if (!n || (n.format && TAGISH_FORMATS.has(n.format))) continue;
-    if (n.type === "scalar" && !n.meta?.documentRoot && s.children(c.to).length === 0) continue;
-    out.push(segsToStr(storePathToSegs(c.to)));
+    const segs = storePathToSegs(c.to);
+    if (n.type === "scalar" && s.children(c.to).length === 0 && !fs.existsSync(path.resolve(dataRoot, ...segs.map(String)))) continue;
+    out.push(segsToStr(segs));
   }
   return out;
 }
@@ -2031,38 +2034,46 @@ function memberTagSets(s: Store, members: string[]): Map<string, Set<string>> {
   return new Map(members.map((p) => [p, new Set(membershipPathsOf(s, storePath(strToSegs(p))))]));
 }
 
-/** One card's display stub. Tolerates a missing node (a dangling foreign ref renders inert). */
-function boardCardStub(s: Store, p: string): Record<string, unknown> {
+/** One card's display stub — display fields plus the ICON facets (type/format/concrete, the
+ *  same trio the TOC rows carry). Tolerates a missing node (a dangling foreign ref renders
+ *  inert). */
+function boardCardStub(dataRoot: string, s: Store, p: string): Record<string, unknown> {
   const segs = strToSegs(p);
   const store = storePath(segs);
+  const row = s.node(store);
   const field = (k: string): string | null => {
     const v = s.node(childPath(store, k))?.value;
     return v == null ? null : String(v);
   };
   return {
     path: p,
-    title: (s.node(store) ? displayNameOf(s, store) : null) ?? String(segs[segs.length - 1] ?? p),
+    title: (row ? displayNameOf(s, store) : null) ?? String(segs[segs.length - 1] ?? p),
+    type: row ? tocType(s, store, row) : null,
+    format: row?.format ?? null,
+    concrete: row ? concreteOf(s, dataRoot, segs, row) : null,
     priority: field("priority"),
     assignee: field("assignee"),
     due: field("due"),
-    tags: membershipPathsOf(s, store),
+    // resolved refs, not bare paths — the card FACE shows its tags (names + colors)
+    tags: membershipPathsOf(s, store).map((t) => projectTag(s, storePath(strToSegs(t)))).filter(Boolean),
   };
 }
 
 /** The resolved board the client renders: compartment tags as `{path,name,color}` refs, items
- *  as card stubs, and the BACKLOG — every direct member referenced by no compartment. */
-function resolveBoard(s: Store, members: string[], structure: BoardStructure): { lanes: unknown[][]; backlog: unknown[] } {
+ *  as card stubs, and the OTHER section (`backlog` on the wire) — every direct member
+ *  referenced by no compartment. */
+function resolveBoard(dataRoot: string, s: Store, members: string[], structure: BoardStructure): { lanes: unknown[][]; backlog: unknown[] } {
   const inComp = new Set<string>();
   const lanes = structure.map((lane) =>
     lane.map((comp) => ({
       tags: comp.tags.map((t) => projectTag(s, storePath(strToSegs(t)))).filter(Boolean),
       items: comp.items.map((it) => {
         inComp.add(it.path);
-        return { ...boardCardStub(s, it.path), ...(it.key !== undefined ? { key: it.key } : {}) };
+        return { ...boardCardStub(dataRoot, s, it.path), ...(it.key !== undefined ? { key: it.key } : {}) };
       }),
     })),
   );
-  const backlog = members.filter((p) => !inComp.has(p)).map((p) => boardCardStub(s, p));
+  const backlog = members.filter((p) => !inComp.has(p)).map((p) => boardCardStub(dataRoot, s, p));
   return { lanes, backlog };
 }
 

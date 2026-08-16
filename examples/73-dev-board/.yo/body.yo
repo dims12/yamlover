@@ -1,7 +1,0 @@
-# This directory is an AGILE BOARD: every `…/$defs:task` file in it is a card, grouped into
-# lanes by the `dev` workflow's states (backlog → ready → in-progress → done/cancelled).
-# Dragging a card to another lane rewrites that task's state annotation (re-tags it). The
-# states come from the PROJECT-GLOBAL `dev` workflow (the root `ontos/` taxonomy) that the cards
-# also point at — one source of truth, no per-board copy. Spec: ../../TICKETS.md §3.
-!!<*yamlover:$defs:board>
-workflow: *::yamlover:ontos:workflow:dev

@@ -276,14 +276,18 @@ export function annotate(a: { target: string; tag: string; description?: string;
 
 // ---- the tag board (TICKETS.md §3; board-model.ts is the pure policy both sides share) ---- //
 
-/** One resolved board card — a direct member's display stub plus its current tag paths. */
+/** One resolved board card — a direct member's display stub plus its current tag paths and
+ *  the icon facets (type/format/concrete — the TOC-row trio, for the card's corner glyph). */
 export interface BoardCard {
   path: string;
   title: string;
+  type: string | null;
+  format: string | null;
+  concrete: string | null;
   priority: string | null;
   assignee: string | null;
   due: string | null;
-  tags: string[];
+  tags: TagRef[]; // resolved refs — the card face shows them (minus its compartment's own)
   key?: string; // a keyed compartment item keeps its key
 }
 

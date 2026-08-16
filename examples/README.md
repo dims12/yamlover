@@ -99,7 +99,7 @@ machinery to arrange task cards into workflow lanes.
 | # | example | concrete / shows |
 |---|---------|------------------|
 | 67 | [`67-pdf-tags`](67-pdf-tags)   | real PDFs (messy filenames) + a `body.yo` overlay: a `!!<*yamlover/$defs/onto>` taxonomy whose slugs link papers by `*` pointer, with each paper mirroring `~slug:` back — membership authored both ways, reconciled by the engine |
-| 73 | [`73-dev-board`](73-dev-board) | an agile **board** — a directory of `!!<*yamlover:$defs:task>` cards grouped into kanban lanes by the project-global `dev` workflow's states; dragging a card between lanes re-tags it (see [TICKETS.md](../TICKETS.md)) |
+| 73 | [`73-housekeeping`](73-housekeeping) | a **board** of housekeeping chores — a directory of `!!<*yamlover:$defs:task>` cards grouped into kanban lanes by the project-global `dev` workflow's states; dragging a card between lanes re-tags it, and an untagged member (the grocery list) sits in the "other" section (see [TICKETS.md](../TICKETS.md)) |
 
 ---
 

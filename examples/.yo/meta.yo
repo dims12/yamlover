@@ -50,5 +50,5 @@ members:
     description: KML/KMZ maps drawn over an OpenStreetMap overlay
   72-images:
     description: photographs typed by extension (JPG/HEIC), shown in the pan/zoom image viewer
-  73-dev-board:
-    description: an agile board — a directory of `$defs:task` cards grouped into workflow lanes; drag-to-retag
+  73-housekeeping:
+    description: a housekeeping board — a directory of `$defs:task` chores grouped into workflow lanes; drag-to-retag

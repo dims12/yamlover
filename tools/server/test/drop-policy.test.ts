@@ -102,16 +102,21 @@ describe("planBoardMove", () => {
     if (v.allowed) expect(v.plan.description).toBe('Move "Fix login" to "doing" (+doing, −todo)');
   });
 
-  it("describes a move to the backlog with only removals", () => {
+  it('describes a move to "other" (out of the lanes) with only removals', () => {
     const v = planBoardMove({ path: ":t", title: "Fix login" }, { lane: 0, comp: 0 }, null, { untag: [TODO], tag: [] }, null);
     expect(v).toMatchObject({ allowed: true, plan: { kind: "board-move", to: null, untag: [":ontos:todo"], tag: [] } });
-    if (v.allowed) expect(v.plan.description).toBe('Move "Fix login" to the backlog (−todo)');
+    if (v.allowed) expect(v.plan.description).toBe('Move "Fix login" to "other" (−todo)');
   });
 
-  it("a deltaless move into a manual (tagless) compartment says so plainly", () => {
-    const v = planBoardMove({ path: ":t", title: "Pin" }, null, { lane: 0, comp: 0 }, { untag: [], tag: [] }, "compartment");
+  it("refuses a drop into a TAGLESS compartment (no-tagless-tickets: it would bounce right out)", () => {
+    const v = planBoardMove({ path: ":t", title: "Pin" }, null, { lane: 0, comp: 0 }, { untag: [], tag: [] }, "compartment", true);
+    expect(v).toEqual({ allowed: false, reason: "the compartment has no tags yet — set one first" });
+  });
+
+  it("a deltaless move into a tagged compartment the chapter already matches says so plainly", () => {
+    const v = planBoardMove({ path: ":t", title: "Pin" }, null, { lane: 0, comp: 0 }, { untag: [], tag: [] }, "doing");
     if (!v.allowed) throw new Error("expected allowed");
-    expect(v.plan.description).toBe('Move "Pin" to "compartment"');
+    expect(v.plan.description).toBe('Move "Pin" to "doing"');
   });
 });
 

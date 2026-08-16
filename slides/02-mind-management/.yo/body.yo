@@ -101,7 +101,7 @@ description: Capture, outline, decide, track, tag, find — six small jobs, six 
       - as long as the chat lives
 - Track
   notes: |
-    Open examples/73-dev-board. Let the lanes load, then drag one card to the next lane.
+    Open examples/73-housekeeping. Let the lanes load, then drag one card to the next lane.
 
     Say: this folder holds five files. Each one is a task — a chapter with a few extra
     keyed fields, priority and due and assignee. The folder itself carries one line in

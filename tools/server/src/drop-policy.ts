@@ -88,10 +88,14 @@ export function planBoardMove(
   to: CompartmentAt,
   deltas: { untag: { path: string; name: string }[]; tag: { path: string; name: string }[] },
   toLabel: string | null, // the destination compartment's display name; null = the backlog
+  toTagless = false, // the destination compartment has no tags yet
 ): DropVerdict {
   if (isReadOnly()) return no("server is read-only");
-  if (from === null && to === null) return no("already in the backlog");
+  if (from === null && to === null) return no('already in "other"');
   if (from !== null && to !== null && from.lane === to.lane && from.comp === to.comp) return no("already in this compartment");
+  // the no-tagless-tickets principle (board-model.ts): a tagless compartment holds no member
+  // tickets — a drop would only bounce back out on the follow-up reconcile
+  if (to !== null && toTagless) return no("the compartment has no tags yet — set one first");
   const name = task.title || task.path;
   const delta = [...deltas.tag.map((t) => `+${t.name}`), ...deltas.untag.map((t) => `−${t.name}`)].join(", ");
   return {
@@ -103,7 +107,7 @@ export function planBoardMove(
       to,
       untag: deltas.untag.map((t) => t.path),
       tag: deltas.tag.map((t) => t.path),
-      description: `Move "${name}" to ${to === null ? "the backlog" : `"${toLabel ?? "compartment"}"`}${delta ? ` (${delta})` : ""}`,
+      description: `Move "${name}" to ${to === null ? '"other"' : `"${toLabel ?? "compartment"}"`}${delta ? ` (${delta})` : ""}`,
     },
   };
 }

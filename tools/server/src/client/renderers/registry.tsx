@@ -1,6 +1,6 @@
 import { lazy, Suspense, type ReactNode } from "react";
 import { isDirConcrete, isJsonFamily, isYamlFamily, isFileConcrete, isOverlayDirConcrete } from "../../concrete";
-import { GraphIcon, ThumbnailsIcon, LargeIconsIcon, SmallIconsIcon, DetailsIcon } from "../tab-icons";
+import { GraphIcon, ThumbnailsIcon, LargeIconsIcon, SmallIconsIcon, DetailsIcon, BoardIcon } from "../tab-icons";
 import { scalarValue } from "../render";
 import { NodeJson, TreeNode } from "../api";
 import { ChapterView } from "./chapter";
@@ -19,7 +19,6 @@ import { RtfView, RtfChunk } from "./rtf";
 import { DocView, DocChunk } from "./doc";
 import { PlantumlView, PlantumlChunk } from "./plantuml";
 import { ExplorerView, ViewMode } from "./explorer";
-import { isBoardNode } from "./board";
 import { Fb2View } from "./fb2";
 import { EpubView } from "./epub";
 import { HtmlView } from "./media";
@@ -205,8 +204,11 @@ const explorerView = (name: string, label: string, icon: ReactNode, view: ViewMo
   render: (node, onNavigate) => <ExplorerView node={node} view={view} onNavigate={onNavigate} />,
 });
 
-// Order = tab order. `tag-board` leads, but only for board nodes (renderersFor filters it).
-const TAG_BOARD = explorerView("tag-board", "tag board", "▥", "board");
+// Order = tab order. `tag-board` TRAILS the icon views (between `details` and the data views)
+// and is offered on every explorer-eligible node — any object can be tried as a board (an
+// unconfigured one shows every member in the backlog, lanes await their first tag). A node
+// FORMATTED as a board still NAVIGATES to it by default (rendererName below).
+const TAG_BOARD = explorerView("tag-board", "tag board", <BoardIcon />, "board");
 const ICON_VIEWS: Renderer[] = [
   explorerView("thumbnails", "thumbnails", <ThumbnailsIcon />, "thumbnails"),
   explorerView("large-icons", "large icons", <LargeIconsIcon />, "large"),
@@ -554,10 +556,10 @@ export function getRenderer(node: NodeJson): Renderer | null {
   return rendererFor(node) ?? (isDirConcrete(node.concrete) && isContainerNode(node) ? EXPLORER : null);
 }
 
-/** The explorer view family for a node, tab order: the four icon views, led by `tag-board`
- *  only on a board node (its overlay/format marks it — board.tsx `isBoardNode`). */
-function explorerViews(node: NodeJson): Renderer[] {
-  return isBoardNode(node) ? [TAG_BOARD, ...ICON_VIEWS] : ICON_VIEWS;
+/** The explorer view family, tab order: the four icon views, then `tag-board` — the family's
+ *  trailing member on EVERY node, so any object can be tried as a board. */
+function explorerViews(): Renderer[] {
+  return [...ICON_VIEWS, TAG_BOARD];
 }
 
 /** One tab slot: a renderer plus whether it applies to this node (a disabled slot still renders,
@@ -580,8 +582,8 @@ const XYFLOW_PREVIEW: Renderer = { ...XYFLOW, depth: 2 };
  *  the data views between: one PRIMARY slot (the node's own format renderer — chapter/pdf/image…,
  *  when any; a plain directory's primary IS the explorer, and a graph node's IS the fixed xyflow
  *  slot, so their slot is empty) and the FIXED family, ALWAYS present: `xyflow` leading, then the
- *  EXPLORER VIEWS (thumbnails / large icons / small icons / details, `tag-board` leading on a
- *  board) — `enabled` only where the members are worth browsing (a container directory, or a
+ *  EXPLORER VIEWS (thumbnails / large icons / small icons / details / tag-board, on every
+ *  node) — `enabled` only where the members are worth browsing (a container directory, or a
  *  json/yaml container; a SCALAR shows them disabled — the grids would be empty, the drawing a lone
  *  box). So navigating between node kinds only ever swaps the single primary icon; the family and
  *  everything after it keep their place. */
@@ -604,7 +606,7 @@ export function rendererTabs(node: NodeJson): { primary: TabSlot | null; fixed: 
   const fixed: TabSlot[] = [
     // the tagged node gets its own (depth-unlimited) renderer; everyone else the depth-2 preview
     own === XYFLOW ? { renderer: XYFLOW, enabled: true } : { renderer: XYFLOW_PREVIEW, enabled: eligible },
-    ...explorerViews(node).map((r) => ({ renderer: r, enabled: eligible })),
+    ...explorerViews().map((r) => ({ renderer: r, enabled: eligible })),
   ];
   return { primary, fixed };
 }

@@ -20,7 +20,8 @@ export interface BoardItem {
 }
 
 /** One compartment: a container tagged by `&…:-` bookmarks, holding item refs. A compartment
- *  with NO tags is manual-only — reconcile never moves anything in or out of it. */
+ *  with NO tags holds no member tickets (the no-tagless-tickets principle): reconcile empties
+ *  it, and a drop into it is refused — it exists only transiently, awaiting its first tag. */
 export interface Compartment {
   tags: string[];
   items: BoardItem[];
@@ -49,16 +50,24 @@ export function compartmentAt(structure: BoardStructure, at: CompartmentAt): Com
  * one lane); a chapter listed where it no longer matches is dropped. `chapters` maps every
  * direct member of the board to its current tag set, in the board's member order — newcomers
  * are appended (unkeyed) in that order. Manual labor survives: item order and keys are kept,
- * duplicates collapse to the first occurrence, a ref that is NOT a direct member (a foreign
- * ref the user authored) is never touched, and a zero-tag compartment is left verbatim.
- * Pure and idempotent; never changes tags. The backlog needs no reconciling — it is DERIVED
- * (members referenced by no compartment).
+ * duplicates collapse to the first occurrence, and a ref that is NOT a direct member (a
+ * foreign ref the user authored) is never touched. A ZERO-TAG compartment holds no member
+ * tickets (the no-tagless-tickets principle) — its members leave for wherever their tags
+ * put them (another compartment, else the backlog). Pure and idempotent; never changes
+ * tags. The backlog needs no reconciling — it is DERIVED (members referenced by no
+ * compartment).
  */
 export function reconcile(structure: BoardStructure, chapters: ReadonlyMap<string, ReadonlySet<string>>): { structure: BoardStructure; changed: boolean } {
   let changed = false;
   const out = structure.map((lane) =>
     lane.map((comp) => {
-      if (comp.tags.length === 0) return comp; // manual-only
+      if (comp.tags.length === 0) {
+        // no tickets in a tagless compartment — members leave, foreign refs stay
+        const kept = comp.items.filter((it) => !chapters.has(it.path));
+        if (kept.length === comp.items.length) return comp;
+        changed = true;
+        return { tags: comp.tags, items: kept };
+      }
       const kept: BoardItem[] = [];
       const seen = new Set<string>();
       let compChanged = false;

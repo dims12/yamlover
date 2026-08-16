@@ -14,6 +14,13 @@ export function isColorTagPath(path: string): boolean {
   return /(^|:)ontos:colors:/.test(canonPath(path));
 }
 
+/** Tag-list display order — the COLOR swatches first, then the named chips, each group in its
+ *  authored order. The ONE ordering rule for every surface that lists applied tags (badge
+ *  bars, board chips, card miniatures). */
+export function colorsFirst<T extends { path: string }>(tags: readonly T[]): T[] {
+  return [...tags].sort((a, b) => Number(isColorTagPath(b.path)) - Number(isColorTagPath(a.path)));
+}
+
 /** A parsed pointer's KEY segments as a client colon-path (positions dropped — a tag is
  *  key-addressed), or null when nothing keyed remains. The one segs→path spelling both the
  *  anchor-body readers below and the yed chapter adapter (IR `meta.anchors`) share. */
@@ -149,7 +156,7 @@ export function TagBadges({ tags, onNavigate }: { tags: TagLink[]; onNavigate: (
   if (tags.length === 0) return null;
   return (
     <>
-      {tags.map((t) => {
+      {colorsFirst(tags).map((t) => {
         const color = resolveTagColor({ name: t.label, color: t.color });
         if (isColorTagPath(t.path)) {
           return <TagSwatch key={t.path} color={color} title={t.label} onClick={() => onNavigate(t.path)} />;

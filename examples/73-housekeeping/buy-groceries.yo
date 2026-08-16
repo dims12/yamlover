@@ -1,0 +1,14 @@
+# An UNTAGGED member — no workflow bookmark files it into any lane, so the board lists it in
+# the "other" section below the lanes. Dragging it into a lane is what tags it.
+!!<*yamlover:$defs:task>
+Buy groceries
+description: The weekly shopping run — Saturday morning, before the market gets crowded.
+priority: normal
+- !!<*yamlover: $defs: bullets>
+  - milk
+  - eggs
+  - rye bread
+  - coffee beans
+  - dish soap
+  - matches
+- The greengrocer takes cash only.

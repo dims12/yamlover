@@ -421,6 +421,27 @@ export function App() {
           });
         return;
       }
+      // A target OFF the loaded tree (a freshly created member — the board's ＋ card, a link
+      // into an unexpanded branch): identify it over the wire first and land in ITS default
+      // view — a plain fall-through would CARRY the current format onto it (a new task opened
+      // as a tag board). The same rule the fragment branch above already applies.
+      if (!target && !pinFormat && p !== ":") {
+        void fetchTree(p, 0)
+          .then((n) => {
+            const f2 = (rendererName(n, n.concrete) ?? (formatTravelsTo(format, n.concrete) ? format : DEFAULT_FORMAT)) as Format;
+            writeUrl(p, f2, false);
+            setCurrent(p);
+            if (f2 !== format) setFormat(f2);
+            bcDispatchRef.current?.({ type: "NAVIGATED", path: p });
+          })
+          .catch(() => {
+            // unreachable — open it in the current format; NodeView reports the miss
+            writeUrl(p, format, false);
+            setCurrent(p);
+            bcDispatchRef.current?.({ type: "NAVIGATED", path: p });
+          });
+        return;
+      }
       let f: Format = format;
       if (target && !(pinFormat && !frag && formatTravelsTo(format, target.concrete))) {
         const rn = rendererName(target, target.concrete);

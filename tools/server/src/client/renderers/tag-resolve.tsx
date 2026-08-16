@@ -7,7 +7,7 @@ import { ReactNode, useEffect, useState } from "react";
 import { TagRef, fetchNode } from "../api";
 import { canonPath } from "../paths";
 import { tagNameOf } from "../ontos";
-import { TagBadges, TagLink, TagSwatch, isColorTagPath, resolveTagColor, tagStyle } from "./tag";
+import { TagBadges, TagLink, TagSwatch, colorsFirst, isColorTagPath, resolveTagColor, tagStyle } from "./tag";
 
 /** An OMNI node's scalar self-value (the `$yamloverMixed` marker) as its display title — a
  *  plain LEAF scalar's value is data, not a title, so only the value-plus-fields shape reads. */
@@ -83,7 +83,7 @@ export function InlineTagChips({ paths, onNavigate, inert }: { paths: readonly s
     // no anchors, no tab stops, mousedown swallowed — the editor's caret never moves here
     return (
       <span onMouseDown={(e) => e.preventDefault()}>
-        {tags.map((t) => {
+        {colorsFirst(tags).map((t) => {
           const color = resolveTagColor({ name: t.label, color: t.color });
           return isColorTagPath(t.path) ? (
             <TagSwatch key={t.path} color={color} title={t.label} />

@@ -16,14 +16,19 @@ describe("reconcile", () => {
     expect(out[0][0].items).toEqual([{ path: ":c:fresh" }]);
   });
 
-  it("leaves a zero-tag compartment verbatim (manual-only)", () => {
-    const structure: BoardStructure = [[{ tags: [], items: [{ path: ":c:pinned" }] }]];
+  it("empties a zero-tag compartment of member tickets (the no-tagless-tickets principle)", () => {
+    const structure: BoardStructure = [[{ tags: [], items: [{ path: ":c:pinned" }, { path: ":elsewhere:doc" }] }]];
     const { structure: out, changed } = reconcile(structure, chapters([
       [":c:pinned", tags(":t:done")],
       [":c:other", tags()],
     ]));
-    expect(changed).toBe(false);
-    expect(out[0][0]).toBe(structure[0][0]);
+    expect(changed).toBe(true);
+    // the member leaves (for its tags' compartments, else the backlog); a foreign ref stays
+    expect(out[0][0].items).toEqual([{ path: ":elsewhere:doc" }]);
+    // …and an already-empty tagless compartment is left verbatim (idempotence)
+    const again = reconcile(out, chapters([[":c:pinned", tags(":t:done")]]));
+    expect(again.changed).toBe(false);
+    expect(again.structure).toBe(out);
   });
 
   it("lists a chapter in several compartments, even in one lane", () => {

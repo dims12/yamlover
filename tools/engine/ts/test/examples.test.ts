@@ -64,8 +64,8 @@ test('67-pdf-tags: every tag membership pointer resolves (no dangling)', () => {
   assert.deepEqual(buildGraph(load('67-pdf-tags')).unresolved, []);
 });
 
-test('73-dev-board: tasks, board & workflow resolve; state is a membership bookmark into the workflow', () => {
-  const doc = load('73-dev-board');
+test('73-housekeeping: tasks, board & workflow resolve; state is a membership bookmark into the workflow', () => {
+  const doc = load('73-housekeeping');
   // every pointer resolves: the board `workflow:` ref, each state's `next`/`initial`, and every
   // task's state annotation (TICKETS.md §2 — states-as-tags, transitions-as-refs).
   assert.deepEqual(buildGraph(doc).unresolved, []);
@@ -77,14 +77,14 @@ test('73-dev-board: tasks, board & workflow resolve; state is a membership bookm
   // here via the `yamlover` self-import graft — so its nodes live under `:yamlover:ontos:…` when the
   // board is loaded as a standalone subdir (the bare `:ontos:…` form only exists at the project root).
   assert.equal(s.node(':')?.format, 'x-yamlover-board');
-  assert.equal(s.node(':refactor-parser.yo')?.format, 'x-yamlover-task');
+  assert.equal(s.node(':fix-the-leaky-tap.yo')?.format, 'x-yamlover-task');
   assert.equal(s.node(':yamlover:ontos:workflow:dev')?.format, 'x-yamlover-workflow');
   assert.equal(s.node(':yamlover:ontos:workflow:dev:ready')?.format, 'x-yamlover-onto');
   // a task's state is a forward ref into the workflow's state; the reverse of that edge is the
-  // board column (what /api/tagged surfaces). `refactor-parser` sits in the `ready` column.
+  // board column (what /api/tagged surfaces). `fix-the-leaky-tap` sits in the `ready` column.
   const into = s.relationships(':yamlover:ontos:workflow:dev:ready').in;
   assert.ok(
-    into.some((e) => (e.kind === 'back' || e.kind === 'ref') && e.from.startsWith(':refactor-parser.yo')),
+    into.some((e) => (e.kind === 'back' || e.kind === 'ref') && e.from.startsWith(':fix-the-leaky-tap.yo')),
     'the ready task annotates the ready state',
   );
   s.close();

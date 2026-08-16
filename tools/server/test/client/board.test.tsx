@@ -4,7 +4,7 @@ import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 
 vi.mock("../../src/client/api", async (importOriginal) => {
   const mod = await importOriginal<typeof import("../../src/client/api")>();
-  return { ...mod, fetchBoard: vi.fn(), boardReconcile: vi.fn(), boardMove: vi.fn(), saveBoardStructure: vi.fn() };
+  return { ...mod, fetchBoard: vi.fn(), boardReconcile: vi.fn(), boardMove: vi.fn(), saveBoardStructure: vi.fn(), createObject: vi.fn(), annotate: vi.fn() };
 });
 // The picker host contract: board.tsx must exempt the portaled `.crumb-dd` dropdown (and the TOC
 // pane) from its outside-click close — the c7876ba regression — and file picks into the recents.
@@ -18,7 +18,7 @@ vi.mock("../../src/client/renderers/annotate", () => ({
   withinTocPane: (t: EventTarget | null) => !!(t as Element)?.closest?.(".pane.left"),
   withinQueryDropdown: (t: EventTarget | null) => !!(t as Element)?.closest?.(".crumb-dd"),
 }));
-import { boardMove, boardReconcile, fetchBoard, saveBoardStructure, type BoardCard, type BoardResolved, type NodeJson } from "../../src/client/api";
+import { annotate, boardMove, boardReconcile, createObject, fetchBoard, saveBoardStructure, type BoardCard, type BoardResolved, type NodeJson } from "../../src/client/api";
 import { rememberTag } from "../../src/client/renderers/annotate";
 import { BoardView } from "../../src/client/renderers/board";
 
@@ -27,17 +27,22 @@ const mFetch = fetchBoard as unknown as ReturnType<typeof vi.fn>;
 const mMove = boardMove as unknown as ReturnType<typeof vi.fn>;
 const mSave = saveBoardStructure as unknown as ReturnType<typeof vi.fn>;
 const mRemember = rememberTag as unknown as ReturnType<typeof vi.fn>;
+const mCreate = createObject as unknown as ReturnType<typeof vi.fn>;
+const mAnnotate = annotate as unknown as ReturnType<typeof vi.fn>;
 
 const READY = { path: ":ontos:ready", name: "ready", color: null };
 const DONE = { path: ":ontos:done", name: "done", color: null };
-const card = (path: string, title: string, tags: string[]): BoardCard => ({ path, title, priority: null, assignee: null, due: null, tags });
+const card = (path: string, title: string, tags: string[]): BoardCard => ({
+  path, title, type: "variant", format: "x-yamlover-task", concrete: "file/yamlover", priority: null, assignee: null, due: null,
+  tags: tags.map((p) => ({ path: p, name: p.split(":").pop()!, color: null })),
+});
 const resolved: BoardResolved = {
   seeded: false,
   lanes: [
-    [{ tags: [READY], items: [card(":board:t1.yo", "Task One", [":ontos:ready"])] }],
+    [{ tags: [READY], items: [card(":board:t1.yo", "Task One", [":ontos:ready", ":ontos:urgent", ":yamlover:ontos:colors:yellow"])] }],
     [{ tags: [DONE], items: [] }],
   ],
-  backlog: [card(":board:t2.yo", "Orphan Two", [])],
+  backlog: [card(":board:t2.yo", "Orphan Two", [":ontos:review"])],
 };
 
 const boardNode: NodeJson = {
@@ -50,6 +55,8 @@ beforeEach(() => {
   mMove.mockReset().mockResolvedValue(resolved);
   mSave.mockReset().mockResolvedValue(resolved);
   mRemember.mockReset();
+  mCreate.mockReset().mockResolvedValue({ path: ":board:new-task.yo" });
+  mAnnotate.mockReset().mockResolvedValue({ ok: true });
 });
 afterEach(cleanup);
 
@@ -59,15 +66,17 @@ async function renderBoard() {
 }
 
 describe("BoardView (lanes of compartments + backlog)", () => {
-  it("opens through the silent reconcile and renders compartments, tags, and the backlog", async () => {
+  it("opens through the silent reconcile and renders compartments, tags, and the OTHER section", async () => {
     await renderBoard();
     expect(mReconcile).toHaveBeenCalledWith(":board");
     expect(document.querySelectorAll(".board-comp").length).toBe(2);
     expect(screen.getByText("ready")).toBeTruthy();
     expect(screen.getByText("done")).toBeTruthy();
-    const backlog = document.querySelector(".board-backlog")!;
-    expect(backlog.textContent).toContain("backlog");
-    expect(backlog.textContent).toContain("Orphan Two");
+    const other = document.querySelector(".board-backlog")!;
+    expect(other.textContent).toContain("other"); // named for ANY tags, not only task backlogs
+    expect(other.textContent).toContain("Orphan Two");
+    // every card wears its node's type/format glyph at the top-left (a task → the ticket)
+    expect(screen.getByText("Task One").closest(".board-card")!.querySelector(".board-card-icon")?.textContent).toBe("🎫");
   });
 
   it("dropping a card on another compartment confirms with the tag deltas, then moves", async () => {
@@ -105,18 +114,18 @@ describe("BoardView (lanes of compartments + backlog)", () => {
     expect(mMove).not.toHaveBeenCalled();
   });
 
-  it("drags to and from the backlog (null coordinates, delta-only descriptions)", async () => {
+  it("drags to and from the OTHER section (null coordinates, delta-only descriptions)", async () => {
     await renderBoard();
-    // compartment → backlog: only the shared tag is removed
+    // compartment → other: only the shared tag is removed
     const cardEl = screen.getByText("Task One").closest(".board-card") as HTMLElement;
     fireEvent.dragStart(cardEl);
     fireEvent.drop(document.querySelector(".board-backlog")!);
     let dialog = await screen.findByRole("dialog");
-    expect(dialog.textContent).toContain('Move "Task One" to the backlog (−ready)');
+    expect(dialog.textContent).toContain('Move "Task One" to "other" (−ready)');
     fireEvent.click(screen.getByRole("button", { name: "Move task" }));
     await vi.waitFor(() => expect(mMove).toHaveBeenCalledWith(":board", ":board:t1.yo", { lane: 0, comp: 0 }, null));
 
-    // backlog → compartment: the destination's tags land
+    // other → compartment: the destination's tags land
     mMove.mockClear();
     const orphan = screen.getByText("Orphan Two").closest(".board-card") as HTMLElement;
     fireEvent.dragStart(orphan);
@@ -196,14 +205,106 @@ describe("BoardView (lanes of compartments + backlog)", () => {
     expect(screen.queryByTestId("picker")).toBeNull();
   });
 
-  it("removing a compartment tag persists the shrunken tag list (reconcile is the server's)", async () => {
+  it("removing a compartment tag CONFIRMS first (the last tag warns), then persists", async () => {
     await renderBoard();
     fireEvent.click(screen.getByText("ready").closest("button")!);
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog.textContent).toContain("last tag"); // its cards will leave — say so up front
+    expect(mSave).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Remove" }));
     await vi.waitFor(() =>
       expect(mSave).toHaveBeenCalledWith(":board", [
         [{ tags: [], items: [{ path: ":board:t1.yo" }] }],
         [{ tags: [":ontos:done"], items: [] }],
       ]),
     );
+  });
+
+  it("the ONE deletion verb (✕, titled 'remove this lane') confirms; the column dies with its last compartment", async () => {
+    await renderBoard();
+    // no separate lane-delete button competes with it
+    expect(document.querySelector(".board-lane-del")).toBeNull();
+    const del = document.querySelector(".board-group-del")!;
+    expect(del.getAttribute("title")).toBe("remove this lane");
+    fireEvent.click(del);
+    let dialog = await screen.findByRole("dialog");
+    expect(dialog.textContent).toContain("Remove this lane");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(mSave).not.toHaveBeenCalled();
+
+    fireEvent.click(document.querySelector(".board-group-del")!);
+    dialog = await screen.findByRole("dialog");
+    fireEvent.click(screen.getByRole("button", { name: "Remove" }));
+    // removing the ready compartment (the column's only one) takes the column with it
+    await vi.waitFor(() => expect(mSave).toHaveBeenCalledWith(":board", [[{ tags: [":ontos:done"], items: [] }]]));
+  });
+
+  it("cards repeat their OTHER tags in miniature — color swatches FIRST; the compartment's own are hidden; 'other' shows all", async () => {
+    await renderBoard();
+    const t1 = screen.getByText("Task One").closest(".board-card")!;
+    const chips = t1.querySelector(".board-card-tags")!;
+    expect(chips.textContent).toBe("urgent"); // ready = the compartment's own; yellow is a circle, no text
+    // the color tag renders as a CIRCLE and LEADS the row (the one ordering rule, everywhere)
+    expect(chips.firstElementChild!.classList.contains("tagswatch")).toBe(true);
+    expect(chips.lastElementChild!.textContent).toBe("urgent");
+    const orphan = screen.getByText("Orphan Two").closest(".board-card")!;
+    expect(orphan.querySelector(".board-card-tags")!.textContent).toBe("review"); // in "other": all of them
+  });
+
+  it("dragging a lane by its HEAD onto a column's bottom ＋ lane ghost stacks it LAST there — structural, no popup", async () => {
+    await renderBoard();
+    fireEvent.dragStart(document.querySelectorAll(".board-comp-head")[0]); // the ready lane box
+    fireEvent.drop(document.querySelectorAll(".board-add-comp")[1]); // the done column's bottom ghost
+    await vi.waitFor(() =>
+      expect(mSave).toHaveBeenCalledWith(":board", [
+        [{ tags: [":ontos:done"], items: [] }, { tags: [":ontos:ready"], items: [{ path: ":board:t1.yo" }] }],
+      ]),
+    );
+    expect(screen.queryByRole("dialog")).toBeNull(); // nothing retagged — no confirm needed
+    expect(mMove).not.toHaveBeenCalled();
+  });
+
+  it("…onto the TRAILING ＋ lane ghost it becomes its own new column; a lane box itself never accepts a lane", async () => {
+    await renderBoard();
+    // a lane dropped on another lane's BOX does nothing (the ghosts are the targets)
+    fireEvent.dragStart(document.querySelectorAll(".board-comp-head")[0]);
+    fireEvent.drop(document.querySelectorAll(".board-comp")[1]);
+    expect(mSave).not.toHaveBeenCalled();
+    // …the trailing ghost extracts it into a fresh column (here: reorders it to the end)
+    fireEvent.dragStart(document.querySelectorAll(".board-comp-head")[0]);
+    fireEvent.drop(document.querySelector(".board-add-lane")!);
+    await vi.waitFor(() =>
+      expect(mSave).toHaveBeenCalledWith(":board", [
+        [{ tags: [":ontos:done"], items: [] }],
+        [{ tags: [":ontos:ready"], items: [{ path: ":board:t1.yo" }] }],
+      ]),
+    );
+  });
+
+  it("＋ card births a tagged member with the board's majority schema and opens it for editing", async () => {
+    const onNavigate = vi.fn();
+    render(<BoardView node={boardNode} onNavigate={onNavigate} />);
+    await screen.findByText("Task One");
+    // the ready compartment's ghost ＋ tile (tagless compartments never offer one)
+    fireEvent.click(document.querySelectorAll(".board-add-card")[0]);
+    await vi.waitFor(() => expect(onNavigate).toHaveBeenCalledWith(":board:new-task.yo")); // straight into the newborn
+    // the fixture's cards are tasks → the newcomer is a task too, at the board, rules-default storage
+    expect(mCreate).toHaveBeenCalledWith("::yamlover:$defs:task", ":board", expect.any(String));
+    expect(mAnnotate).toHaveBeenCalledWith({ target: ":board:new-task.yo", tag: ":ontos:ready" });
+    expect(mReconcile).toHaveBeenCalledTimes(2); // mount + the fired-off placement write
+  });
+
+  it("a drop into a TAGLESS compartment is refused up front — no popup, no move", async () => {
+    mReconcile.mockResolvedValue({
+      ...resolved,
+      lanes: [...resolved.lanes, [{ tags: [], items: [] }]],
+    });
+    await renderBoard();
+    const cardEl = screen.getByText("Task One").closest(".board-card") as HTMLElement;
+    fireEvent.dragStart(cardEl);
+    fireEvent.drop(document.querySelectorAll(".board-comp")[2]); // the tagless one
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(mMove).not.toHaveBeenCalled();
   });
 });

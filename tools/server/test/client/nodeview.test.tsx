@@ -67,7 +67,7 @@ describe("NodeView", () => {
     // the unified bar, in order: the PRIMARY slot (held disabled by the chapter tab — the slot
     // never empties), yamlover, the FIXED rendered family (xyflow + icon views), the remaining
     // data views, then the trailing plaintext — and the DOM keeps exactly that order
-    const order = ["chapter", "yamlover", "xyflow", "thumbnails", "large icons", "small icons", "details", "json5p", "yamlover/schema", "plaintext"];
+    const order = ["chapter", "yamlover", "xyflow", "thumbnails", "large icons", "small icons", "details", "tag board", "json5p", "yamlover/schema", "plaintext"];
     expect([...document.querySelectorAll(".tabs .tab")].map((b) => b.getAttribute("aria-label"))).toEqual(order);
     for (const t of order) expect(screen.getByRole("button", { name: t })).toBeTruthy();
     // nothing claims a data file's primary slot: the chapter tab holds the place, disabled
@@ -87,7 +87,7 @@ describe("NodeView", () => {
     render(<NodeView path=":a.pdf" format="yamlover" onFormat={() => {}} onNavigate={() => {}} />);
     await screen.findByRole("button", { name: "pdf" });
     expect((screen.getByRole("button", { name: "pdf" }) as HTMLButtonElement).disabled).toBe(false);
-    for (const t of ["xyflow", "thumbnails", "large icons", "small icons", "details"])
+    for (const t of ["xyflow", "thumbnails", "large icons", "small icons", "details", "tag board"])
       expect((screen.getByRole("button", { name: t }) as HTMLButtonElement).disabled).toBe(true);
   });
 

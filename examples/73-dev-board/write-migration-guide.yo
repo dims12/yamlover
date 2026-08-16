@@ -1,6 +1,0 @@
-!!<*yamlover:$defs:task>
-Write a slash→colon migration guide
-description: A how-to for moving existing documents from the old `/` pointers to the colon grammar.
-priority: normal
-- Dropped — the re-emitter already rewrites legacy slash input as colon (IR-equal), so no manual guide is needed.
-&::yamlover:ontos:workflow:dev:cancelled:-

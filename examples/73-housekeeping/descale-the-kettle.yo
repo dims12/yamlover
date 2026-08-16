@@ -1,0 +1,7 @@
+!!<*yamlover:$defs:task>
+Descale the kettle
+description: The kettle takes twice as long to boil — limescale again.
+priority: low
+- Citric acid works better than vinegar and leaves no smell; one tablespoon per litre.
+- Boil, let it sit for half an hour, rinse twice.
+&::yamlover:ontos:workflow:dev:ready:-
