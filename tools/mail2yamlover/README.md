@@ -29,10 +29,10 @@ mail/
     Attach/                                  # TheBat's externally-stored attachments
 ```
 
-A message chapter:
+A message — an **omni** node: a title, fields and members, with no schema tag (omni is
+yamlover's default shape, so nothing needs to say so):
 
 ```yaml
-!!<*yamlover: $defs: chapter>
 Тема письма
 from: "Имя <a@b.ru>"
 to: dims2000@mtu-net.ru
@@ -53,8 +53,11 @@ flags: {read: true}
 
 Decisions worth knowing, and why:
 
-- **The subject is the chapter's self-value**, not a `title:` key — that is the chapter
-  schema's shape (`examples/60-simple-chapter.yo`).
+- **A message is omni, not a chapter.** The chapter schema means "prose organized as
+  chunks" and routes a node to the prose renderer; a message is the opposite shape — a title,
+  a heap of technical fields, and pointers to files. Folders *are* tagged chapters, because a
+  folder really is a titled container of subchapters.
+- **The subject is the self-value**, not a `title:` key — in both shapes.
 - **`headers:` holds every header**, in source order, duplicates intact. `Received` repeats
   and its order *is* the delivery path, so it becomes an array rather than collapsing. The
   curated `from`/`to`/`date` fields above it are a convenience, not a filter.
@@ -62,6 +65,12 @@ Decisions worth knowing, and why:
   format is `text/marklower`, which reads `*`, `_`, `**`, `~~`, backticks and `[x](y)` as
   markup — an untagged mail body renders mangled. This is the single most load-bearing line
   in the emitter.
+- **The body is stored once.** Three representations exist — decoded plain text, decoded
+  HTML, and the verbatim source — and writing all of them made an HTML-only newsletter land
+  as a 19 KB `body.html` beside a 19 KB `message.eml` holding the same bytes. So the plain
+  text becomes the body chunk; `body.html` is written only when it is the *only* readable
+  form (an html-only message) or when `--no-raw` leaves nothing else to hold it. `--html`
+  forces it out for browsing.
 - **`members:`, never `properties:`** in `meta.yo`. The latter is the legacy spelling the
   engine still reads and `onenote2yamlover` still writes.
 - **A message with no members becomes a single `.yo` file**, not a directory. With `--no-raw`
@@ -82,6 +91,7 @@ Decisions worth knowing, and why:
 | `--source <name>` | reader to use; `thebat` (default) |
 | `--accounts <a,b>` | only these top-level folders / accounts |
 | `--no-raw` | do not keep each message's verbatim RFC-822 as `message.eml` |
+| `--html` | always write the HTML body as `body.html`, even when the text and `message.eml` already carry it |
 | `--limit <n>` | stop after n messages per folder — for a quick look |
 
 It shows a progress bar with a real total and an ETA. Getting the total means seeking every

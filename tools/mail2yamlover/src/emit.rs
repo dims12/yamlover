@@ -28,7 +28,7 @@ use std::collections::HashSet;
 use yamlover_parser::ir::{Node, ScalarValue};
 
 use crate::message::{Attachment, Message, extension_for};
-use crate::tree::{Asset, Chapter, Chunk, flow_map, map_node, seq_node, sanitize, unique};
+use crate::tree::{Asset, Chunk, Entity, flow_map, map_node, seq_node, sanitize, unique};
 
 /// The member name of the preserved original.
 pub const RAW_NAME: &str = "message.eml";
@@ -50,16 +50,21 @@ pub struct EmitOptions {
     /// true regardless of what MIME parsing got wrong, and re-importing needs no access to
     /// the original mailbox. Roughly doubles the output on the reference archive.
     pub keep_raw: bool,
+    /// Always write the HTML body as a `body.html` member, even when a plain-text body and a
+    /// verbatim `message.eml` already carry it. Off by default — see the body rule in
+    /// [`emit`]; on, it costs a second copy per HTML message but makes every body renderable
+    /// in the browser without opening the source.
+    pub keep_html: bool,
 }
 
 impl Default for EmitOptions {
     fn default() -> Self {
-        EmitOptions { keep_raw: true }
+        EmitOptions { keep_raw: true, keep_html: false }
     }
 }
 
 pub struct Emitted {
-    pub chapter: Chapter,
+    pub chapter: Entity,
     pub assets: Vec<Asset>,
 }
 
@@ -104,7 +109,11 @@ pub fn emit(msg: &Message, raw: &[u8], store_date: Option<i64>, opts: &EmitOptio
     } else {
         msg.subject.clone()
     };
-    let mut chapter = Chapter::new(title);
+    // OMNI, not a chapter. A message is a title, a heap of technical fields and pointers to
+    // files — the chapter schema says "prose organized as chunks" and routes it to a prose
+    // renderer, which is the wrong reader for a header dump. Omni is the default shape and
+    // needs no tag at all.
+    let mut chapter = Entity::omni(title);
     let mut assets: Vec<Asset> = Vec::new();
     let mut used: HashSet<String> = HashSet::new();
 
@@ -130,29 +139,26 @@ pub fn emit(msg: &Message, raw: &[u8], store_date: Option<i64>, opts: &EmitOptio
         chapter.field("headers", headers_node(&msg.headers));
     }
 
-    // THE BODY. Always tagged `text/plain`: the default chunk format is `text/marklower`,
-    // which would read `*`, `_`, `**` and `[x](y)` in ordinary mail as markup.
-    match (&msg.text, &msg.html) {
-        (Some(t), _) if !t.trim().is_empty() => {
-            chapter.chunk(Chunk::plain(t));
-        }
-        (_, Some(h)) if !h.trim().is_empty() => {
-            // html-only: keep the HTML as a member rather than inventing a plain rendering
-            let name = unique(&mut used, HTML_STEM, ".html");
-            assets.push(Asset {
-                name: name.clone(),
-                bytes: h.as_bytes().to_vec(),
-                format: "text/html".to_string(),
-            });
-            chapter.chunk(Chunk::Pointer { member: name });
-        }
-        _ => {}
+    // THE BODY, ONCE — and always tagged `text/plain`, because the default chunk format is
+    // `text/marklower`, which would read `*`, `_`, `**` and `[x](y)` in ordinary mail as markup.
+    //
+    // Three representations are available — the decoded plain text, the decoded HTML, and the
+    // verbatim source — and writing all three is what made an HTML-only newsletter land as a
+    // 19 KB `body.html` beside a 19 KB `message.eml` holding the same bytes.
+    //
+    // So: the plain text becomes the body chunk when there is one. `body.html` is written
+    // only when it is the ONLY readable form of the body — an html-only message — or when
+    // `--no-raw` means no `message.eml` is there to hold it. Otherwise the HTML is still
+    // present, inside the verbatim source, and `--html` forces it out as a member for
+    // browsing.
+    let has_text = msg.text.as_ref().is_some_and(|t| !t.trim().is_empty());
+    let html = msg.html.as_deref().filter(|h| !h.trim().is_empty());
+    if has_text {
+        chapter.chunk(Chunk::plain(msg.text.as_deref().expect("checked")));
     }
-    // an html ALTERNATIVE alongside plain text is kept too — it is a different rendering of
-    // the message, and discarding it would lose the formatting the sender chose
-    if msg.text.as_ref().is_some_and(|t| !t.trim().is_empty())
-        && let Some(h) = &msg.html
-        && !h.trim().is_empty()
+    let want_html = html.is_some() && (!has_text || !opts.keep_raw || opts.keep_html);
+    if let Some(h) = html
+        && want_html
     {
         let name = unique(&mut used, HTML_STEM, ".html");
         assets.push(Asset {
@@ -251,13 +257,56 @@ mod tests {
     fn a_plain_message_is_a_leaf_file_when_the_raw_is_not_kept() {
         let e = emitted(
             "Subject: hi\r\nFrom: a@b.ru\r\n\r\nbody\r\n",
-            &EmitOptions { keep_raw: false },
+            &EmitOptions { keep_raw: false, keep_html: false },
         );
         assert!(!e.needs_dir(), "no members -> a single .yo file");
         let text = e.chapter.to_text().expect("serializes");
-        assert!(text.starts_with("!!<*yamlover: $defs: chapter>\nhi\n"), "got:\n{text}");
+        // OMNI, not a chapter: the title is the self-value and there is NO schema tag, because
+        // a message is fields-and-files rather than prose-in-chunks.
+        assert!(text.starts_with("hi\n"), "got:\n{text}");
+        assert!(!text.contains("$defs: chapter"), "a message must not be tagged a chapter:\n{text}");
         assert!(text.contains("from: a@b.ru"));
         assert!(text.contains("!!<format: text/plain>"), "the body must NOT default to marklower");
+    }
+
+    #[test]
+    fn a_folder_is_tagged_a_chapter() {
+        // the contrast that makes the message case deliberate rather than an omission
+        let mut folder = crate::tree::Entity::chapter("Inbox");
+        folder.chunk(Chunk::Pointer { member: "00001-x.yo".into() });
+        let text = folder.to_text().expect("serializes");
+        assert!(text.starts_with("!!<*yamlover: $defs: chapter>\nInbox\n"), "got:\n{text}");
+    }
+
+    #[test]
+    fn the_html_body_is_not_stored_twice() {
+        // multipart/alternative: text AND html. The text becomes the body chunk and the HTML
+        // stays inside message.eml — writing body.html too would be a third copy.
+        let raw = "Subject: t\r\nMIME-Version: 1.0\r\n\
+             Content-Type: multipart/alternative; boundary=BB\r\n\r\n\
+             --BB\r\nContent-Type: text/plain\r\n\r\nplain body\r\n\
+             --BB\r\nContent-Type: text/html\r\n\r\n<p>rich body</p>\r\n--BB--\r\n";
+
+        let kept = emitted(raw, &EmitOptions::default());
+        let names: Vec<&str> = kept.assets.iter().map(|a| a.name.as_str()).collect();
+        assert_eq!(names, [RAW_NAME], "the eml alone carries the HTML");
+
+        // …unless asked for it
+        let forced = emitted(raw, &EmitOptions { keep_raw: true, keep_html: true });
+        assert!(forced.assets.iter().any(|a| a.name == HTML_NAME), "--html forces it out");
+
+        // …or unless there is no eml to hold it
+        let no_raw = emitted(raw, &EmitOptions { keep_raw: false, keep_html: false });
+        assert!(no_raw.assets.iter().any(|a| a.name == HTML_NAME), "nothing else holds it");
+    }
+
+    #[test]
+    fn an_html_only_message_still_gets_its_body_html() {
+        // there is no plain text, so body.html is the ONLY readable form — it is written even
+        // though message.eml also holds the same content
+        let e = emitted("Subject: t\r\nContent-Type: text/html\r\n\r\n<p>hi</p>\r\n", &EmitOptions::default());
+        let names: Vec<&str> = e.assets.iter().map(|a| a.name.as_str()).collect();
+        assert_eq!(names, [HTML_NAME, RAW_NAME]);
     }
 
     #[test]
@@ -271,7 +320,7 @@ mod tests {
     fn repeated_headers_become_an_array_in_source_order() {
         let e = emitted(
             "Received: from a\r\nReceived: from b\r\nSubject: t\r\n\r\nx\r\n",
-            &EmitOptions { keep_raw: false },
+            &EmitOptions { keep_raw: false, keep_html: false },
         );
         let text = e.chapter.to_text().expect("serializes");
         let recv = text.find("Received:").expect("has Received");
@@ -282,7 +331,7 @@ mod tests {
 
     #[test]
     fn a_subjectless_message_still_gets_a_title() {
-        let e = emitted("From: a@b.ru\r\n\r\nx\r\n", &EmitOptions { keep_raw: false });
+        let e = emitted("From: a@b.ru\r\n\r\nx\r\n", &EmitOptions { keep_raw: false, keep_html: false });
         assert_eq!(e.chapter.title, NO_SUBJECT);
     }
 
@@ -294,7 +343,7 @@ mod tests {
              --BB\r\nContent-Type: image/png\r\n\
              Content-Disposition: attachment; filename=\"pic.png\"\r\n\
              Content-Transfer-Encoding: base64\r\n\r\niVBORw0K\r\n--BB--\r\n";
-        let e = emitted(raw, &EmitOptions { keep_raw: false });
+        let e = emitted(raw, &EmitOptions { keep_raw: false, keep_html: false });
         assert!(e.assets.iter().any(|a| a.name == "pic.png"));
         let text = e.chapter.to_text().expect("serializes");
         assert!(text.contains("- *: pic.png"), "got:\n{text}");
@@ -310,7 +359,7 @@ mod tests {
              --BB\r\nContent-Type: image/png\r\n\
              Content-Disposition: attachment; filename=\"pic.png\"\r\n\
              Content-Transfer-Encoding: base64\r\n\r\niVBORw0K\r\n--BB--\r\n";
-        let e = emitted(raw, &EmitOptions { keep_raw: false });
+        let e = emitted(raw, &EmitOptions { keep_raw: false, keep_html: false });
         let names: Vec<&str> = e.assets.iter().map(|a| a.name.as_str()).collect();
         assert_eq!(names, ["pic.png", "pic (2).png"]);
     }
@@ -318,14 +367,14 @@ mod tests {
     #[test]
     fn an_html_only_message_keeps_the_html_rather_than_inventing_plain_text() {
         let raw = "Subject: t\r\nContent-Type: text/html\r\n\r\n<p>hi</p>\r\n";
-        let e = emitted(raw, &EmitOptions { keep_raw: false });
+        let e = emitted(raw, &EmitOptions { keep_raw: false, keep_html: false });
         assert!(e.assets.iter().any(|a| a.name == HTML_NAME && a.format == "text/html"));
     }
 
     #[test]
     fn a_body_full_of_markup_characters_survives_verbatim() {
         let raw = "Subject: t\r\n\r\nuse *ptr and _x_ and [a](b) and `code`\r\n";
-        let e = emitted(raw, &EmitOptions { keep_raw: false });
+        let e = emitted(raw, &EmitOptions { keep_raw: false, keep_html: false });
         let text = e.chapter.to_text().expect("serializes");
         assert!(text.contains("use *ptr and _x_ and [a](b) and `code`"), "got:\n{text}");
         assert!(text.contains("!!<format: text/plain>"));

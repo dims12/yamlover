@@ -72,20 +72,39 @@ pub struct Asset {
     pub format: String,
 }
 
-/// The chapter model an importer builds. Rendered to IR by [`Chapter::to_node`].
+/// A node an importer builds: a title (the self-value), keyed fields, and a positional body.
+///
+/// That is the OMNI shape, and omni is yamlover's default — a node may carry a scalar value
+/// and fields and keyless members at once, with no tag to say so. `chapter` opts into the
+/// `!!<*yamlover: $defs: chapter>` tag on top of it.
+///
+/// A MESSAGE IS NOT A CHAPTER. The chapter schema says "prose, organized as chunks", and
+/// routes the node to the chapter renderer. A mail message is the opposite shape: a title, a
+/// heap of technical fields, and pointers to files. Tagging it as a chapter asks a prose
+/// renderer to present a header dump. Folders are tagged, because a folder really is a titled
+/// container of subchapters.
 #[derive(Debug, Clone, Default)]
-pub struct Chapter {
-    /// The chapter's SELF-VALUE — the title line. There is no `title:` key in the schema.
+pub struct Entity {
+    /// The SELF-VALUE — the title line. There is no `title:` key in either shape.
     pub title: String,
     /// Keyed fields, in emission order.
     pub fields: Vec<(String, Node)>,
     /// The positional body.
     pub chunks: Vec<Chunk>,
+    /// Emit the chapter schema tag.
+    pub chapter: bool,
 }
 
-impl Chapter {
-    pub fn new(title: impl Into<String>) -> Self {
-        Chapter { title: title.into(), ..Default::default() }
+impl Entity {
+    /// An untagged omni node — a title, fields and members. No tag is needed or emitted:
+    /// omni is the default, and `!!mix` is a no-op the serializer never writes.
+    pub fn omni(title: impl Into<String>) -> Self {
+        Entity { title: title.into(), ..Default::default() }
+    }
+
+    /// A node tagged `!!<*yamlover: $defs: chapter>`.
+    pub fn chapter(title: impl Into<String>) -> Self {
+        Entity { title: title.into(), chapter: true, ..Default::default() }
     }
 
     pub fn field(&mut self, key: impl Into<String>, value: Node) -> &mut Self {
@@ -113,7 +132,10 @@ impl Chapter {
     /// leads — the shape `examples/60-simple-chapter.yo` and the OneNote importer both write.
     pub fn to_node(&self) -> Node {
         let mut root = Node::string(&self.title);
-        root.meta = NodeMeta { schema: Some(Box::new(chapter_schema())), ..NodeMeta::default() };
+        if self.chapter {
+            root.meta =
+                NodeMeta { schema: Some(Box::new(chapter_schema())), ..NodeMeta::default() };
+        }
         let mut entries: Vec<Entry> = Vec::with_capacity(self.fields.len() + self.chunks.len());
         for (k, v) in &self.fields {
             entries.push(Entry::keyed(k.clone(), Value::Node(v.clone())));
@@ -310,7 +332,7 @@ pub fn write_bytes(p: &Path, bytes: &[u8]) -> io::Result<()> {
 /// pointer array, not merely from the directory.
 pub fn write_chapter_dir(
     dir: &Path,
-    chapter: &Chapter,
+    chapter: &Entity,
     assets: &[Asset],
 ) -> io::Result<Vec<String>> {
     create_dir_all(&dir.join(".yo"))?;
@@ -407,7 +429,7 @@ fn stub_text(a: &Asset, reason: &io::Error) -> String {
 
 /// Write a chapter as a single `.yo` FILE — the shape for a leaf with no assets and no
 /// children, which on this corpus is ~96% of messages.
-pub fn write_chapter_file(path: &Path, chapter: &Chapter) -> io::Result<()> {
+pub fn write_chapter_file(path: &Path, chapter: &Entity) -> io::Result<()> {
     let body = chapter
         .to_text()
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
@@ -500,7 +522,7 @@ mod tests {
 
     #[test]
     fn a_chapter_serializes_with_its_schema_tag_and_a_plain_body() {
-        let mut c = Chapter::new("Тема письма");
+        let mut c = Entity::chapter("Тема письма");
         c.text_field("from", "a@b.ru");
         c.chunk(Chunk::plain("body *with* markup chars"));
         c.chunk(Chunk::Pointer { member: "photo.jpg".into() });
@@ -520,7 +542,7 @@ mod tests {
 
     #[test]
     fn a_multi_line_body_becomes_a_literal_block_scalar() {
-        let mut c = Chapter::new("t");
+        let mut c = Entity::chapter("t");
         c.chunk(Chunk::plain("first line\nsecond line"));
         assert_eq!(
             c.to_text().expect("serializes"),
@@ -608,7 +630,7 @@ mod tolerance {
         let _ = fs::remove_dir_all(long_path(&base));
         let dir = base.join("msg");
 
-        let mut chapter = Chapter::new("subject");
+        let mut chapter = Entity::chapter("subject");
         chapter.chunk(Chunk::Pointer { member: "good.txt".into() });
         chapter.chunk(Chunk::Pointer { member: "blocked".into() });
 
