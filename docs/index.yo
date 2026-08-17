@@ -8,7 +8,8 @@ description: YAML with pointers – the language, its storage model, and its doc
 - >
   **Try it live.** Browse the [examples](https://yamlover.inthemoon.net/examples/)
   (always-on, read-only), request a [private read/write demo](https://yamlover.inthemoon.net/),
-  or see the [source on GitHub](https://github.com/dims12/yamlover).
+  see the [source on GitHub](https://github.com/dims12/yamlover), or watch the
+  [walkthroughs on YouTube](https://www.youtube.com/@yamloverlay).
 
 - >
   **Yamlover** is a platform that supports the following use cases:

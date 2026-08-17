@@ -7,7 +7,8 @@
 notes, an agent reads like a database, and `git` versions like code.
 
 You can [read the full documentation](https://yamlover.inthemoon.net/docs?utm_source=github&utm_medium=readme&utm_content=docs), 
-which is made with yamlover you can click through.
+which is made with yamlover you can click through, or watch the walkthroughs on
+[YouTube](https://www.youtube.com/@yamloverlay).
 
 ## Motivations
 
