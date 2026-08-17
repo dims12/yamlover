@@ -35,10 +35,15 @@
             <li><b>YAML-style indentation</b>, two columns and spaces only, as real
                 per-language code style options rather than the IDE's catch-all "Other"
                 defaults. Configurable in <i>Settings | Editor | Code Style</i>.</li>
+            <li><b>Smart Enter</b>: a block scalar body opens indented under its
+                <code>- &gt;</code> / <code>key: |</code> header and keeps its indent line
+                to line; <code>key:</code> opens its mapping one step deeper.</li>
             <li><b>Pointer navigation</b> with Ctrl+click / Ctrl+B: paths, positions,
-                <code>..</code> and document scope resolve in-file, and a
-                <code>body.yo</code> overlay also reaches the overlaid directory's
-                files.</li>
+                <code>..</code> and document scope resolve in-file; an overlay file
+                (<code>index.yo</code> or <code>.yo/body.yo</code>) descends the overlaid
+                directory's subdirectories and files, a <code>::</code> project pointer
+                climbs to the nearest resolving root, and marklower
+                <code>[label](*pointer)</code> links in prose navigate too.</li>
             <li><b>Markdown injection</b>: <code>yamlover</code> and <code>json5p</code>
                 fenced code blocks are highlighted inside <code>.md</code> files.</li>
         </ul>
@@ -77,6 +82,11 @@
              provider the IDE falls back to the catch-all "Other" indent options. -->
         <langCodeStyleSettingsProvider
             implementation="net.inthemoon.yamlover.YamloverCodeStyleSettingsProvider"/>
+        <!-- Smart Enter indentation: a block scalar body under `- >` / `key: |` and a mapping
+             under `key:` must open DEEPER; the flat parser gives the formatter no model, so
+             this provider supplies the new line's indent from heuristic line logic. -->
+        <lineIndentProvider
+            implementation="net.inthemoon.yamlover.YamloverLineIndentProvider"/>
 
         <fileType
             name="json5p"

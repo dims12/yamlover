@@ -71,6 +71,22 @@ class PointerNavigationTest {
     }
 
     @Test
+    fun `a marklower link's pointer runs from the paren to its close`() {
+        // [label](*pointer) — docs/documents/marklower/link-targets; lives inside `- >` prose
+        val src = "  See the [full differences](*::language:vs-yaml) here, and more.\n"
+        val inside = src.indexOf("vs-yaml") + 2
+        assertEquals("::language:vs-yaml", Pointers.yamloverPointerAt(src, inside))
+        val expr = Pointers.parse("::language:vs-yaml")!!
+        assertEquals(Scope.Link("language", false), expr.scope)
+        assertEquals(listOf(Step.Key("vs-yaml")), expr.steps)
+        // prose past the `)` is outside the link
+        assertNull(Pointers.yamloverPointerAt(src, src.indexOf("here")))
+        // the compact document-scope form works the same
+        val doc = "prose [label](*:a:b) tail\n"
+        assertEquals(":a:b", Pointers.yamloverPointerAt(doc, doc.indexOf("(*") + 3))
+    }
+
+    @Test
     fun `pointer text under the caret (json5p, quoted incl back member)`() {
         val src = "{ fan: { name: 'Bob', ~*': crew' }, x: *'pets[1]' }"
         assertEquals(": crew", Pointers.json5pPointerAt(src, src.indexOf(": crew") + 2))

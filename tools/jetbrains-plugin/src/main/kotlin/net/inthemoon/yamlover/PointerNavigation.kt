@@ -196,7 +196,9 @@ object Pointers {
     /** The unquoted pointer path around `offset` in yamlover text. In BLOCK context an
      *  unquoted `*` pointer runs to end of line (minus a ` #` comment) — the `: ` separator
      *  styling keeps interior spaces, matching the real parser. Inside FLOW (`{…}`/`[…]`),
-     *  space/comma/closing delimiters end it. */
+     *  space/comma/closing delimiters end it. A `(*path)` run is a MARKLOWER fragment link
+     *  (`[label](*::a:b)` — docs/documents/marklower/link-targets), living inside block-scalar
+     *  prose: the closing `)` ends it. */
     fun yamloverPointerAt(text: String, offset: Int): String? {
         if (offset < 0 || offset > text.length) return null
         val ls = if (offset == 0) 0 else (text.lastIndexOf('\n', offset - 1) + 1)
@@ -210,19 +212,28 @@ object Pointers {
         val col = (offset - ls).coerceAtMost(line.length)
         // the `*` opening the run the caret is in: the last value-position `*` at or before it
         var star = -1
+        var linkParen = false // opened by `(` — a marklower link, closed by `)`
         for (i in line.indices) {
             if (i > col) break
             if (line[i] == '*' && (i == 0 || line[i - 1] == ' ' || line[i - 1] == '\t' ||
-                    line[i - 1] == '{' || line[i - 1] == '[' || line[i - 1] == ',')) star = i
+                    line[i - 1] == '{' || line[i - 1] == '[' || line[i - 1] == ',' || line[i - 1] == '(')) {
+                star = i
+                linkParen = i > 0 && line[i - 1] == '('
+            }
         }
         if (star < 0) return null
-        var depth = 0 // flow context = unmatched { / [ before the sigil
-        for (i in 0 until star) when (line[i]) { '{', '[' -> depth++; '}', ']' -> depth-- }
         var end = line.length
-        if (depth > 0) {
-            var j = star + 1
-            while (j < end && line[j] != ' ' && line[j] != '\t' && line[j] != ',' && line[j] != '}' && line[j] != ']') j++
-            end = j
+        if (linkParen) {
+            val close = line.indexOf(')', star + 1)
+            if (close >= 0) end = close
+        } else {
+            var depth = 0 // flow context = unmatched { / [ before the sigil
+            for (i in 0 until star) when (line[i]) { '{', '[' -> depth++; '}', ']' -> depth-- }
+            if (depth > 0) {
+                var j = star + 1
+                while (j < end && line[j] != ' ' && line[j] != '\t' && line[j] != ',' && line[j] != '}' && line[j] != ']') j++
+                end = j
+            }
         }
         val path = line.substring(star + 1, end).trimEnd()
         if (path.isEmpty() || col < star || col > star + 1 + path.length) return null
