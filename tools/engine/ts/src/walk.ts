@@ -1404,6 +1404,10 @@ const EXT_FORMAT: Record<string, string> = {
   '.psd': 'image/vnd.adobe.photoshop', '.psb': 'image/vnd.adobe.photoshop', '.tif': 'image/tiff',
   '.tiff': 'image/tiff', '.heic': 'image/heic', '.heif': 'image/heic',
   '.fb2': 'application/x-fictionbook+xml', '.epub': 'application/epub+zip',
+  // A stored mail message. Opaque bytes, never inline text: its own headers name its charset
+  // (koi8-r and windows-1251 are the norm in an old archive) and its parts carry their own
+  // transfer encodings, so decoding belongs to the renderer, not to the walk.
+  '.eml': 'message/rfc822',
   '.html': 'text/html', '.htm': 'text/html', '.md': 'text/markdown', '.markdown': 'text/markdown',
   '.adoc': 'text/asciidoc', '.asciidoc': 'text/asciidoc', '.asc': 'text/asciidoc',
   '.csv': 'text/csv', '.tsv': 'text/tab-separated-values', '.rtf': 'application/rtf',

@@ -35,9 +35,6 @@ OPTIONS:
     --no-raw            do not keep each message's verbatim RFC-822 as message.eml
                         (halves the output; loses the guarantee that nothing was lost
                         to a MIME-parsing bug)
-    --html              always write the HTML body as body.html, even when the plain
-                        text and message.eml already carry it (a second copy per
-                        HTML message; without it, html-only messages still get one)
     --limit <n>         stop after n messages per folder — for a quick look
     --force             overwrite an existing destination
     -h, --help          this text
@@ -49,7 +46,6 @@ struct Args {
     dest: PathBuf,
     accounts: Option<Vec<String>>,
     keep_raw: bool,
-    keep_html: bool,
     limit: Option<usize>,
     force: bool,
 }
@@ -61,7 +57,6 @@ fn parse_args() -> Result<Args, String> {
         dest: PathBuf::new(),
         accounts: None,
         keep_raw: true,
-        keep_html: false,
         limit: None,
         force: false,
     };
@@ -100,10 +95,6 @@ fn parse_args() -> Result<Args, String> {
             }
             "--no-raw" => {
                 a.keep_raw = false;
-                i += 1;
-            }
-            "--html" => {
-                a.keep_html = true;
                 i += 1;
             }
             "--force" => {
@@ -279,7 +270,7 @@ fn run(args: &Args) -> Result<Stats, String> {
         .sum();
     counting.finish_and_clear();
 
-    let opts = EmitOptions { keep_raw: args.keep_raw, keep_html: args.keep_html };
+    let opts = EmitOptions { keep_raw: args.keep_raw };
     let mut stats = Stats {
         started: Some(Instant::now()),
         bar: progress_bar(total),

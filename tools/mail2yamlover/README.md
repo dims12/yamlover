@@ -65,12 +65,13 @@ Decisions worth knowing, and why:
   format is `text/marklower`, which reads `*`, `_`, `**`, `~~`, backticks and `[x](y)` as
   markup — an untagged mail body renders mangled. This is the single most load-bearing line
   in the emitter.
-- **The body is stored once.** Three representations exist — decoded plain text, decoded
-  HTML, and the verbatim source — and writing all of them made an HTML-only newsletter land
-  as a 19 KB `body.html` beside a 19 KB `message.eml` holding the same bytes. So the plain
-  text becomes the body chunk; `body.html` is written only when it is the *only* readable
-  form (an html-only message) or when `--no-raw` leaves nothing else to hold it. `--html`
-  forces it out for browsing.
+- **Nothing is cloned.** `message.eml` already holds every representation the message had, so
+  decoding one out into a second file would be duplication, not preservation — an html-only
+  newsletter used to land as a 19 KB `body.html` beside a 19 KB `message.eml` carrying the
+  same content. The server renders `message/rfc822` directly
+  (`tools/server/src/client/renderers/eml.tsx`), so nothing is gained by writing the copy.
+  The one exception is `--no-raw`: with no `message.eml`, `body.html` is the *only* copy of an
+  html body, and dropping it would lose the message rather than deduplicate it.
 - **`members:`, never `properties:`** in `meta.yo`. The latter is the legacy spelling the
   engine still reads and `onenote2yamlover` still writes.
 - **A message with no members becomes a single `.yo` file**, not a directory. With `--no-raw`
@@ -91,7 +92,6 @@ Decisions worth knowing, and why:
 | `--source <name>` | reader to use; `thebat` (default) |
 | `--accounts <a,b>` | only these top-level folders / accounts |
 | `--no-raw` | do not keep each message's verbatim RFC-822 as `message.eml` |
-| `--html` | always write the HTML body as `body.html`, even when the text and `message.eml` already carry it |
 | `--limit <n>` | stop after n messages per folder — for a quick look |
 
 It shows a progress bar with a real total and an ETA. Getting the total means seeking every

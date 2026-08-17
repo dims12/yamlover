@@ -1668,6 +1668,41 @@ textarea.chapter-latex-src {
   border: 1px solid var(--border, #313244);
   background: #fff;
 }
+
+/* A stored mail message (renderers/eml.tsx): a header table, the body in a sandboxed frame,
+   then the attachments the message carries inside itself. */
+.eml { display: flex; flex-direction: column; gap: 0.5rem; }
+.eml-headers { border-collapse: collapse; font-size: 0.9em; }
+.eml-headers th {
+  text-align: right;
+  vertical-align: top;
+  padding: 0.1rem 0.6rem 0.1rem 0;
+  white-space: nowrap;
+  color: var(--muted, #a6adc8);
+  font-weight: 500;
+}
+.eml-headers td { padding: 0.1rem 0; word-break: break-word; }
+.eml-toggle {
+  align-self: flex-start;
+  background: none;
+  border: 1px solid var(--border, #313244);
+  border-radius: 3px;
+  color: var(--muted, #a6adc8);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.85em;
+  padding: 0.1rem 0.5rem;
+}
+.eml-body {
+  width: 100%;
+  height: calc(100vh - 260px);
+  border: 1px solid var(--border, #313244);
+  background: #fff;
+}
+.eml-body-text { white-space: pre-wrap; word-break: break-word; margin: 0; }
+.eml-empty, .eml-error { color: var(--muted, #a6adc8); font-style: italic; }
+.eml-attachments { margin: 0; padding-left: 1.2rem; font-size: 0.9em; }
+.eml-att-meta { color: var(--muted, #a6adc8); }
 .filepdf .react-pdf__Page,
 .djvu-page-wrap {
   margin: 0 0 12px; /* left-aligned (004) */

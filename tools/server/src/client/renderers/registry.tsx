@@ -22,6 +22,7 @@ import { ExplorerView, ViewMode } from "./explorer";
 import { Fb2View } from "./fb2";
 import { EpubView } from "./epub";
 import { HtmlView } from "./media";
+import { EmlView, EmlChunk } from "./eml";
 import { ChapterFormatControl } from "./chapter-editor/format-control";
 
 // pdf.js and DjVu.js are heavy and browser-only (they reach for canvas globals at
@@ -467,6 +468,17 @@ const REGISTRY: Renderer[] = [
     specificity: 2,
     render: (node) => <MediaChunk chunk={{ value: null, path: node.path, type: node.type, format: node.format ?? null, valueType: node.valueType ?? null, hasKeyed: false, hasOrdinal: false, documentPath: node.documentPath }} />,
     renderChunk: (chunk) => <MediaChunk chunk={chunk} />,
+  },
+  {
+    // A stored mail message. Registered so an archive need not duplicate the body: the .eml
+    // IS the copy, and this decodes it (MIME, legacy charsets, cid: images) on the way to the
+    // screen. See eml.tsx for why its iframe sandbox is empty.
+    name: "eml",
+    icon: "✉️",
+    accepts: byFormat("message/rfc822"),
+    specificity: 2,
+    render: (node) => <EmlView node={node} />,
+    renderChunk: (chunk) => <EmlChunk node={chunkNode(chunk)} />,
   },
   {
     name: "html",
