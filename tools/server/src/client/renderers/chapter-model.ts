@@ -276,7 +276,9 @@ export function buildChapterModel(node: { path: string; title: string | null; de
     }
     const inlined = !link || (typeof link.path === "string" && ownSlot(link.path));
     const type = link?.type;
-    const editable = inlined && isEditableMarker(type, format);
+    // a CLIPPED stub value is a prefix, not the chunk (engine-api STUB_VALUE_MAX): editing it would
+    // save the prefix over the file, so the chunk stays read-only until it is fetched whole
+    const editable = inlined && isEditableMarker(type, format) && link?.valueTruncated !== true;
     return {
       id: freshId(),
       rev: 0,

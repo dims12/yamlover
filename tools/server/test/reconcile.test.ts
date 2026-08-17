@@ -171,4 +171,53 @@ describe("watch: true — the FS watcher reindexes and pushes SSE", () => {
     expect(payload.added).toEqual([":b.md"]); // client JSON paths, not file paths
     expect(treeLabels(h)).toEqual(["a.md", "b.md"]); // and the index is already fresh
   });
+
+  // THE TWO TIERS. The watcher already knows the exact changed paths; a one-file in-place edit takes
+  // the subtree patch (the tier an in-server edit uses), everything else re-walks the tree. The line
+  // the log prints names the tier that ACTUALLY ran, so it also catches doReindexFile falling back.
+  describe("the tier: one edited file patches, anything else re-walks", () => {
+    // wait for a line matching `re`, returning it (the watcher is asynchronous and debounced)
+    const awaitLine = async (lines: string[], re: RegExp): Promise<string> => {
+      const t0 = Date.now();
+      for (;;) {
+        const hit = lines.find((l) => re.test(l));
+        if (hit) return hit;
+        if (Date.now() - t0 > 5000) throw new Error(`no ${re} within 5s; saw:\n${lines.join("\n")}`);
+        await new Promise((r) => setTimeout(r, 50));
+      }
+    };
+
+    it("an in-place edit of one file takes the patch tier", async () => {
+      const root = tmpTree({ "deep/dir/b.yo": "x: 1\n", "other.yo": "y: 1\n" });
+      const lines: string[] = [];
+      const h = await handlers(root, { watch: true, log: (l) => lines.push(l) });
+
+      fs.writeFileSync(path.join(root, "deep/dir/b.yo"), "x: 2\n");
+      expect(await awaitLine(lines, /^patch: /)).toMatch(/^patch: \+0 ~1 −0 →0$/); // not "patch → full walk"
+      expect(lines.some((l) => l.startsWith("reconcile:"))).toBe(false);
+      expect((await nodeJson(h, { path: ":deep:dir:b.yo:x" })).json.value).toBe(2);
+    });
+
+    it("a new file re-walks — an addition can be half of a move", async () => {
+      const root = tmpTree({ "a.md": "# a" });
+      const lines: string[] = [];
+      const h = await handlers(root, { watch: true, log: (l) => lines.push(l) });
+
+      fs.writeFileSync(path.join(root, "b.md"), "# b");
+      expect(await awaitLine(lines, /^reconcile: /)).toMatch(/\+1 /);
+      expect(lines.some((l) => l.startsWith("patch:"))).toBe(false);
+      expect(treeLabels(h)).toEqual(["a.md", "b.md"]);
+    });
+
+    it("a removal re-walks — only the whole-tree diff pairs a move's two halves", async () => {
+      const root = tmpTree({ "a.md": "# a", "b.md": "# b" });
+      const lines: string[] = [];
+      const h = await handlers(root, { watch: true, log: (l) => lines.push(l) });
+
+      fs.rmSync(path.join(root, "b.md"));
+      expect(await awaitLine(lines, /^reconcile: /)).toMatch(/−1 /);
+      expect(lines.some((l) => l.startsWith("patch:"))).toBe(false);
+      expect(treeLabels(h)).toEqual(["a.md"]);
+    });
+  });
 });

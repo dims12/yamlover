@@ -1193,6 +1193,13 @@ pre.code.chapter-data {
 .chapter-prose.editable {
   min-height: 1.5em;
 }
+/* A chunk whose body arrived CLIPPED (a big file-backed value, engine-api STUB_VALUE_MAX): the
+   notice under the partial body, in the dim chrome face so it never reads as content. */
+.chunk-truncated {
+  margin: -8px 0 14px;
+  color: var(--dim);
+  font-size: 0.85em;
+}
 /* a marklower `` `code` `` span: the INLINE twin of the data island's card — the same darker
    face (--bg-alt) and mono stack, so code reads as code at either scale. Bare, it inherited the
    prose font and was invisible as markup. The selector catches the read `<code>` and the
@@ -1508,6 +1515,9 @@ textarea.chapter-latex-src {
 .loading {
   color: var(--dim);
   padding: 12px;
+  /* one line's worth even when empty: NodeView's loading state is blank for the first 300ms and
+     then grows a 3px sweep bar, and without a floor the box would resize under the reader */
+  min-height: 1.2em;
 }
 /* the dead-address page — a fault is red (.error), a missing node is not: it is an ordinary
    outcome of following an old link, and shouting at the reader about it helps nobody */

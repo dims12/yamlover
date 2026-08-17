@@ -45,6 +45,31 @@ const asFail = (e: unknown): Fail => ({
   missing: e instanceof ContentError && e.status === 404,
 });
 
+/** "Working on it" for a node whose content has not arrived.
+ *
+ *  A big single-document file serializes WHOLE at every depth (THE DEPTH LAW — depth counts document
+ *  boundaries, so there is no shallower answer to ask for), which puts multi-second waits inside the
+ *  normal range for a page. A static `…` cannot tell those apart from a hung fetch. So: nothing at
+ *  all for the first {@link BAR_AFTER_MS} — a page that answers fast must not flash a spinner — and
+ *  then the sweep the task strip already uses, which says "still going" without pretending to know
+ *  how far along it is (the server sends no progress for a projection). */
+const BAR_AFTER_MS = 300;
+function LoadingNode(): ReactNode {
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setShow(true), BAR_AFTER_MS);
+    return () => clearTimeout(t);
+  }, []);
+  if (!show) return <div className="loading" />; // holds the box so the bar does not shift the page
+  return (
+    <div className="loading" role="status" aria-live="polite" aria-label="Loading">
+      <span className="task-bar">
+        <span className="task-bar-fill indeterminate" />
+      </span>
+    </div>
+  );
+}
+
 /** The dead-address page.
  *
  *  What a reader used to get here was the API's own diagnostic, rendered raw and red:
@@ -553,7 +578,7 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
   }, [missing]);
 
   if (error) return error.missing ? <NotFound path={path} /> : <div className="error">{error.text}</div>;
-  if (!node) return <div className="loading">…</div>;
+  if (!node) return <LoadingNode />;
 
   // The PRIMARY renderer tab, `yamlover`, the FIXED rendered family (xyflow / explorer views),
   // the remaining DATA views, then the TRAILING `plaintext` (raw-source) tab — tabModel's order.

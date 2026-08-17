@@ -59,6 +59,10 @@ description: a named constraint on node content - not a type, never a decoder; m
     - '-'
     - a string
     - 'Quoted code - the surfaces kept *as text*, unparsed (how this book shows its examples).'
+  - - '`text/javascript` · `text/css` · `text/x-python` · `text/x-sql` · `text/xml` · `application/x-ndjson`'
+    - '`contentMediaType`'
+    - a string
+    - 'FOREIGN source code - a language this project does not speak, named so it is never mistaken for a broken `.yo`: held verbatim, never parsed, never prose-link-scanned, shown by the plaintext view.'
   - - '`image/png` · `application/pdf` · any MIME type'
     - '`contentMediaType`'
     - bytes

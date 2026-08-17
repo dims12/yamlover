@@ -121,6 +121,32 @@ test('an .ini file is an opaque text/plain blob (the plaintext renderer claims i
   rmSync(dir, { recursive: true, force: true });
 });
 
+test('a TEXT-format file over 1 MiB stays a blob — named, served, but not held inline', () => {
+  // A TEXT format keeps the WHOLE FILE as one string scalar, so its ceiling is not the doc-parse
+  // ceiling: at MAX_DOC_BYTES (64 MiB) a multi-MB source file's body lands in the node value, and
+  // from there in every stub that mentions it (a 2.5 MB .jsonl put its entire body in a directory
+  // listing). Above 1 MiB it is a blob — the FORMAT is still named (so the plaintext view still
+  // claims it and /api/blob still serves the bytes); only the inline copy is refused.
+  const dir = mkdtempSync(join(tmpdir(), 'yo-walk-bigtext-'));
+  try {
+    const line = JSON.stringify({ k: 'x'.repeat(80) }) + '\n';
+    writeFileSync(join(dir, 'small.jsonl'), line.repeat(10));
+    writeFileSync(join(dir, 'big.jsonl'), line.repeat(Math.ceil((1 << 20) / line.length) + 1));
+    const s = new Store(':memory:');
+    s.indexDocument(walkDir(dir));
+    const small = s.node(':small.jsonl');
+    assert.equal(small?.type, 'scalar'); // under the ceiling: the body is the value
+    assert.equal(small?.format, 'application/x-ndjson');
+    const big = s.node(':big.jsonl');
+    assert.equal(big?.type, 'blob');
+    assert.equal(big?.format, 'application/x-ndjson'); // NOT demoted to octet-stream
+    assert.ok((big?.size ?? 0) > (1 << 20));
+    s.close();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('the ignore predicate skips matching children (e.g. node_modules at the root)', () => {
   const s = new Store(':memory:');
   // ignore anything named "isAdmin" — it should not appear as a node

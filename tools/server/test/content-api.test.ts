@@ -10,7 +10,7 @@
 //     reference targets; hidden overlay subtrees never appear;
 //   - the slash path spelling decodes like the colon one (digits = positions, `~` = null key).
 import { describe, it, expect } from "vitest";
-import { createHandlers, tmpExample } from "./helpers";
+import { createHandlers, tmpExample, tmpTree } from "./helpers";
 import { callText } from "./http";
 import { parseYamlover } from "../../parser/ts/src/yamlover.ts";
 import { serializeYamlover } from "../../parser/ts/src/serialize-yamlover.ts";
@@ -184,6 +184,60 @@ describe("GET /api/content — the yamlover wire over examples/74-deep-book", ()
     const env = await getContent(h, "part-one/item01");
     const up = env.relations[".."] as Record<string, Record<string, unknown>>;
     expect(up?.$yamloverRef?.path).toBe(":part-one");
+  });
+});
+
+// A STUB IS A LABEL. `linkMarker` hands the node's self-scalar over as the stub's `value`, and for a
+// file-backed text scalar that value is the WHOLE FILE — one 2.5 MB `.jsonl` was 2.5 MB of a 2.58 MB
+// directory listing. Clipped at STUB_VALUE_MAX, flagged `valueTruncated`/`valueLength`. The clip is
+// gated on the value being a file's bytes verbatim (a whole-file `meta.span`) and NOT on
+// `derivedFormat`, which schema propagation also stamps on every chapter prose chunk — the one thing
+// that must arrive whole, because the chapter editor loads its buffer from this exact field.
+describe("GET /api/content — a stub value is a label, not a file body", () => {
+  const LINE = "const x = 1; // " + "y".repeat(100) + "\n";
+  const BIG_JS = LINE.repeat(Math.ceil((64 << 10) / LINE.length) + 20); // > 64 KiB, < 1 MiB
+  const BIG_PROSE = Array.from({ length: 12000 }, () => "prose").join(" "); // > 64 KiB, one line
+
+  // any `$yamloverLink` in the envelope naming `storePath` — stubs ride a cut member's sidecar
+  // entry, a backEdge, and `relations` alike, and this law is about the marker, not its address
+  const stubFor = (env: Env, storePath: string): Record<string, unknown> | undefined => {
+    const seek = (v: unknown): Record<string, unknown> | undefined => {
+      if (!v || typeof v !== "object") return undefined;
+      if (Array.isArray(v)) { for (const x of v) { const hit = seek(x); if (hit) return hit; } return undefined; }
+      const o = v as Record<string, unknown>;
+      const link = o.$yamloverLink as Record<string, unknown> | undefined;
+      if (link && link.path === storePath) return link;
+      for (const x of Object.values(o)) { const hit = seek(x); if (hit) return hit; }
+      return undefined;
+    };
+    return seek(env.header);
+  };
+
+  it("clips a file-backed text scalar, and leaves a chapter's prose chunk whole", async () => {
+    const root = tmpTree({
+      "big.js": BIG_JS,
+      "chapter.yo": ["!!<*:: yamlover: $defs: chapter>", "A Chapter", `- &prose ${BIG_PROSE}`, "see: *prose", ""].join("\n"),
+    });
+    const h = createHandlers(root, { gitignore: false });
+    await h.ready;
+    const env = await getContent(h as unknown as Handler, "", "1");
+    expect(env.status).toBe(200);
+
+    // the file: named text/javascript, still a scalar — but the stub carries a PREFIX, and says so
+    const js = stubFor(env, ":big.js");
+    expect(js?.format).toBe("text/javascript");
+    expect(js?.valueTruncated).toBe(true);
+    expect(js?.valueLength).toBe(BIG_JS.length);
+    expect(String(js?.value)).toBe(BIG_JS.slice(0, 64 << 10)); // a prefix, not a summary
+
+    // the prose chunk: text/marklower by schema propagation (so it HAS a derivedFormat), authored
+    // inside the .yo — the editable buffer, handed over whole and unflagged. Its stub rides the
+    // CHAPTER's own envelope (the `see: *prose` pointer entry), one document down from the listing.
+    const chap = await getContent(h as unknown as Handler, "chapter.yo", "1");
+    const chunk = stubFor(chap, ":chapter.yo:0");
+    expect(chunk?.format).toBe("text/marklower");
+    expect(chunk?.valueTruncated).toBeUndefined();
+    expect(chunk?.value).toBe(BIG_PROSE);
   });
 });
 

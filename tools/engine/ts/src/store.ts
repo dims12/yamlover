@@ -143,6 +143,23 @@ export class Store {
   private _stale: boolean;
   get stale(): boolean { return this._stale; }
 
+  /** PREPARED-STATEMENT CACHE — one StatementSync per distinct SQL, reused for the life of the
+   *  handle. The read methods below run once per NODE during a projection (the server's
+   *  envelopeDeps asks `node`/`entries`/`unrealizedRefs` about every member it serializes), so a
+   *  fresh `db.prepare()` per call meant ~200k compilations to answer ONE request over a 29k-node
+   *  document — measured at ~97% of a 4.5s /api/content response, against 0.16s of actual row
+   *  reading. Statements survive DML (the DELETE/INSERT churn of a re-index); the only DDL this
+   *  class runs is in the constructor, before anything can be cached. */
+  private readonly stmts = new Map<string, StatementSync>();
+  private stmt(sql: string): StatementSync {
+    let s = this.stmts.get(sql);
+    if (!s) {
+      s = this.db.prepare(sql);
+      this.stmts.set(sql, s);
+    }
+    return s;
+  }
+
   constructor(dbPath: string) {
     this.db = new DatabaseSync(dbPath);
     this.db.exec('PRAGMA journal_mode = WAL;');
@@ -156,7 +173,10 @@ export class Store {
     this._stale = ver !== SCHEMA_VERSION;
   }
 
-  close(): void { this.db.close(); }
+  close(): void {
+    this.stmts.clear(); // the handle finalizes them; drop our references first
+    this.db.close();
+  }
 
   /** Rebuild the whole index from one resolved document: clear, then insert nodes + edges in
    *  a single transaction. (v1 = one document per DB; the directory walker feeds it; ENGINE.md
@@ -409,7 +429,7 @@ export class Store {
    *  whose on-disk (size, mtime) still matches the manifest has not changed in any way a
    *  reindex could see — Windows reports mere READS as changes via last-access-time updates). */
   file(relPath: string): FileRecord | null {
-    const r = this.db.prepare('SELECT * FROM file WHERE path = ?').get(relPath) as Record<string, unknown> | undefined;
+    const r = this.stmt('SELECT * FROM file WHERE path = ?').get(relPath) as Record<string, unknown> | undefined;
     return r ? { path: r.path as string, hash: (r.hash as string) ?? null, size: r.size as number, mtimeMs: r.mtime_ms as number } : null;
   }
 
@@ -456,7 +476,7 @@ export class Store {
    *  edge exists), returned so a projection can still show the authored pointer in place. */
   unrealizedRefs(holder: string): UnrealizedRef[] {
     return (
-      this.db.prepare('SELECT label, pos, raw, edge, external FROM dangling WHERE holder = ? ORDER BY pos').all(holder) as Record<string, unknown>[]
+      this.stmt('SELECT label, pos, raw, edge, external FROM dangling WHERE holder = ? ORDER BY pos').all(holder) as Record<string, unknown>[]
     ).map((r) => ({
       label: (r.label as string) ?? null,
       pos: (r.pos as number) ?? null,
@@ -468,7 +488,7 @@ export class Store {
 
   /** A node's attributes (null if no such path). */
   node(path: string): NodeRow | null {
-    const row = this.db.prepare('SELECT * FROM node WHERE path = ?').get(path) as
+    const row = this.stmt('SELECT * FROM node WHERE path = ?').get(path) as
       | Record<string, unknown>
       | undefined;
     return row ? rowToNode(row) : null;
@@ -477,8 +497,7 @@ export class Store {
   /** Direct containment children of a node, in source order (by `pos`). */
   children(path: string): { to: string; label: string | null; pos: number | null }[] {
     return (
-      this.db
-        .prepare("SELECT to_path, label, pos FROM edge WHERE from_path = ? AND kind = 'contain' ORDER BY pos")
+      this.stmt("SELECT to_path, label, pos FROM edge WHERE from_path = ? AND kind = 'contain' ORDER BY pos")
         .all(path) as Record<string, unknown>[]
     ).map((r) => ({ to: r.to_path as string, label: (r.label as string) ?? null, pos: (r.pos as number) ?? null }));
   }
@@ -489,15 +508,14 @@ export class Store {
    *  projects in full. `kind` says whether `to` is an owned child (contain) or a pointer target. */
   entries(path: string): { to: string; label: string | null; pos: number | null; kind: EdgeRow['kind'] }[] {
     return (
-      this.db
-        .prepare("SELECT to_path, label, pos, kind FROM edge WHERE from_path = ? AND kind IN ('contain','ref','back') ORDER BY pos")
+      this.stmt("SELECT to_path, label, pos, kind FROM edge WHERE from_path = ? AND kind IN ('contain','ref','back') ORDER BY pos")
         .all(path) as Record<string, unknown>[]
     ).map((r) => ({ to: r.to_path as string, label: (r.label as string) ?? null, pos: (r.pos as number) ?? null, kind: r.kind as EdgeRow['kind'] }));
   }
 
   /** Whether a node has any containment children (expandable in the TOC). */
   hasChildren(path: string): boolean {
-    const r = this.db.prepare("SELECT 1 FROM edge WHERE from_path = ? AND kind = 'contain' LIMIT 1").get(path);
+    const r = this.stmt("SELECT 1 FROM edge WHERE from_path = ? AND kind = 'contain' LIMIT 1").get(path);
     return r != null;
   }
 
@@ -507,8 +525,8 @@ export class Store {
    *  not contents: they are pruned here with their whole subtrees, so every TOC consumer gets the
    *  same view without re-filtering. */
   toc(path = ':', depth = Infinity): TocNode[] {
-    const rows = this.db
-      .prepare(
+    const rows = this
+      .stmt(
         `WITH RECURSIVE sub(from_path, to_path, label, pos, lvl) AS (
            SELECT e.from_path, e.to_path, e.label, e.pos, 1 FROM edge e
              JOIN node t ON t.path = e.to_path
@@ -547,8 +565,8 @@ export class Store {
   /** Edges in/out of a node, by kind. `derived` inverses are computed here on demand (never
    *  stored) per ENGINE.md — for each ref/back into/out of the node, the reverse direction. */
   relationships(path: string): { out: EdgeRow[]; in: EdgeRow[] } {
-    const out = (this.db.prepare("SELECT * FROM edge WHERE from_path = ? AND kind != 'contain'").all(path) as Record<string, unknown>[]).map(rowToEdge);
-    const inc = (this.db.prepare("SELECT * FROM edge WHERE to_path = ? AND kind != 'contain'").all(path) as Record<string, unknown>[]).map(rowToEdge);
+    const out = (this.stmt("SELECT * FROM edge WHERE from_path = ? AND kind != 'contain'").all(path) as Record<string, unknown>[]).map(rowToEdge);
+    const inc = (this.stmt("SELECT * FROM edge WHERE to_path = ? AND kind != 'contain'").all(path) as Record<string, unknown>[]).map(rowToEdge);
     // derived inverses: what points AT this node (for the incoming view)
     const derivedIn: EdgeRow[] = inc
       .filter((e) => e.kind === 'ref' || e.kind === 'back')

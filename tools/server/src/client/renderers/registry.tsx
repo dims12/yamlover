@@ -102,6 +102,11 @@ export interface Chunk {
    *  tables) are transparent, so their renderers pass their OWN frame down (the same law
    *  the engine's scanTextLinks applies). Unset: the chunk's parent path. */
   holderPath?: string | null;
+  /** Set when `value` is only a PREFIX of the chunk — a big file-backed body the server clipped to
+   *  a stub's worth (engine-api STUB_VALUE_MAX); the number is the whole length in characters. The
+   *  chunk is read-only and says it is partial (chapter-shared renderChunkBody) rather than
+   *  passing a short body off as the content. */
+  truncated?: number;
 }
 
 /** How a node appears in the TOC. `children` are the rows shown beneath it;
@@ -352,7 +357,14 @@ const REGISTRY: Renderer[] = [
     // bytes so the encoding is the client's to choose.
     name: "plaintext",
     icon: "🗒️",
-    accepts: byFormat("text/plain"),
+    // FOREIGN SOURCE CODE lands here too — text in a language this project does not speak
+    // (js/ts/css/py/sh/sql/xml/ndjson). The shared lexer knows none of them, so PlaintextView
+    // shows them verbatim; the encoding selector is harmless on the utf-8 they always are.
+    accepts: byFormat(
+      "text/plain",
+      "text/javascript", "text/typescript", "text/css", "text/x-python",
+      "text/x-shellscript", "text/x-sql", "text/xml", "application/x-ndjson",
+    ),
     specificity: 2,
     render: (node) => <PlaintextView node={node} />,
     renderChunk: (chunk) => <PlaintextChunk chunk={chunk} />,

@@ -355,13 +355,18 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
   // A reindex for ONE edited file (the tagging hot path): patch the cached tree's subtree in place,
   // falling back to a full reindex when the change is not locally patchable (root-level file, the
   // grafted taxonomy, or the patch guard rejecting an external-reference change).
+  // True when the last doReindexFile actually spliced a subtree; false when it fell back to the
+  // full walk. Only the LOG reads it (so a "patch" line never claims work the walk did).
+  let filePatched = false;
   const doReindexFile = async (absFile: string): Promise<IndexDiff> => {
+    filePatched = false;
     if (cachedDoc) {
       const rel = path.relative(dataRoot, absFile).split(path.sep).join("/");
       try {
         const res = await reindexPathAsync(store0, dataRoot, cachedDoc, rel, walkOpts);
         if (res) {
           cachedDoc = res.doc;
+          filePatched = true;
           return res.diff;
         }
       } catch {
@@ -427,13 +432,15 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
   // COALESCED: a burst of watcher batches queues at most one pending reconcile — the full
   // re-walk sees everything on disk anyway, so N queued repeats were pure waste.
   let reconcilePending: Promise<IndexDiff> | null = null;
-  const reconcile = (): Promise<IndexDiff> => {
-    if (reconcilePending) return reconcilePending;
-    const p = enqueue(async () => {
-      reconcilePending = null; // changes landing while we run may schedule a fresh one
-      const h = tasks.start("reconciling");
+  // The wrapper every external-change re-index shares: the task handle, move relinking, the log
+  // line, the dead-link pass, the SSE broadcast, the hasher kick. `produce` is the re-index
+  // ITSELF — a full walk (reconcile) or one file's subtree patch (patchOne) — so the two tiers
+  // differ only in how the diff is obtained.
+  const settle = (task: string, label: () => string, produce: () => Promise<IndexDiff>): Promise<IndexDiff> =>
+    enqueue(async () => {
+      const h = tasks.start(task);
       try {
-        const diff = await doReindex();
+        const diff = await produce();
         // Relinking REWRITES source files (inbound pointers follow the moved node) — the one
         // side channel by which pure indexing mutates user data, so read-only skips it: an
         // externally moved file just shows up moved, its inbound pointers dangling.
@@ -446,7 +453,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
           }
         }
         h.done();
-        log(`reconcile: +${diff.added.length} ~${diff.changed.length} −${diff.removed.length} →${diff.moved.length}`);
+        log(`${label()}: +${diff.added.length} ~${diff.changed.length} −${diff.removed.length} →${diff.moved.length}`);
         // the link invariant re-checks after every external change; a relink round nulls the
         // cached doc (the follow-up reindex is sync), so that pass reports on the NEXT walk
         if (cachedDoc) logDeadLinks(deadLinkDiagnostics(cachedDoc, store0, dataRoot), log);
@@ -458,8 +465,34 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
         throw e;
       }
     });
+
+  const reconcile = (): Promise<IndexDiff> => {
+    if (reconcilePending) return reconcilePending;
+    const p = settle("reconciling", () => "reconcile", () => {
+      reconcilePending = null; // changes landing while we run may schedule a fresh one
+      return doReindex();
+    });
     reconcilePending = p;
     return p;
+  };
+
+  // THE FAST TIER for an external edit: re-index just the changed file's subtree, the way an
+  // in-server edit already does (doReindexFile → reindexPathAsync → patchSubtree, which falls back
+  // to a full walk on its own whenever the splice is not safe). Taken only for ONE path that is a
+  // pure in-place modification — already in the manifest and still on disk. Anything else keeps the
+  // full walk: an addition or a removal can be half of a MOVE, and only the whole-tree diff pairs
+  // the two halves into `diff.moved` for relinkMoved.
+  // The label is a THUNK so it reads `filePatched` after the produce — doReindexFile falls back to
+  // the full walk on its own, and a line saying `patch` for a whole-tree re-walk would hide that.
+  const patchOne = (rel: string): Promise<IndexDiff> =>
+    settle(`patching ${rel}`, () => (filePatched ? "patch" : "patch → full walk"), () =>
+      doReindexFile(path.join(dataRoot, ...rel.split("/"))));
+  const patchable = (batch: string[]): string | null => {
+    if (batch.length !== 1) return null;
+    const rel = batch[0];
+    if (!store0.file(rel)) return null; // unknown to the manifest: a new file (or a directory)
+    const st = fs.statSync(path.join(dataRoot, ...rel.split("/")), { throwIfNoEntry: false });
+    return st?.isFile() ? rel : null; // vanished → a removal, possibly a move's other half
   };
 
   // A watched event for a file whose on-disk (size, mtime) still matches the manifest is NOISE:
@@ -489,8 +522,10 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
           return;
         }
         log(`watch: ${external.length} change(s) — ${external.slice(0, 5).join(", ")}${external.length > 5 ? ", …" : ""}`);
-        // failure surfaces via the task logger ([reconciling] FAILED: …)
-        reconcile().catch(() => {});
+        // failure surfaces via the task logger ([reconciling] FAILED: …). One edited file takes the
+        // subtree patch; anything else re-walks (see patchable).
+        const one = reconcilePending ? null : patchable(external);
+        (one ? patchOne(one) : reconcile()).catch(() => {});
       }, { ignore })
     : null;
 
@@ -1568,6 +1603,41 @@ function projectSchema(dataRoot: string, s: Store, segs: Seg[], depth: number, t
   return schema;
 }
 
+/** How much of a FILE-BACKED text scalar's body a stub carries. A stub is a LABEL — enough to
+ *  recognize the node and click into it — but `linkMarker` used to hand over the whole value, so a
+ *  directory listing shipped every text file it contained in full (measured: one 2.5 MB `.jsonl`
+ *  was 2.5 MB of a 2.58 MB response).
+ *
+ *  The ceiling applies ONLY where the value IS a file's bytes, because a chapter's prose chunk is
+ *  read and EDITED through this same `value` (chapter-shared.tsx `chunkOf`, chapter-model.ts
+ *  `buildChapterModel`) and must never arrive silently short. The discriminator is a WHOLE-FILE
+ *  SPAN: walk.ts stamps `meta.span = {uri, 0, value.length}` exactly where the scalar carries its
+ *  own file verbatim (`textScalar`, and the byte-transparent charset-text concrete), and nothing
+ *  else does. `derivedFormat` alone would NOT do — schema propagation stamps it on every chapter
+ *  chunk (`text/marklower`, walk.ts applyMeta/schema sweep), which is precisely the editable prose
+ *  this must not touch. Set far above any authored scalar in practice (the whole dogfooding corpus
+ *  tops out at 439 chars), and a clipped stub says so (`valueTruncated` + `valueLength`) so no
+ *  consumer mistakes it for whole. */
+const STUB_VALUE_MAX = 64 << 10; // 64 KiB of characters
+
+/** True when this row's string value is one FILE, verbatim — see {@link STUB_VALUE_MAX}. */
+function isWholeFileBody(row: NodeRow, v: string): boolean {
+  const span = row.meta?.span as { start?: unknown; end?: unknown } | undefined;
+  return !!span && span.start === 0 && span.end === v.length;
+}
+
+/** Put a node's self-scalar on its stub, clipped when it is a big file's body ({@link STUB_VALUE_MAX}). */
+function stubValue(info: Record<string, unknown>, row: NodeRow): void {
+  const v = row.value;
+  if (typeof v === "string" && v.length > STUB_VALUE_MAX && isWholeFileBody(row, v)) {
+    info.value = v.slice(0, STUB_VALUE_MAX);
+    info.valueTruncated = true;
+    info.valueLength = v.length;
+    return;
+  }
+  info.value = wireScalar(v);
+}
+
 /** A `$yamloverLink` marker for the node at `segs` (a navigable summary). */
 function linkMarker(dataRoot: string, s: Store, segs: Seg[]): Record<string, unknown> {
   const p = storePath(segs);
@@ -1580,10 +1650,10 @@ function linkMarker(dataRoot: string, s: Store, segs: Seg[]): Record<string, unk
   const title = titleOf(s, p);
   if (title) info.title = title;
   if (k === "binary") info.size = row.size;
-  else if (k === "scalar") info.value = wireScalar(row.value);
+  else if (k === "scalar") stubValue(info, row);
   else if (k === "omni" || k === "mix") {
     info.count = ownedEntries(s, p).length; // owned items + fields (reverse members excluded)
-    if (k === "omni") info.value = wireScalar(row.value); // the self-scalar, for the link label
+    if (k === "omni") stubValue(info, row); // the self-scalar, for the link label
   } else {
     // visible members only (omit `.yo`) — owned entries, so pointer members (including
     // unrealized ones) count the same as inline children (they all render as rows)
@@ -5417,6 +5487,10 @@ const EXT_CT: Record<string, string> = {
   ".webp": "image/webp", ".svg": "image/svg+xml", ".bmp": "image/bmp", ".ico": "image/x-icon",
   ".pdf": "application/pdf", ".tiff": "image/tiff", ".tif": "image/tiff", ".html": "text/html",
   ".md": "text/markdown", ".csv": "text/csv", ".epub": "application/epub+zip",
+  ".js": "text/javascript", ".mjs": "text/javascript", ".cjs": "text/javascript",
+  ".ts": "text/typescript", ".tsx": "text/typescript", ".jsx": "text/javascript",
+  ".css": "text/css", ".py": "text/x-python", ".sh": "text/x-shellscript",
+  ".sql": "text/x-sql", ".xml": "text/xml", ".jsonl": "application/x-ndjson",
 };
 function formatFromExt(file: string): string | null {
   return EXT_CT[path.extname(file).toLowerCase()] ?? null;
@@ -5430,6 +5504,8 @@ function formatFromExt(file: string): string | null {
 const UTF8_CT = new Set([
   "text/html", "image/svg+xml", "text/markdown", "text/asciidoc",
   "text/x-plantuml", "text/csv", "text/tab-separated-values",
+  "text/javascript", "text/typescript", "text/css", "text/x-python",
+  "text/x-shellscript", "text/x-sql", "text/xml", "application/x-ndjson",
 ]);
 function blobContentType(format: string | null): string {
   if (format == null) return "application/octet-stream";

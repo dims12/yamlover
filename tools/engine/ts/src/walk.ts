@@ -860,11 +860,25 @@ function* childNode(abs: string, m: MetaEntry | undefined, ctx: Ctx): Generator<
     // a format-matched doc/text file is slurped to parse — unless it is too big to slurp
     if (stat.size > MAX_DOC_BYTES) return blob(abs, fmt, ctx);
     if (DOC_FORMATS[fmt]) return parsedDoc(abs, DOC_FORMATS[fmt], ctx); // a sub-document encoding → parse (docs/meta)
-    return textScalar(abs, fmt, ctx); // markdown/adoc/plantuml/csv → string + format
+    // A TEXT format holds the WHOLE FILE as one string scalar, so its ceiling is not the
+    // doc-parse ceiling: MAX_DOC_BYTES (64 MiB) would put multi-MB of source code into the node
+    // value, and from there into every stub that mentions the file (a 2.5 MB `.jsonl` put its
+    // entire body in a directory listing's `side:` block). Above MAX_TEXT_BYTES it stays a blob —
+    // the format is still NAMED (so the plaintext view still claims it) and `/api/blob` still
+    // serves the bytes; only the inline copy is refused. Same 1 MiB the binary sniff uses, so the
+    // two text ceilings agree.
+    if (stat.size > MAX_TEXT_BYTES) return blob(abs, fmt, ctx);
+    return textScalar(abs, fmt, ctx); // markdown/adoc/plantuml/csv/foreign source → string + format
   }
   if (fmt) return blob(abs, fmt, ctx); // a known but non-text format = opaque bytes
   if (looksBinary(abs)) return blob(abs, 'application/octet-stream', ctx);
-  return parsedScalar(abs, ext, ctx); // text, no format → parse by extension (json5p for .json*, else yamlover)
+  // Text with no format: PARSE only what the parser claims by name (docs/language), else keep the
+  // bytes as plain text. An unknown extension is a file of somebody else's language, not a
+  // yamlover file to fail on — so it degrades nothing and reports nothing.
+  // (as RAW BYTES, like `.txt`: an unknown extension is also an unknown ENCODING, so the
+  // client's encoding selector gets the choice rather than a server-side utf8 guess.)
+  if (!PARSED_EXTS.has(ext) || path.basename(abs).startsWith('.')) return blob(abs, 'text/plain', ctx);
+  return parsedScalar(abs, ext, ctx); // text, claimed extension → parse (json5p for .json*, else yamlover)
 }
 
 /** Decode a file per its DECLARED `concrete:` — the language/codec/charset axis. Returns null
@@ -1403,9 +1417,31 @@ const EXT_FORMAT: Record<string, string> = {
   // client decodes it under a chosen encoding (CP866/Win-1251/KOI8-R/UTF-8) — legacy
   // Cyrillic .txt files are common — rather than the server fixing UTF-8.
   '.txt': 'text/plain', '.text': 'text/plain', '.log': 'text/plain', '.ini': 'text/plain',
+  // FOREIGN SOURCE CODE — text this project does not speak, NAMED so it stops looking like
+  // a broken yamlover file. Held inline as UTF-8 (they are, in practice) and shown verbatim;
+  // without these a saved web page's minified `.js` reached the yamlover parser and either
+  // degraded loudly or parsed into garbage (a 4 KiB key), both indistinguishable from a `.yo`
+  // its author must fix.
+  '.js': 'text/javascript', '.mjs': 'text/javascript', '.cjs': 'text/javascript',
+  '.ts': 'text/typescript', '.tsx': 'text/typescript', '.jsx': 'text/javascript',
+  '.css': 'text/css', '.py': 'text/x-python', '.sh': 'text/x-shellscript',
+  '.sql': 'text/x-sql', '.xml': 'text/xml', '.jsonl': 'application/x-ndjson',
 };
 
-const TEXT_FORMATS = new Set(['text/markdown', 'text/asciidoc', 'text/x-plantuml', 'text/csv', 'text/tab-separated-values']);
+const TEXT_FORMATS = new Set([
+  'text/markdown', 'text/asciidoc', 'text/x-plantuml', 'text/csv', 'text/tab-separated-values',
+  // foreign source code: a string scalar carrying its own bytes, never parsed
+  'text/javascript', 'text/typescript', 'text/css', 'text/x-python', 'text/x-shellscript',
+  'text/x-sql', 'text/xml', 'application/x-ndjson',
+]);
+
+// The extensions the yamlover PARSER claims. Everything else textual is foreign text held as a
+// string — the parser is opt-in by name, not the fallback for anything unrecognized. An
+// extensionless file (`README`, `notes`) is authored content and stays claimed; a DOTFILE is
+// not (`path.extname('.gitignore') === ''`, so it would otherwise pass as extensionless).
+// (`.yamlover` is the legacy spelling of `.yo` — read forever, YOMIGRATION.md §1. The set
+// mirrors concrete.ts's EXT_FILE_CONCRETE, plus the extensionless case it has no entry for.)
+const PARSED_EXTS = new Set(['', '.yo', '.yamlover', '.yaml', '.yml', '.json', '.json5', '.json5p']);
 
 // A `format` naming a SUB-DOCUMENT ENCODING — the LEGACY spelling of the decode axis, from
 // before the concrete/format split (docs/meta): read forever, but the authored corpus states

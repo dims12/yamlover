@@ -44,6 +44,11 @@ export interface Link {
   hasOrdinal?: boolean;
   yo?: boolean; // `!!yo` — plain yamlover, exempt from the enclosing schema (chapter routing)
   value?: unknown; // for a link to a scalar: its value, shown as the label
+  // A big FILE-BACKED body clipped to a label's worth (engine-api STUB_VALUE_MAX): `value` is a
+  // PREFIX, `valueLength` the whole length. Anything that treats a stub value as CONTENT (a
+  // chapter chunk's prose) must refuse to edit it and say it is partial — never render it as whole.
+  valueTruncated?: boolean;
+  valueLength?: number;
   color?: string | null; // for a link to a pure color tag: its explicit color (badges)
   concrete?: string | null; // how the target is stored; `dir`/`yamlover` → a folder icon
   preview?: string | null; // a representative image path to thumbnail (a fragment → its crop blob)

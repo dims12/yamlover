@@ -121,3 +121,42 @@ test('addAnnotation : removeAnnotation update the index incrementally', () => {
   assert.equal(s.relationships(tag).in.filter((e) => e.from === annPath).length, 0);
   s.close();
 });
+
+// THE PREPARED-STATEMENT CACHE. Every read method reuses one StatementSync per distinct SQL for the
+// life of the handle (a fresh db.prepare() per call cost ~97% of a big projection's time — ~200k
+// compilations to answer one request). A cached statement must still see writes that landed AFTER it
+// was prepared: SQLite recompiles a statement itself when the schema changes, and DML (the DELETE +
+// re-INSERT churn of a re-index) does not change the schema at all. This pins that: read, write,
+// read again through the SAME statements, and get the NEW rows — never a stale snapshot.
+test('cached read statements see writes made after they were prepared', () => {
+  const s = indexed('title: One\nbody:\n  a: 1\n');
+  // prime every cached read path
+  assert.equal(s.node(':title')?.value, 'One');
+  assert.deepEqual(s.children(':body').map((c) => c.label), ['a']);
+  assert.deepEqual(s.entries(':body').map((c) => c.label), ['a']);
+  assert.equal(s.hasChildren(':body'), true);
+  assert.deepEqual(s.toc(':').map((n) => n.path), [':title', ':body']);
+  assert.equal(s.relationships(':').out.length, 0); // no pointers yet — but the statements are now cached
+  assert.equal(s.file('x.yo'), null);
+
+  // a full re-index of a DIFFERENT document: DELETE FROM node/edge + re-INSERT under the same handle
+  s.indexDocument(parseYamlover('title: Two\nbody:\n  a: 1\n  b: 2\nref: *body\n'), [
+    { path: 'x.yo', hash: null, size: 3, mtimeMs: 7 },
+  ]);
+
+  assert.equal(s.node(':title')?.value, 'Two'); // not the primed 'One'
+  assert.deepEqual(s.children(':body').map((c) => c.label), ['a', 'b']);
+  assert.deepEqual(s.entries(':body').map((c) => c.label), ['a', 'b']);
+  assert.equal(s.hasChildren(':body:b'), false);
+  assert.deepEqual(s.toc(':').map((n) => n.path), [':title', ':body']);
+  assert.ok(s.relationships(':').out.some((e) => e.kind === 'ref' && e.label === 'ref' && e.to === ':body'));
+  assert.equal(s.file('x.yo')?.size, 3);
+
+  // and a removal is visible too — a cached statement must not resurrect a deleted row
+  s.indexDocument(parseYamlover('title: Three\n'));
+  assert.equal(s.node(':body'), null);
+  assert.equal(s.node(':body:a'), null);
+  assert.equal(s.hasChildren(':body'), false);
+  assert.deepEqual(s.children(':'), [{ to: ':title', label: 'title', pos: 0 }]);
+  s.close();
+});

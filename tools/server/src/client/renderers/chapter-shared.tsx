@@ -97,7 +97,19 @@ export function ChunkShell({
 /** A read-only chunk body: the renderer for the chunk's (type, format), else plain prose. */
 export function renderChunkBody(chunk: Chunk, onNavigate: (path: string) => void): JSX.Element {
   const renderer = rendererFor(chunk);
-  return renderer?.renderChunk ? renderer.renderChunk(chunk, onNavigate) : <p className="chapter-prose">{String(chunk.value ?? "")}</p>;
+  const body = renderer?.renderChunk ? renderer.renderChunk(chunk, onNavigate) : <p className="chapter-prose">{String(chunk.value ?? "")}</p>;
+  if (chunk.truncated === undefined) return body;
+  // The stub carried a PREFIX of a large file, so what is on screen is not the whole chunk. Say so
+  // in place — a silently short body would read as the content itself.
+  return (
+    <>
+      {body}
+      <p className="chunk-truncated" data-yo-chrome>
+        shown to {String(chunk.value ?? "").length.toLocaleString()} of {chunk.truncated.toLocaleString()} characters —{" "}
+        <a href={urlOfPath(chunk.path)} onClick={(e) => { e.preventDefault(); onNavigate(chunk.path); }}>open the file</a>
+      </p>
+    </>
+  );
 }
 
 /** The `§` in a subchapter heading's left gutter — the section's own anchor link, the heading
@@ -550,5 +562,6 @@ export function chunkOf(item: unknown, documentPath?: string, fallbackPath?: str
     hasKeyed: link?.hasKeyed ?? false,
     hasOrdinal: link?.hasOrdinal ?? false,
     documentPath,
+    ...(link?.valueTruncated ? { truncated: link.valueLength ?? 0 } : {}),
   };
 }
