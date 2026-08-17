@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      /* 2048x1152 — YouTube's channel banner. Only the CENTRED 1235x338 is guaranteed visible
+         (that is the phone crop); TV shows the whole 2048x1152 and desktop something between.
+         So: every word lives inside the safe box, and the outer area carries nothing but the
+         cobalt-to-white ground. The .safe outline is a guide — it is not painted. */
+      * { margin: 0; box-sizing: border-box; }
+      html, body { width: 2048px; height: 1152px; }
+      body {
+        background: radial-gradient(120% 100% at 50% 40%, #eef3ff 0%, #fbfcfe 62%);
+        display: grid;
+        place-items: center;
+        font: 16px/1.4 Inter, "Segoe UI", system-ui, sans-serif;
+        color: #111827;
+      }
+      .safe {
+        width: 1235px;
+        height: 338px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 26px;
+        text-align: center;
+      }
+      .lockup { width: 620px; height: 189px; flex: none; display: block; }
+      .tag { font-size: 40px; font-weight: 600; letter-spacing: -0.02em; }
+      .verbs { font-size: 27px; color: #5b6570; display: flex; gap: 16px; }
+      .verbs b { font-weight: 600; color: #246bfd; }
+      .sep { color: #c3cbd6; }
+    </style>
+  </head>
+  <body>
+    <div class="safe">
+      <svg class="lockup" viewBox="0 0 420 128" xmlns="http://www.w3.org/2000/svg">
+        <g transform="translate(5 16)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M15 15 43 43 71 15M43 43 15 71" stroke="#111827" stroke-width="10"/>
+          <circle cx="59.970563" cy="59.970563" r="24" stroke="#246BFD" stroke-width="10"/>
+        </g>
+        <g transform="translate(5 16)">
+          <g fill="#111827">
+            <circle cx="15" cy="15" r="8"/>
+            <circle cx="71" cy="15" r="8"/>
+            <circle cx="15" cy="71" r="8"/>
+          </g>
+          <circle cx="59.970563" cy="59.970563" r="8" fill="#246BFD"/>
+        </g>
+        <text x="104" y="89" font-family="Inter, Arial, sans-serif" font-size="72" font-weight="650" letter-spacing="-4"><tspan fill="#111827">yaml</tspan><tspan fill="#246BFD">over</tspan></text>
+      </svg>
+      <div class="tag">A knowledge graph you can read, edit and grep</div>
+      <div class="verbs">
+        <span>edit it like <b>notes</b></span>
+        <span class="sep">·</span>
+        <span>query it like a <b>database</b></span>
+        <span class="sep">·</span>
+        <span>version it with <b>git</b></span>
+      </div>
+    </div>
+  </body>
+</html>

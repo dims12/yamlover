@@ -17,6 +17,15 @@
 - `yamlover-social-preview.png` — the 1280×640 card GitHub shows when the repo is linked
   anywhere (Settings → General → Social preview; it cannot be set from the API or `gh`).
   `yamlover-social-preview.html` is its source: open it at 1280×640 and screenshot to redraw.
+- `youtube-avatar.png` (800×800) and `youtube-banner.png` (2048×1152) — the channel art for
+  [@yamloverlay](https://www.youtube.com/@yamloverlay), each with its `.html` source beside it.
+  YouTube crops the avatar to a circle, and only the centred 1235×338 of the banner is safe on
+  a phone, so nothing but the ground may live outside it. Both are uploaded by hand in YouTube
+  Studio → Customisation → Branding. There is deliberately **no** video watermark.
+
+The `.html` sources are screenshotted, not exported: serve this folder over http (`file:` is
+blocked in the automation browser), open the page at exactly the pixel size named in its
+comment, and take a full-page shot.
 
 The mark is two-coloured: the `y` in ink, the `o` in cobalt — the same split the lockup makes at
 `yaml`/`over`. Reversed onto a cobalt ground (the app icon, the favicon tile, an active toolbar
