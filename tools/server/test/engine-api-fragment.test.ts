@@ -94,3 +94,44 @@ describe("chunk text fragments (docs/annotations/storage)", () => {
     h.close();
   });
 });
+
+// A selection that CROSSES chunks belongs to neither of them: its text runs through both, so a
+// single quote would be a string present in no chunk at all. It is stored as a W3C RangeSelector
+// on the node that contains both — here, the chapter.
+describe("range fragments (a selection spanning chunks)", () => {
+  const RANGE = {
+    type: "range",
+    startSelector: { type: "text", exact: "appears here in a chunk", prefix: "the word ", suffix: "" },
+    endSelector: { type: "text", exact: "and again", prefix: "", suffix: " elsewhere" },
+  };
+
+  it("writes both ends as nested selectors, each quote its own self-value", async () => {
+    const { root, h } = await chapterHandlers();
+    const frag = await callBody(h, "POST", "/api/fragment", { target: ":doc.yo", selector: RANGE });
+    expect(frag.status).toBe(201);
+
+    const src = bodyOf(root);
+    expect(src).toContain('type: "range"');
+    // the sub-selector is spelled like the fragment itself — the quote as the member's own value,
+    // its context indented beneath. NOT `[object Object]`, which is what a flat write produced.
+    expect(src).not.toContain("[object Object]");
+    expect(src).toMatch(/startSelector: "appears here in a chunk"\n\s+type: "text"\n\s+prefix: "the word "/);
+    expect(src).toMatch(/endSelector: "and again"\n\s+type: "text"\n\s+prefix: ""\n\s+suffix: " elsewhere"/);
+    // …and the ends nest UNDER the fragment, deeper than its own fields
+    expect(src).toMatch(/\n(\s+)startSelector: .*\n\1  type: "text"/);
+    h.close();
+  });
+
+  it("hangs off the CHAPTER, and reads back as one fragment carrying its tag", async () => {
+    const { h } = await chapterHandlers();
+    const frag = await callBody(h, "POST", "/api/fragment", { target: ":doc.yo", selector: RANGE });
+    const ann = await callBody(h, "POST", "/api/annotate", { target: frag.json.fragmentPath, tag: TAG });
+    expect(ann.status).toBe(201);
+
+    expect(frag.json.fragmentPath).toContain(":doc.yo:yo:fragments:");
+    const anns = call(h, "/api/annotations", { path: ":doc.yo" }).json as { selector?: Record<string, unknown> }[];
+    expect(anns).toHaveLength(1);
+    expect(anns[0].selector?.type).toBe("range");
+    h.close();
+  });
+});

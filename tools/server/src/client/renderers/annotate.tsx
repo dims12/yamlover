@@ -743,12 +743,16 @@ export function AnnotationMenu({
         />
         <span className="annotate-colon">:</span>
         <span className="annotate-topgap" />
+        {/* COPY comes first, and stays out of the ✓/✕ pair. Those two are this window's commit
+            and dismiss — they belong side by side, and a third button wedged between them reads
+            as a third member of the pair. Copy is a different kind of act entirely: it writes
+            nothing and leaves the popup alone. Ctrl/Cmd+C does the same thing (see useCopyKey). */}
+        {onCopy && <button type="button" className="annotate-tool copy" title="copy text to clipboard, Ctrl+C (don't annotate)" onClick={onCopy}>⧉</button>}
         <button
           type="button" className="annotate-tool ok" title="apply the typed path (Enter)"
           onMouseDown={(e) => e.preventDefault() /* never blur the cells before the commit */}
           onClick={() => host.dispatch({ type: "ENTER" })}
         >✓</button>
-        {onCopy && <button type="button" className="annotate-tool copy" title="copy text to clipboard (don't annotate)" onClick={onCopy}>⧉</button>}
         <button type="button" className="annotate-tool close" title="close (Escape)" onClick={onClose}>✕</button>
       </div>
       {/* the ENTRY row — indented under the key like the source line it writes: an uneditable
@@ -865,6 +869,30 @@ export function useAnnotationMenu(a: MaterialAnnotations, path: string): {
   const [open, setOpen] = useState<OpenRegion | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const close = () => setOpen(null);
+
+  // Ctrl/Cmd+C copies the captured text while the popup stands.
+  //
+  // It has to be wired by hand. Opening the popup plants the caret in its query cells, which
+  // takes the browser's ONE selection with it (that is why the neutral preview mark exists at
+  // all) — so by the time the key is pressed there is nothing selected for the native copy to
+  // act on, and the ⧉ button was the ONLY way to get the text out. Two deliberate stand-asides:
+  // a field the user is actually editing keeps its own copy, and a live selection that somehow
+  // survived is the browser's to handle.
+  const copyFn = open?.copy;
+  useEffect(() => {
+    if (!copyFn) return;
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.key !== "c" && e.key !== "C") || !(e.ctrlKey || e.metaKey) || e.altKey) return;
+      const el = document.activeElement as HTMLInputElement | HTMLTextAreaElement | null;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA") && el.selectionStart !== el.selectionEnd) return;
+      const sel = window.getSelection();
+      if (sel && !sel.isCollapsed && sel.toString().trim()) return;
+      e.preventDefault();
+      copyFn();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [copyFn]);
 
   // Selecting a region OPENS the picker but applies NOTHING — a new selection preselects no tag, so
   // nothing is outlined until the user picks one. The just-drawn region stays visible via the neutral
@@ -1040,9 +1068,18 @@ export function AnnotatedMaterial({ path, children }: { path: string; children: 
       // would anchor a fragment to a string that is not in the body, so it could never be
       // highlighted again and would be a chore to delete.
       if (isChrome(sel.anchorNode) || isChrome(sel.focusNode)) return;
+      const rect = sel.getRangeAt(0).getBoundingClientRect();
+      // A selection crossing CHUNKS is a range, hung off the material rather than either chunk
+      // (see captureRange). Try it first: `capture` would happily return a quote made of both
+      // chunks' text joined, which belongs to neither.
+      const span = captureRange(sel, el);
+      if (span) {
+        const whole = sel.toString().trim();
+        openCreate(span as unknown as Record<string, unknown>, { x: rect.left, y: rect.bottom + 6 }, () => copyText(whole), undefined, path);
+        return;
+      }
       const cap = capture(sel);
       if (!cap) return;
-      const rect = sel.getRangeAt(0).getBoundingClientRect();
       const copy = () => copyText(cap.exact);
       openCreate({ type: "text", exact: cap.exact, prefix: cap.prefix, suffix: cap.suffix }, { x: rect.left, y: rect.bottom + 6 }, copy, undefined, nodeAt(sel.anchorNode));
     };
@@ -1064,6 +1101,10 @@ export function AnnotatedMaterial({ path, children }: { path: string; children: 
   // RIGHT-CLICK is also a way in: on an existing mark → edit it; on a live selection → tag it. This
   // mirrors the node context menu (right-click → the window) and needs no precise mouseup timing.
   const onContextMenu = (e: React.MouseEvent) => {
+    // READ-ONLY: neither menu below can open — both openEdit and openCreate are writes and bail
+    // out. Suppressing the NATIVE menu anyway left a read-only reader with no menu at all and no
+    // way to copy a line off the page. Hand the browser its own menu back.
+    if (READ_ONLY) return;
     const el = ref.current;
     if (!el) return;
     const mark = (e.target as HTMLElement).closest("mark.yo-annotation") as HTMLElement | null;
@@ -1075,6 +1116,13 @@ export function AnnotatedMaterial({ path, children }: { path: string; children: 
     const sel = window.getSelection();
     if (!sel || sel.isCollapsed || !sel.anchorNode || !sel.focusNode) return;
     if (!el.contains(sel.anchorNode) || !el.contains(sel.focusNode)) return;
+    const span = captureRange(sel, el); // a cross-chunk selection — see the mouseup path
+    if (span) {
+      const whole = sel.toString().trim();
+      e.preventDefault();
+      openCreate(span as unknown as Record<string, unknown>, { x: e.clientX, y: e.clientY }, () => copyText(whole), undefined, path);
+      return;
+    }
     const cap = capture(sel);
     if (!cap) return;
     e.preventDefault(); // suppress the native menu; open ours at the cursor
@@ -1138,6 +1186,67 @@ function capture(sel: Selection): { exact: string; prefix: string; suffix: strin
   return { exact, prefix, suffix };
 }
 
+/** How much text either side of a quote is kept as disambiguating context. */
+const CONTEXT = 24;
+
+/** The chunk element a DOM node sits in — the `[data-node-path]` box a chapter wraps each of its
+ *  prose items in — or null when the node is not inside one. */
+function chunkElOf(n: Node | null, within: HTMLElement): HTMLElement | null {
+  const start = n instanceof HTMLElement ? n : n?.parentElement;
+  const el = start?.closest?.("[data-node-path]") as HTMLElement | null;
+  return el && within.contains(el) ? el : null;
+}
+
+/** A quote selector for the part of `r` that falls inside `el`, with context taken from `el`'s own
+ *  text. `side` picks which end of the intersection is open: `head` runs from the range's start to
+ *  the end of `el`, `tail` from the start of `el` to the range's end. */
+function sliceQuote(r: Range, chunk: HTMLElement, side: "head" | "tail"): { exact: string; prefix: string; suffix: string } | null {
+  // Prefer the chunk's BODY over the chunk box: the box also holds the `§N` gutter, and a tail
+  // slice that runs from the box's start swallows that number into the quote — chrome the reader
+  // never selected, stored as if it were their words.
+  const body = chunk.querySelector<HTMLElement>(".chunk-body");
+  const end = side === "head" ? r.startContainer : r.endContainer;
+  const el = body && body.contains(end) ? body : chunk;
+  const cut = document.createRange();
+  cut.selectNodeContents(el);
+  if (side === "head") cut.setStart(r.startContainer, r.startOffset);
+  else cut.setEnd(r.endContainer, r.endOffset);
+  const exact = cut.toString().trim();
+  if (!exact) return null;
+  const full = el.textContent ?? "";
+  const at = full.indexOf(exact);
+  return {
+    exact,
+    prefix: at >= 0 ? full.slice(Math.max(0, at - CONTEXT), at) : "",
+    suffix: at >= 0 ? full.slice(at + exact.length, at + exact.length + CONTEXT) : "",
+  };
+}
+
+/** A selection spanning SEVERAL chunks, as a W3C RangeSelector — or null when it does not span.
+ *
+ *  A cross-chunk selection cannot be a text fragment: `capture` would hand back an `exact` made of
+ *  text from several chunks run together, a string that occurs in none of them, so the fragment
+ *  could never be found again and the selection simply vanished off the page. A range says the
+ *  same thing correctly — where it STARTS and where it ENDS, each quoted in its own chunk, with
+ *  everything between them implied.
+ *
+ *  Neither end records which chunk it was in. It is tempting (chunks are addressable, and the
+ *  path would be one more field) but wrong for the same reason character offsets are wrong here:
+ *  a chunk's position shifts the moment anything is inserted above it, while the quotation
+ *  survives every edit but a rewrite of the quoted words themselves. Both ends are searched in the
+ *  enclosing material's own text, which contains them by construction. */
+function captureRange(sel: Selection, within: HTMLElement): { type: "range"; startSelector: object; endSelector: object } | null {
+  if (sel.rangeCount === 0) return null;
+  const r = sel.getRangeAt(0);
+  const a = chunkElOf(r.startContainer, within);
+  const b = chunkElOf(r.endContainer, within);
+  if (!a || !b || a === b) return null; // one chunk (or no chunks at all) — an ordinary text fragment
+  const startSelector = sliceQuote(r, a, "head");
+  const endSelector = sliceQuote(r, b, "tail");
+  if (!startSelector || !endSelector) return null;
+  return { type: "range", startSelector: { type: "text", ...startSelector }, endSelector: { type: "text", ...endSelector } };
+}
+
 /** (Re)apply highlight marks for the text annotations in `container`. `materialPath` lets a
  *  fragment mark carry its `#/yo/fragments/<slug>` anchor id so the RHS panel / a shared link
  *  can scroll-to-&-flash it. `preview` is the popup's not-yet-tagged selection, drawn as a mark in
@@ -1157,11 +1266,101 @@ function highlight(container: HTMLElement, anns: Annotation[], materialPath: str
     return container;
   };
   for (const a of anns) {
+    // A RANGE is drawn over the WHOLE material, never `scopeOf` — its two ends live in different
+    // chunks by definition, and `scopeOf` answers with the FIRST element bearing the path, which
+    // for a chapter is its title row: an element containing neither end, so nothing was drawn at
+    // all and the selection looked like it had been thrown away.
+    if (a.selector?.type === "range") { wrapRange(container, a, a.node ?? materialPath); continue; }
     if (a.selector?.type !== "text" || !a.selector.exact) continue;
     wrapQuote(scopeOf(a.node), a, a.node ?? materialPath);
   }
-  if (preview && preview.selector.type === "text" && preview.selector.exact) {
-    wrapQuote(scopeOf(preview.node), { selector: preview.selector } as Annotation, preview.node ?? materialPath, preview.color);
+  if (preview) {
+    const p = { selector: preview.selector } as Annotation;
+    if (preview.selector.type === "range") wrapRange(container, p, preview.node ?? materialPath, preview.color);
+    else if (preview.selector.type === "text" && preview.selector.exact) {
+      wrapQuote(scopeOf(preview.node), p, preview.node ?? materialPath, preview.color);
+    }
+  }
+}
+
+/** The container's text nodes flattened into one string, each tagged with its global start offset
+ *  — the coordinate space a TextQuoteSelector's match position lives in. */
+function flatten(container: HTMLElement): { nodes: { node: Node; at: number }[]; full: string } {
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  const nodes: { node: Node; at: number }[] = [];
+  let full = "";
+  for (let n: Node | null; (n = walker.nextNode()); ) { nodes.push({ node: n, at: full.length }); full += n.nodeValue ?? ""; }
+  return { nodes, full };
+}
+
+/** Where `exact` sits in `full`, picking the occurrence whose surroundings best match the quote's
+ *  context (prefix weighted higher); −1 when absent. Ties and no-context keep the FIRST match. */
+function locateQuote(full: string, exact: string, prefix: string, suffix: string): number {
+  let best = -1, bestScore = -1;
+  for (let i = full.indexOf(exact); i >= 0; i = full.indexOf(exact, i + 1)) {
+    const score = (prefix && full.slice(0, i).endsWith(prefix) ? 2 : 0) + (suffix && full.slice(i + exact.length).startsWith(suffix) ? 1 : 0);
+    if (score > bestScore) { bestScore = score; best = i; }
+  }
+  return best;
+}
+
+/** A fresh `<mark>` in the annotation's colour, carrying its identity. */
+function markFor(a: Annotation, colorOverride?: string, fragId?: string): HTMLElement {
+  const c = colorOverride ?? colorOf(a);
+  const mark = document.createElement("mark");
+  mark.className = "yo-annotation";
+  mark.style.backgroundColor = `color-mix(in srgb, ${c} var(--mark-mix, 30%), transparent)`;
+  mark.style.borderBottomColor = c;
+  mark.dataset.annSel = annKey(a);
+  if (fragId) mark.id = fragId;
+  mark.title = colorOverride !== undefined ? "" : a.description || "click to re-tag or delete";
+  return mark;
+}
+
+/** Draw a RANGE fragment: from the start quote through to the end of the end quote, every text
+ *  node between them included.
+ *
+ *  Unlike {@link wrapQuote} this cannot be one `surroundContents` — the whole point of a range is
+ *  that it crosses element boundaries, which is exactly what that call refuses. So the span is
+ *  wrapped a text node at a time. Each piece is its own `<mark>` carrying the same identity key,
+ *  so clicking any of them re-opens the one annotation. */
+function wrapRange(container: HTMLElement, a: Annotation, materialPath: string, colorOverride?: string): void {
+  const sel = a.selector as { startSelector?: Record<string, unknown>; endSelector?: Record<string, unknown> };
+  const s = sel.startSelector, e = sel.endSelector;
+  if (!s?.exact || !e?.exact) return;
+  const fragId = a.fragmentSlug ? fragmentAnchorId(materialPath, a.fragmentSlug) : "";
+  if (fragId) for (const el of container.querySelectorAll<HTMLElement>("[id]")) if (el.id === fragId) return;
+
+  const { nodes, full } = flatten(container);
+  const from = locateQuote(full, String(s.exact), String(s.prefix ?? ""), String(s.suffix ?? ""));
+  if (from < 0) return;
+  const endExact = String(e.exact);
+  // the end quote is searched AFTER the start — a range never runs backwards, and the same words
+  // may well appear earlier on the page
+  const tail = full.slice(from);
+  const endRel = locateQuote(tail, endExact, String(e.prefix ?? ""), String(e.suffix ?? ""));
+  if (endRel < 0) return;
+  const to = from + endRel + endExact.length;
+
+  // Collect the slices first, THEN wrap: wrapping splits text nodes, and a half-mutated walk
+  // would either miss pieces or re-wrap what it just drew.
+  const slices: { node: Node; a: number; b: number }[] = [];
+  for (const { node, at } of nodes) {
+    const len = node.nodeValue?.length ?? 0;
+    const lo = Math.max(from, at), hi = Math.min(to, at + len);
+    if (hi > lo) slices.push({ node, a: lo - at, b: hi - at });
+  }
+  for (const [i, sl] of slices.entries()) {
+    const r = document.createRange();
+    r.setStart(sl.node, sl.a);
+    r.setEnd(sl.node, sl.b);
+    try {
+      // only the FIRST piece takes the anchor id — an id must be unique, and it is the place a
+      // link to this fragment should land
+      r.surroundContents(markFor(a, colorOverride, i === 0 ? fragId : undefined));
+    } catch {
+      /* a slice that is not cleanly inside one text node — skip that piece, keep the rest */
+    }
   }
 }
 
@@ -1179,20 +1378,8 @@ function wrapQuote(container: HTMLElement, a: Annotation, materialPath: string, 
   // already drawn? (a fragment's id carries `:`/`/` — scan ids rather than a CSS selector, which
   // would need CSS.escape, absent in some engines)
   if (fragId) for (const e of container.querySelectorAll<HTMLElement>("[id]")) if (e.id === fragId) return;
-  // Flatten the container's text nodes, tracking each node's global start offset, so a
-  // TextQuoteSelector position (measured over the whole text) maps back to a node + local offset.
-  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
-  const nodes: { node: Node; at: number }[] = [];
-  let full = "";
-  for (let n: Node | null; (n = walker.nextNode()); ) { nodes.push({ node: n, at: full.length }); full += n.nodeValue ?? ""; }
-  // Pick the occurrence whose preceding text ends with `prefix` and following starts with `suffix`
-  // (prefix weighted higher); ties and no-context keep the FIRST match.
-  const prefix = String(sel.prefix ?? ""), suffix = String(sel.suffix ?? "");
-  let best = -1, bestScore = -1;
-  for (let i = full.indexOf(exact); i >= 0; i = full.indexOf(exact, i + 1)) {
-    const score = (prefix && full.slice(0, i).endsWith(prefix) ? 2 : 0) + (suffix && full.slice(i + exact.length).startsWith(suffix) ? 1 : 0);
-    if (score > bestScore) { bestScore = score; best = i; }
-  }
+  const { nodes, full } = flatten(container);
+  const best = locateQuote(full, exact, String(sel.prefix ?? ""), String(sel.suffix ?? ""));
   if (best < 0) return;
   const hit = nodes.find((e) => best >= e.at && best < e.at + (e.node.nodeValue?.length ?? 0));
   if (!hit) return;
@@ -1201,18 +1388,11 @@ function wrapQuote(container: HTMLElement, a: Annotation, materialPath: string, 
   const range = document.createRange();
   range.setStart(hit.node, local);
   range.setEnd(hit.node, local + exact.length);
-  const c = colorOverride ?? colorOf(a);
-  const mark = document.createElement("mark");
-  mark.className = "yo-annotation";
-  // Works for hex AND a named tag's hsl(). The mix weight is themed (--mark-mix, styles.css):
-  // the taxonomy pastels highlight fine at 30% on the dark bg but vanish on the light one.
-  mark.style.backgroundColor = `color-mix(in srgb, ${c} var(--mark-mix, 30%), transparent)`;
-  mark.style.borderBottomColor = c;
-  mark.dataset.annSel = annKey(a);
-  if (fragId) mark.id = fragId;
-  mark.title = colorOverride !== undefined ? "" : a.description || "click to re-tag or delete";
   try {
-    range.surroundContents(mark);
+    // The mark's colour works for hex AND a named tag's hsl(). The mix weight is themed
+    // (--mark-mix, styles.css): the taxonomy pastels highlight fine at 30% on the dark bg but
+    // vanish on the light one.
+    range.surroundContents(markFor(a, colorOverride, fragId));
   } catch {
     /* the snippet spans element boundaries — skip highlighting it for now */
   }

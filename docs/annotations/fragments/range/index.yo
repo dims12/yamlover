@@ -1,0 +1,41 @@
+Range fragments
+description: a selection that runs across chunks - quoted at both ends, everything between implied
+- >
+  A **range fragment** covers a selection that does not fit inside one node: a passage begun in
+  one prose chunk and finished in another. It is quoted at **both ends** - where it starts and
+  where it stops - and everything between them belongs to it:
+- !!yo
+  yo: fragments:
+    - type: range
+      startSelector: 'appears here in a chunk'
+        type: text
+        prefix: 'the word '
+      endSelector: 'and again'
+        type: text
+        suffix: ' elsewhere'
+- >
+  Each end is an ordinary [text fragment](*::annotations:fragments:text) selector - a quote plus
+  the short runs of context that disambiguate it - so the two ends read exactly like the
+  one-node case, and the same rule anchors them: quotation, never position.
+- >
+  **Where it lives.** A range hangs off the node that CONTAINS both ends - for a chapter
+  selection, the chapter itself, not either chunk. That is forced: the selected text runs through
+  several chunks, so as a single quote it would be a string that occurs in none of them, findable
+  nowhere and highlightable never. Selecting across chunks used to produce exactly that, and the
+  selection simply vanished.
+- >
+  **Neither end names its chunk.** A chunk is addressable and the path would be one more field,
+  but it would be the same mistake as character offsets: an insertion anywhere above shifts every
+  position below it, while the quotation survives any edit but a rewrite of the quoted words. Both
+  ends are searched in the enclosing node's own text, which contains them by construction. The
+  end quote is searched *after* the start - a range never runs backwards.
+- >
+  **Drawing it.** A one-node fragment is one `<mark>`; a range crosses element boundaries, which
+  no single wrap can span, so it is drawn a text node at a time. Every piece carries the same
+  identity, so clicking any of them re-opens the one fragment.
+- >
+  The shape mirrors the W3C Web Annotation **RangeSelector**, whose `startSelector` and
+  `endSelector` are the standard names - kept verbatim here, where the surrounding vocabulary
+  (`prefix`, `suffix`) already is. The short spellings `start` and `end` were not available: they
+  are also W3C, and already carry their standard meaning on a text fragment - the character
+  positions that ride along as an accelerator.

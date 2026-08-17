@@ -2237,7 +2237,18 @@ function fragmentBlockLines(slug: string, selector: Record<string, unknown>, ima
   const { exact, ...fields } = selector as { exact?: unknown } & Record<string, unknown>;
   const self = exact != null ? ` ${yScalar(exact)}` : "";
   const lines = [`${pad}${keyToken(slug)}: !!<*::yamlover:$defs:fragment>${self}`];
-  for (const [k, v] of Object.entries(fields)) lines.push(`${pad}  ${keyToken(k)}: ${yScalar(v)}`);
+  for (const [k, v] of Object.entries(fields)) {
+    // A NESTED selector — a range's `startSelector`/`endSelector` (W3C RangeSelector) — is
+    // spelled like the fragment itself: its quote as the member's own self-value, its context as
+    // fields indented under it. Flattening it through yScalar would write `[object Object]`.
+    if (v && typeof v === "object" && !Array.isArray(v)) {
+      const { exact: subExact, ...subFields } = v as { exact?: unknown } & Record<string, unknown>;
+      lines.push(`${pad}  ${keyToken(k)}:${subExact != null ? ` ${yScalar(subExact)}` : ""}`);
+      for (const [k2, v2] of Object.entries(subFields)) lines.push(`${pad}    ${keyToken(k2)}: ${yScalar(v2)}`);
+      continue;
+    }
+    lines.push(`${pad}  ${keyToken(k)}: ${yScalar(v)}`);
+  }
   if (imagePtr) lines.push(`${pad}  image: ${imagePtr}`);
   lines.push(`${pad}  created: ${new Date().toISOString()}`);
   return lines;

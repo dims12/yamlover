@@ -60,6 +60,7 @@ description: a selected region, stored as a selector under the node's `yo: fragm
       prefix: 'once to scan, '
       suffix: ''
 - *: text
+- *: range
 - *: image
 - *: pdf
 - *: djvu

@@ -228,7 +228,13 @@ body {
   font-size: 13px;
   z-index: 1010; /* above the annotate popup (1000) */
   min-width: 260px;
-  max-width: calc(100vw - 8px);
+  /* ONE long title used to set the width of the whole list: rows are nowrap and the only cap was
+     the viewport, so a chapter named in a sentence stretched the dropdown across the screen.
+     Hold it to a readable column instead and let the labels ellipsize — hovering a clipped one
+     grows the portal twin that TreeRow already carries for the TOC (hover-peek.tsx), which
+     extends past this box and reads in full. `overflow-y: auto` makes THIS the clipping
+     ancestor the peek measures against, so no extra plumbing is needed. */
+  max-width: 34em;
   max-height: 18em;
   overflow-y: auto;
   background: var(--panel);
@@ -240,6 +246,10 @@ body {
   cursor: pointer;
   white-space: nowrap;
 }
+/* NO `overflow: hidden` on the label here, deliberately. The hover twin decides whether to
+   appear by asking if the label's box runs past its clipping ancestor — clipping the label
+   itself makes that test false forever, and the reveal silently stops working. Let the row
+   overrun and let `.crumb-dd` above do the clipping, exactly as the sidebar does. */
 .crumb-dd .tree-row.hi {
   background: var(--line);
 }

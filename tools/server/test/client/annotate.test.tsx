@@ -424,4 +424,173 @@ describe("selection never annotates page chrome", () => {
     selectAndRelease(container, text, 6, text, 11); // "world"
     await waitFor(() => expect(container.querySelector(".annotate-menu")).not.toBeNull());
   });
+
+  // GETTING THE TEXT OUT. Opening the popup plants the caret in its query cells, which takes the
+  // browser's one selection with it — so a plain Ctrl+C has nothing to copy, and the ⧉ button was
+  // the only way. These pin the two halves of the fix.
+  describe("copying the selected text", () => {
+    const openOn = async (container: HTMLElement) => {
+      const text = container.querySelector("p")!.firstChild!;
+      selectAndRelease(container, text, 6, text, 11); // "world"
+      await waitFor(() => expect(container.querySelector(".annotate-menu")).not.toBeNull());
+    };
+
+    it("Ctrl+C copies the captured text while the popup stands", async () => {
+      mockFetch({});
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText } });
+      const { container } = render(
+        <AnnotatedMaterial path=":doc"><p className="chapter-prose">hello world foo</p></AnnotatedMaterial>,
+      );
+      await openOn(container);
+      // the popup already took the selection — exactly the state a real user is in
+      window.getSelection()!.removeAllRanges();
+      fireEvent.keyDown(document, { key: "c", ctrlKey: true });
+      await waitFor(() => expect(writeText).toHaveBeenCalledWith("world"));
+    });
+
+    it("Cmd+C does the same, and a bare C does not", async () => {
+      mockFetch({});
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText } });
+      const { container } = render(
+        <AnnotatedMaterial path=":doc"><p className="chapter-prose">hello world foo</p></AnnotatedMaterial>,
+      );
+      await openOn(container);
+      window.getSelection()!.removeAllRanges();
+      fireEvent.keyDown(document, { key: "c" });
+      expect(writeText).not.toHaveBeenCalled();
+      fireEvent.keyDown(document, { key: "c", metaKey: true });
+      await waitFor(() => expect(writeText).toHaveBeenCalledWith("world"));
+    });
+
+    it("stands aside for a field the user is editing — that Ctrl+C is theirs", async () => {
+      mockFetch({});
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText } });
+      const { container } = render(
+        <AnnotatedMaterial path=":doc"><p className="chapter-prose">hello world foo</p></AnnotatedMaterial>,
+      );
+      await openOn(container);
+      window.getSelection()!.removeAllRanges();
+      const key = container.querySelector(".annotate-key") as HTMLInputElement;
+      fireEvent.change(key, { target: { value: "typed name" } });
+      key.focus();
+      key.setSelectionRange(0, 5);
+      fireEvent.keyDown(document, { key: "c", ctrlKey: true });
+      expect(writeText).not.toHaveBeenCalled();
+    });
+
+    it("copies the WHOLE cross-chunk selection, not just one chunk's share", async () => {
+      mockFetch({});
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText } });
+      const { container } = render(
+        <AnnotatedMaterial path=":doc">
+          <div className="chunk" data-node-path=":doc[1]"><p>alpha beta</p></div>
+          <div className="chunk" data-node-path=":doc[2]"><p>gamma delta</p></div>
+        </AnnotatedMaterial>,
+      );
+      const a = container.querySelectorAll("p")[0].firstChild!;
+      const b = container.querySelectorAll("p")[1].firstChild!;
+      selectAndRelease(container, a, 6, b, 5); // "beta" … "gamma"
+      await waitFor(() => expect(container.querySelector(".annotate-menu")).not.toBeNull());
+      window.getSelection()!.removeAllRanges();
+      fireEvent.keyDown(document, { key: "c", ctrlKey: true });
+      await waitFor(() => expect(writeText).toHaveBeenCalledWith("betagamma"));
+    });
+
+    // The ✓/✕ pair is this window's commit and dismiss; a third button between them reads as a
+    // third member of the pair.
+    it("docks copy OUTSIDE the apply/close pair", async () => {
+      mockFetch({});
+      const { container } = render(
+        <AnnotatedMaterial path=":doc"><p className="chapter-prose">hello world foo</p></AnnotatedMaterial>,
+      );
+      await openOn(container);
+      const tools = [...container.querySelectorAll(".annotate-topbar button")].map((b) => b.className.split(" ").pop());
+      expect(tools).toEqual(["copy", "ok", "close"]);
+    });
+  });
+
+  // A selection crossing chunks used to be captured as a text fragment whose `exact` was both
+  // chunks' text run together — a string present in neither, so the preview mark could never be
+  // drawn and the selection simply vanished with nothing to say what would be bookmarked.
+  describe("a selection spanning several chunks", () => {
+    const twoChunks = (
+      <AnnotatedMaterial path=":doc">
+        <div className="chunk" data-node-path=":doc[1]"><p>alpha beta</p></div>
+        <div className="chunk" data-node-path=":doc[2]"><p>gamma delta</p></div>
+      </AnnotatedMaterial>
+    );
+
+    const spanTwo = (container: HTMLElement) => {
+      const a = container.querySelectorAll("p")[0].firstChild!;
+      const b = container.querySelectorAll("p")[1].firstChild!;
+      selectAndRelease(container, a, 6, b, 5); // "beta" … "gamma"
+    };
+
+    it("becomes a W3C range: each end quoted in its OWN chunk", async () => {
+      mockFetch({});
+      const annotateRegion = vi.fn();
+      const material = { annotations: [], create: vi.fn(), remove: vi.fn(), annotateRegion };
+      let menu: ReturnType<typeof useAnnotationMenu>;
+      function Harness() {
+        menu = useAnnotationMenu(material as never, ":doc");
+        return <>{menu.palette}</>;
+      }
+      render(<Harness />);
+      // drive the hook the way AnnotatedMaterial does for a cross-chunk selection
+      act(() =>
+        menu.openCreate(
+          {
+            type: "range",
+            startSelector: { type: "text", exact: "beta", prefix: "alpha ", suffix: "" },
+            endSelector: { type: "text", exact: "gamma", prefix: "", suffix: " delta" },
+          },
+          { x: 5, y: 5 },
+          undefined,
+          undefined,
+          ":doc",
+        ),
+      );
+      await waitFor(() => expect(menu!.preview).not.toBeNull());
+      expect(menu!.preview!.selector.type).toBe("range");
+      // the material, not either chunk — a range belongs to the node that contains both
+      expect(menu!.preview!.node).toBe(":doc");
+    });
+
+    it("captures both ends from the live selection and hangs the fragment off the material", async () => {
+      mockFetch({});
+      const { container } = render(twoChunks);
+      spanTwo(container);
+      await waitFor(() => expect(container.querySelector(".annotate-menu")).not.toBeNull());
+      // the header names the MATERIAL — either chunk on its own would be the wrong home
+      const bar = container.querySelector(".annotate-topbar") as HTMLElement;
+      expect(bar.title).toBe(": doc");
+    });
+
+    it("draws the whole span, every chunk between the ends included", async () => {
+      mockFetch({});
+      const { container } = render(twoChunks);
+      spanTwo(container);
+      await waitFor(() => expect(container.querySelectorAll("mark.yo-annotation").length).toBeGreaterThan(0));
+      // the preview marks BOTH ends — the selection stays visible instead of disappearing
+      const marked = [...container.querySelectorAll("mark.yo-annotation")].map((m) => m.textContent).join("|");
+      expect(marked).toContain("beta");
+      expect(marked).toContain("gamma");
+      // …and never bleeds past the end quote
+      expect(marked).not.toContain("delta");
+    });
+
+    it("a selection inside ONE chunk is still an ordinary text fragment", async () => {
+      mockFetch({});
+      const { container } = render(twoChunks);
+      const a = container.querySelectorAll("p")[0].firstChild!;
+      selectAndRelease(container, a, 6, a, 10); // "beta"
+      await waitFor(() => expect(container.querySelector(".annotate-menu")).not.toBeNull());
+      const bar = container.querySelector(".annotate-topbar") as HTMLElement;
+      expect(bar.title).toBe(": doc: 1"); // the chunk, not the material
+    });
+  });
 });
