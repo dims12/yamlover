@@ -11,6 +11,18 @@
 //
 // Move inference (delete+create with a matching hash) is NOT done here — the reindex diff
 // reports it as removed+added, and relinking waits on the serializers (mediated tier).
+//
+// A BATCH IS NOT THE SAME SHAPE ON EVERY PLATFORM. `fs.watch(recursive)` is a different OS
+// facility per platform: macOS gets FSEvents and Linux inotify, which name the FILE that
+// changed, while Windows gets ReadDirectoryChangesW, which ALSO reports every ancestor
+// directory (writing a file bumps their mtimes). So one edit to `deep/dir/b.yo` batches as
+// `['deep/dir/b.yo']` there and `['deep', 'deep/dir', 'deep/dir/b.yo']` here.
+//
+// The caller's cheap single-file patch tier (engine-api.ts `patchOne`) keys on "exactly one
+// changed file", so on Windows it never fires and every edit re-walks the tree. Collapsing a
+// batch — dropping a directory entry when the same batch holds something beneath it — would
+// make the tiers behave alike, and is a real performance win rather than a test fix. Not done
+// yet: see TODO.md, and the skipped case in tools/server/test/reconcile.test.ts.
 
 import fs from 'node:fs';
 import path from 'node:path';
