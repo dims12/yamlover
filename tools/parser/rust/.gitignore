@@ -2,3 +2,9 @@
 # language server, the importers), and a pinned lock is what makes a CI `cargo test` and a
 # local one the same run.
 /target
+
+# The full-IR scaffold for the writer-first conformance gate (tests/gen-ir-full.mjs).
+# Generated, never committed: once the Rust parser lands the gate reads the fixture sources
+# directly and this bridge disappears. `tests/conformance.rs` skips with instructions when
+# it is absent.
+/tests/ir-full/

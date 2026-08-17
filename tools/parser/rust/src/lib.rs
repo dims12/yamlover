@@ -19,12 +19,15 @@
 //! `highlight`) follows; the language server designed in `LSP.md` sits on top of that.
 
 pub mod ir;
+pub mod number;
 pub mod scalar;
 pub mod pointer;
 pub mod serialize_common;
+pub mod serialize_yamlover;
 
 pub use pointer::{key_portion, render_pointer};
 pub use serialize_common::{LossyError, dq, flow_key_text, key_text, seq_mark_len};
+pub use serialize_yamlover::{SerializeOpts, serialize_yamlover};
 
 pub use ir::{
     Anchor, Comment, CommentStyle, Concrete, Document, EdgeKind, Entry, EntryMeta, KeyConcrete,
