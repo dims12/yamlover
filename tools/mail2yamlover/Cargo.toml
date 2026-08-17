@@ -1,0 +1,17 @@
+[package]
+name = "mail2yamlover"
+version = "0.1.0"
+edition = "2024"
+description = "Import mail archives (The Bat!, later Outlook / Outlook Express) into a yamlover tree."
+publish = false
+
+[dependencies]
+yamlover-parser = { path = "../parser/rust" }
+
+# The MIME reader. `full_encoding` is NOT optional for this corpus: the default feature set
+# decodes only UTF-8 and ISO-8859-1, and the measured sample holds koi8-r, windows-1251,
+# iso-8859-2/9/15, windows-1250/1252, iso-2022-jp and gb2312. That feature pulls in
+# encoding_rs — the Gecko implementation of the same WHATWG Encoding Standard the engine's
+# `concrete: text/<label>` feature already speaks through TextDecoder, so the label set
+# matches exactly rather than approximately.
+mail-parser = { version = "0.11", features = ["full_encoding"] }

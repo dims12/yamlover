@@ -22,9 +22,15 @@ self-contained programs that demonstrate it.
 - [`jetbrains-plugin/`](jetbrains-plugin/) — `.yo`/`.json5p` file types + highlighting.
 
 **Importers:**
+- [`mail2yamlover/`](mail2yamlover/) — imports mail archives into a yamlover tree: folders
+  become directories, messages become chapters, attachments become files. The Bat! today
+  (its `MESSAGES.TBB` format is documented in the README); Outlook and Outlook Express sit
+  behind the same reader trait. Rust, over [`parser/rust`](parser/rust). See its
+  [`README`](mail2yamlover/README.md).
 - [`onenote2yamlover/`](onenote2yamlover/) — imports Microsoft OneNote notebooks into a
   yamlover tree of chapters + marklower prose (C#/.NET WPF app + `.Core` library; a legacy
-  PowerShell prototype it was ported from also ships). See its
+  PowerShell prototype it was ported from also ships). C# because OneNote is reachable only
+  through COM on Windows — a constraint, not a house style. See its
   [`README`](onenote2yamlover/README.md).
 
 **Deprecated (2026-06-07)** — Python predecessors, superseded by `parser/` + `engine/`;
