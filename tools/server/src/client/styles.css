@@ -1499,6 +1499,22 @@ textarea.chapter-latex-src {
   color: var(--dim);
   padding: 12px;
 }
+/* the dead-address page — a fault is red (.error), a missing node is not: it is an ordinary
+   outcome of following an old link, and shouting at the reader about it helps nobody */
+.not-found {
+  padding: 24px 12px;
+  max-width: 60ch;
+}
+.not-found h2 {
+  margin: 0 0 8px;
+  font-size: 1.15rem;
+}
+.not-found code {
+  word-break: break-all;
+}
+.not-found .hint {
+  color: var(--dim);
+}
 
 /* a DEGRADED node's banner (ParseErrorBanner): the source failed to parse and the page below
    is the fallback. In-flow (never a toast) — it belongs to the content it explains, embedded

@@ -15,6 +15,16 @@ description: the yamlover web server - the UI, the projectional editors and thei
 - >
   This documentation is dogfood: the book you are reading is served by the very server it
   describes, and these machine chapters were edited with the editors they specify.
+- >
+  **What a crawler sees.** The shell is one static file served at every route, so the server fills
+  its `<head>` per request: the node's title and description, a canonical URL with the query string
+  dropped (so `?format=`, `?depth=` and the rest collapse onto one address), and Open Graph tags.
+  `GET /sitemap.xml` lists the book's pages — the chapter spine, not every addressable node, since
+  a scalar three levels inside a table is part of a page rather than one of them. `GET /robots.txt`
+  answers too, though only a tree served at the origin root has a robots.txt anyone reads: under a
+  base path the file that governs is the host's own. An address that resolves to nothing still
+  answers 200 — the shell has to, since some working pages have no node behind them at all — and
+  the client marks that page `noindex` when it finds nothing there.
 - *: ui
 - *: editor
 - *: yamlover-editor

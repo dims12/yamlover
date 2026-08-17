@@ -29,7 +29,38 @@ const EDITABLE_RENDERERS = new Set(["chapter", "task", "table"]);
 import { TagBadges, splitTagRefs } from "./renderers/tag";
 import { Render } from "./render";
 import { canonPath, strToSegs } from "./paths";
+import { ContentError } from "./content";
+import { setNoIndex } from "./robots-meta";
 import { segToken } from "../../../parser/ts/src/pathseg.ts";
+
+/** A failed fetch reduced to what the view has to decide between: the text to show, and whether
+ *  the address simply names nothing (`missing`) rather than the server having failed.
+ *
+ *  Only a 404 from /api/content is `missing`. Everything else — a 400 from a malformed path, a
+ *  500, a dropped connection — is a fault, and a fault must NOT be dressed up as "no such page":
+ *  telling a reader their link is dead when the server is merely broken sends them away for good. */
+type Fail = { text: string; missing: boolean };
+const asFail = (e: unknown): Fail => ({
+  text: (e as Error).message,
+  missing: e instanceof ContentError && e.status === 404,
+});
+
+/** The dead-address page.
+ *
+ *  What a reader used to get here was the API's own diagnostic, rendered raw and red:
+ *  `no such node/endpoint: /api/content/docs/aaa?`. That names an endpoint the reader never
+ *  asked for and says nothing about what to do next. */
+function NotFound({ path }: { path: string }): ReactNode {
+  return (
+    <div className="not-found">
+      <h2>Nothing at this address</h2>
+      <p>
+        No node lives at <code>{path}</code>.
+      </p>
+      <p className="hint">The link that brought you here may be out of date, or the path mistyped.</p>
+    </div>
+  );
+}
 
 // The data representations, in order: `yamlover` (the default, YAML-family syntax), `json5p`
 // (JSON-family syntax), then `yamlover/schema` (the instance schema, YAML-family). Each is one
@@ -148,7 +179,7 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
   const [node, setNode] = useState<NodeJson | null>(null); // header + data value
   const [schema, setSchema] = useState<unknown>(null);
   const [bin, setBin] = useState<unknown>(null); // base64 payload for a binary leaf
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<Fail | null>(null);
   const [reloadKey, setReloadKey] = useState(0); // bumped to re-fetch the node after a paste
   const [unlocked, setUnlocked] = useState(false); // the editing lock — locked by default
   const [pasteMsg, setPasteMsg] = useState<string | null>(null); // transient upload status
@@ -252,7 +283,7 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
         if (eff !== format) onFormat(eff);
         const active = allRenderers.find((r) => r.name === eff);
         const swap = (dn: NodeJson) => !cancelled && setNode(dn);
-        const fail = (e: Error) => !cancelled && setError(e.message);
+        const fail = (e: unknown) => !cancelled && setError(asFail(e));
         // The settle fetch used the SERVER'S per-concrete default depth — one level for a directory
         // or binary leaf, but UNLIMITED for an inline data node (json/yaml/yamlover, e.g. a fragment
         // or any sub-object of a document). Reuse it only when it already matches the depth the ACTIVE
@@ -276,7 +307,7 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
           else fetchNode(path, dv).then(swap).catch(fail);
         }
       })
-      .catch((e) => !cancelled && setError(e.message));
+      .catch((e) => !cancelled && setError(asFail(e)));
     return () => {
       cancelled = true;
     };
@@ -503,15 +534,25 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
     if (allRenderers.some((r) => r.name === eff)) return; // a rendered view reads node.value (already fetched)
     if (isSchema(eff)) {
       // `.inf`/default (viewDepth null) → omit depth so the server applies its per-concrete default
-      fetchSchema(path, viewDepth() ?? undefined).then(setSchema).catch((e) => setError(e.message));
+      fetchSchema(path, viewDepth() ?? undefined).then(setSchema).catch((e) => setError(asFail(e)));
     } else if (node.type === "binary" || node.valueType === "binary") {
       // the binary VALUE facet, not just the pure-binary type: a blob-backed omni (an image with
       // fragment/thumbnail overlay entries, type `variant`) also shows its bytes as the self-value
-      fetchNode(path, undefined, { binary: true }).then((n) => setBin(n.value)).catch((e) => setError(e.message));
+      fetchNode(path, undefined, { binary: true }).then((n) => setBin(n.value)).catch((e) => setError(asFail(e)));
     }
   }, [format, path, node]);
 
-  if (error) return <div className="error">{error}</div>;
+  // A dead address must not be indexed. Why the client and not a server 404: robots-meta.ts.
+  // The cleanup is the load-bearing half — SPA navigation never re-fetches the shell, so without
+  // it the tag would outlive the dead page and quietly de-index every page visited afterwards.
+  const missing = error?.missing ?? false;
+  useEffect(() => {
+    if (!missing) return;
+    setNoIndex(true);
+    return () => setNoIndex(false);
+  }, [missing]);
+
+  if (error) return error.missing ? <NotFound path={path} /> : <div className="error">{error.text}</div>;
   if (!node) return <div className="loading">…</div>;
 
   // The PRIMARY renderer tab, `yamlover`, the FIXED rendered family (xyflow / explorer views),

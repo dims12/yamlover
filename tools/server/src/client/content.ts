@@ -62,6 +62,19 @@ export function decodeEnvelope(text: string): Content {
   };
 }
 
+/** A failed content fetch, carrying the HTTP status the server answered with.
+ *
+ *  The status is the only thing that separates "this address names nothing" (404 — a dead link,
+ *  a typo, a stale bookmark: the reader's problem, and the one case a crawler must be told not
+ *  to index) from "the server broke" (400/500 — ours). Both used to arrive as an anonymous
+ *  `Error` and render as the same red line of raw API text. */
+export class ContentError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = "ContentError";
+  }
+}
+
 /** GET the envelope for a colon path at an OLD-STYLE depth (`null` = unlimited, `undefined` =
  *  the server's per-concrete default, a number = that many levels — documents are a subset of
  *  levels, so the same number bounds the document depth). */
@@ -76,7 +89,7 @@ export async function fetchContent(path: string, depth?: number | null): Promise
   if (!r.ok) {
     let msg = text;
     try { msg = String((JSON.parse(text) as { error?: string }).error ?? text); } catch { /* raw */ }
-    throw new Error(msg);
+    throw new ContentError(msg, r.status);
   }
   return decodeEnvelope(text);
 }

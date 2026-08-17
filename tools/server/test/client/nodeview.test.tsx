@@ -15,7 +15,7 @@ vi.mock("../../src/client/api", () => ({
 }));
 vi.mock("../../src/client/content", async (orig) => ({ ...(await orig<Record<string, unknown>>()), fetchContent: vi.fn() }));
 import { fetchNode, fetchSchema, pasteFile, pasteRich, pasteText } from "../../src/client/api";
-import { fetchContent } from "../../src/client/content";
+import { ContentError, fetchContent } from "../../src/client/content";
 import { contentViaNode } from "./wire-fixture";
 import { NodeView } from "../../src/client/NodeView";
 
@@ -660,5 +660,41 @@ describe("NodeView header tag badges", () => {
     } finally {
       mAnns.mockResolvedValue([]);
     }
+  });
+
+  // A path that names nothing vs a server that broke: the same red line used to serve for both,
+  // and it carried the API's own diagnostic verbatim. See robots-meta.ts for why the 404 has to
+  // be answered here rather than by the HTTP status.
+  describe("a dead address", () => {
+    const noindex = () => document.head.querySelector('meta[name="robots"][content="noindex"]');
+
+    it("shows the not-found page and marks it noindex — never the raw API error", async () => {
+      mNode.mockRejectedValue(new ContentError("no such node/endpoint: /api/content/docs/aaa?", 404));
+      render(<NodeView path=":docs:aaa" format="" onFormat={() => {}} onNavigate={() => {}} />);
+
+      expect(await screen.findByText("Nothing at this address")).toBeTruthy();
+      expect(screen.getByText(":docs:aaa")).toBeTruthy();
+      expect(screen.queryByText(/no such node\/endpoint/)).toBeNull();
+      await waitFor(() => expect(noindex()).toBeTruthy());
+    });
+
+    it("takes the noindex back off when the next page resolves", async () => {
+      mNode.mockRejectedValue(new ContentError("no such node", 404));
+      const { unmount } = render(<NodeView path=":gone" format="" onFormat={() => {}} onNavigate={() => {}} />);
+      await waitFor(() => expect(noindex()).toBeTruthy());
+      // the SPA never re-fetches the shell, so nothing but this cleanup can clear the tag
+      unmount();
+      expect(noindex()).toBeNull();
+    });
+
+    it("a SERVER fault stays a fault — red, and still indexable", async () => {
+      mNode.mockRejectedValue(new ContentError("the merged document is unavailable", 500));
+      const { container } = render(<NodeView path=":x.yaml" format="" onFormat={() => {}} onNavigate={() => {}} />);
+
+      expect(await screen.findByText("the merged document is unavailable")).toBeTruthy();
+      expect(container.querySelector(".error")).toBeTruthy();
+      expect(screen.queryByText("Nothing at this address")).toBeNull();
+      expect(noindex()).toBeNull();
+    });
   });
 });

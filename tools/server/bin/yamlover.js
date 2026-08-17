@@ -151,8 +151,40 @@ const server = createHttpServer((req, res) => {
     handle(req, res, url);
     return;
   }
+  // The crawler files. They are answered HERE, not by the API handler, because they are the only
+  // responses that must name ABSOLUTE public URLs — and the prefix was stripped two lines up, so
+  // the handler cannot know it. `handle.seo` supplies the tree; this composes the URLs.
+  if (req.method === "GET" && (url.pathname === "/sitemap.xml" || url.pathname === "/robots.txt")) {
+    serveCrawlerFile(req, res, url.pathname);
+    return;
+  }
   serveClient(req, res, url);
 });
+
+/** The public origin this request arrived at (`https://host`), trusting the proxy headers a
+ *  reverse proxy sets — the demo host terminates TLS and forwards plain HTTP, so `req.socket`
+ *  would report the wrong scheme every time. Falls back to the Host header, then to the bind. */
+function originOf(req) {
+  const proto = String(req.headers["x-forwarded-proto"] ?? "").split(",")[0].trim() || "http";
+  const host = String(req.headers["x-forwarded-host"] ?? req.headers.host ?? "").split(",")[0].trim();
+  return host ? `${proto}://${host}` : `http://localhost:${port}`;
+}
+
+function serveCrawlerFile(req, res, pathname) {
+  const origin = originOf(req);
+  res.setHeader("Cache-Control", "no-cache");
+  if (pathname === "/robots.txt") {
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    // Under `--base-path` this answers at `<prefix>/robots.txt`, which no crawler reads — only the
+    // origin's own `/robots.txt` counts. Served anyway: it costs nothing, it is correct when the
+    // tree IS at the root, and the alternative (404) reads like a bug. The prefixed deployment
+    // publishes its policy from the front door instead (tools/demo/src/robots.js).
+    res.end(handle.seo.robots(`${origin}${basePath}/sitemap.xml`));
+    return;
+  }
+  res.setHeader("Content-Type", "application/xml; charset=utf-8");
+  res.end(handle.seo.sitemap(origin, basePath));
+}
 
 let createHandlers;
 if (prod) {
@@ -165,7 +197,7 @@ if (prod) {
     process.exit(1);
   }
   ({ createHandlers } = await import(pathToFileURL(join(pkgRoot, "dist/server.js")).href));
-  serveClient = (req, res, url) => serveStatic(res, url, distClient, distIndex);
+  serveClient = (req, res, url) => serveStatic(req, res, url, distClient, distIndex);
 } else {
   // -- live: Vite middleware + ssrLoadModule (repo checkout) ----------------- //
   // Vite and its plugin are DYNAMIC imports so production mode (where they are not
@@ -250,12 +282,12 @@ if (prod) {
   ({ createHandlers } = await vite.ssrLoadModule("/src/server/engine-api.ts"));
 
   const indexHtmlPath = join(pkgRoot, "index.html");
-  const spaShell = async (res, url) => {
+  const spaShell = async (req, res, url) => {
     // The SPA shell: the (transformed) index.html for any client route.
     try {
       let html = fs.readFileSync(indexHtmlPath, "utf-8");
       html = await vite.transformIndexHtml(url.pathname, html);
-      html = injectGlobals(html); // base-path/read-only-aware shell (no-op without either)
+      html = injectGlobals(html, shellHead(req, url)); // base-path/read-only/SEO-aware shell
       res.setHeader("Content-Type", "text/html; charset=utf-8");
       res.end(html);
     } catch (e) {
@@ -284,9 +316,9 @@ if (prod) {
       return fs.createReadStream(faviconPath).pipe(res);
     }
     if (VITE_PREFIXES.some((p) => url.pathname.startsWith(p))) {
-      vite.middlewares(req, res, () => spaShell(res, url)); // an unmatched vite path still lands on the shell
+      vite.middlewares(req, res, () => spaShell(req, res, url)); // an unmatched vite path still lands on the shell
     } else {
-      spaShell(res, url);
+      spaShell(req, res, url);
     }
   };
 }
@@ -335,11 +367,11 @@ const MIME = {
 
 /** Serve a file from `distClient`, or fall back to the SPA shell (`distIndex`) for
  *  any path that isn't a real asset — the client routes on the JSON path. */
-function serveStatic(res, url, distClient, distIndex) {
+function serveStatic(req, res, url, distClient, distIndex) {
   const filePath = resolve(distClient, "." + decodeURIComponent(url.pathname));
   // Containment guard: never serve outside dist/client (`..` traversal → shell).
   if (filePath !== distClient && !filePath.startsWith(distClient + sep)) {
-    return serveIndex(res, distIndex);
+    return serveIndex(req, res, url, distIndex);
   }
   let stat = null;
   try {
@@ -347,7 +379,7 @@ function serveStatic(res, url, distClient, distIndex) {
   } catch {
     /* miss → shell */
   }
-  if (!stat || !stat.isFile()) return serveIndex(res, distIndex);
+  if (!stat || !stat.isFile()) return serveIndex(req, res, url, distIndex);
   res.setHeader("Content-Type", MIME[extname(filePath).toLowerCase()] ?? "application/octet-stream");
   // Vite emits content-hashed assets under /assets — safe to cache immutably.
   if (url.pathname.startsWith("/assets/")) {
@@ -356,14 +388,32 @@ function serveStatic(res, url, distClient, distIndex) {
   fs.createReadStream(filePath).pipe(res);
 }
 
-function serveIndex(res, distIndex) {
+function serveIndex(req, res, url, distIndex) {
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.setHeader("Cache-Control", "no-cache");
   // Always rewritten, never streamed: the built shell's asset refs are RELATIVE (vite
   // `base: "./"`), and a client route is arbitrarily deep — `./assets/…` served at /a/b/c
   // would resolve to /a/b/assets/…. Anchoring them at the mount point is what makes a deep
   // link reloadable, with or without a base path.
-  res.end(injectGlobals(fs.readFileSync(distIndex, "utf-8")));
+  res.end(injectGlobals(fs.readFileSync(distIndex, "utf-8"), shellHead(req, url)));
+}
+
+/** The per-route `<head>` for this request: the node's own title, description, canonical URL and
+ *  Open Graph tags — or "" when the path names no node.
+ *
+ *  Without it every page of the book is served as `<title>yamlover</title>` over an empty
+ *  `<div id="root">`. Google renders the bundle and would eventually read the title the client
+ *  sets; nothing else does — not link unfurls, not the crawlers behind answer engines.
+ *
+ *  The canonical URL deliberately drops the query string, so `?format=`, `?depth=`, `?width=` and
+ *  the rest all collapse onto the one address the page actually is. Never allowed to throw: a
+ *  crawler nicety must not be able to take down the shell. */
+function shellHead(req, url) {
+  try {
+    return handle.seo.head(url.pathname, originOf(req) + basePath + url.pathname);
+  } catch {
+    return "";
+  }
 }
 
 /** Anchor a served index.html to its mount point and stamp the server's posture into it.
@@ -378,13 +428,19 @@ function serveIndex(res, distIndex) {
  *  `window.__READONLY__` (the client hides every modification affordance), each set only
  *  when it applies. Last comes the analytics tag, which the hosted deployment configures
  *  through the environment and every other way of running yamlover leaves off (ga4.js). */
-function injectGlobals(html) {
+function injectGlobals(html, head = "") {
   html = html.replace(/((?:src|href)=")(?:\.\/|\/(?!\/))/g, `$1${basePath}/`);
   const globals = [];
   if (basePath) globals.push(`window.__BASE__=${JSON.stringify(basePath)}`);
   if (readOnly) globals.push("window.__READONLY__=true");
   let tag = globals.length ? `<script>${globals.join(";")}</script>` : "";
   if (ga4) tag += ga4Tag(ga4);
+  // The page's own head REPLACES the shell's placeholder `<title>yamlover</title>` rather than
+  // joining it. Two <title> elements are invalid HTML; browsers and crawlers do agree that the
+  // first wins, but leaning on that leaves an invalid document whose second title contradicts
+  // the first — so drop the static one instead.
+  if (head) html = html.replace(/<title>[\s\S]*?<\/title>\s*/i, "");
+  tag += head;
   if (!tag) return html;
   return html.includes("<head>") ? html.replace("<head>", `<head>${tag}`) : tag + html;
 }

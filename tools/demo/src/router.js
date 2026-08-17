@@ -17,6 +17,7 @@ import { proxy } from "./proxy.js";
 import { ProvisionError } from "./provision.js";
 import { sendDemoLink } from "./email.js";
 import { readBody, sendJson, sendPage, isEmail, clientIp } from "./http-util.js";
+import { robotsTxt, originOf } from "./robots.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const publicDir = join(__dirname, "..", "public");
@@ -148,6 +149,16 @@ export function makeRouter({ store, provision, rateLimit, docs, examples }) {
     }
     if (req.method === "POST" && pathname === "/register") {
       return register(req, res, { store, rateLimit });
+    }
+    // The origin's crawl policy. Answered here and not by the mounted sites: a crawler reads
+    // `/robots.txt` and nothing else, so `/docs/robots.txt` governs nobody (robots.js).
+    if (req.method === "GET" && pathname === "/robots.txt") {
+      const sites = [
+        config.docsEnabled ? { basePath: config.docsBasePath } : null,
+        config.examplesSiteEnabled ? { basePath: config.examplesSiteBasePath } : null,
+      ].filter(Boolean);
+      res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "public, max-age=3600" });
+      return res.end(robotsTxt(originOf(req), sites));
     }
     if (req.method === "GET" && pathname === "/healthz") {
       res.writeHead(200, { "Content-Type": "text/plain" });

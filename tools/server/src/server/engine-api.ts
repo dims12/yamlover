@@ -80,6 +80,7 @@ import { displayKind, ownedEntries, anchoredOf, typeName, facetsOf } from "./nod
 import { TaskRegistry } from "./tasks.js";
 import type { TaskHandle, TaskInfo } from "./tasks.js";
 import { allowedInReadOnly, READ_ONLY_ERROR } from "./read-only-policy.js";
+import { collectPages, headTags, pageTitle, robotsTxt, sitemapXml } from "./seo.js";
 
 type Handler = (req: IncomingMessage, res: ServerResponse, url: URL) => void;
 interface Options {
@@ -115,7 +116,15 @@ type Seg = string | number | null; // string key | integer position | the NULL k
 // Node-KIND classification (object|array|scalar|binary|omni|mix → the client `type:`) lives in
 // ./node-kind.ts so it can be unit-tested against a Store without the HTTP layer.
 
-export function createHandlers(dataRoot: string, opts: Options = {}): Handler & { close: () => void; ready: Promise<IndexDiff> } {
+/** The crawler-facing responses, rendered (seo.ts). The caller supplies only what the handler
+ *  cannot know — the public origin and prefix, both stripped before a request reaches it. */
+export interface Seo {
+  robots(sitemapUrl: string): string;
+  sitemap(origin: string, basePath: string): string;
+  head(pathname: string, canonical: string): string;
+}
+
+export function createHandlers(dataRoot: string, opts: Options = {}): Handler & { close: () => void; ready: Promise<IndexDiff>; seo: Seo } {
   const rootName = path.basename(path.resolve(dataRoot)) || "/";
   const dbPath = path.join(dataRoot, ".yo", "index.db");
   // Project configuration (<root>/.yo/settings.yo) — defaults for WRITE paths
@@ -1284,8 +1293,49 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
   // DB. Idempotent — an embedder's explicit close may precede a blanket teardown's. `ready`
   // resolves when the initial background index lands (tests await it; the bin
   // catches it so a failed index cannot crash as an unhandled rejection).
+  // What a crawler needs, exposed on the handle rather than as `/api/…` routes: the URLs these
+  // describe live OUTSIDE the API namespace (`/sitemap.xml` must sit where crawlers look), and
+  // only the bin knows the public prefix — `--base-path` is stripped before this handler sees a
+  // request, so nothing in here can name an absolute URL. The bin composes; this just reports.
+  const pageMeta = {
+    title: (p: string): string | null => titleOf(store0, p),
+    description: (p: string): string | null => descriptionOf(store0, p),
+    format: (p: string): string | null => store0.node(p)?.format ?? null,
+  };
+  // Each of these hands back a FINISHED string. The bin runs untranspiled in production (it
+  // imports the bundle, not the source), so it cannot reach into seo.ts itself — and giving it
+  // raw page data would only push the escaping and the tag order out there, away from the tests.
+  const seo: Seo = {
+    robots: (sitemapUrl) => robotsTxt(sitemapUrl),
+    sitemap: (origin, basePath) => {
+      const { pages, truncated } = collectPages(store0, pageMeta);
+      return sitemapXml(origin, basePath, pages, truncated);
+    },
+    /** The `<head>` tags for ONE client route (a slash URL path, base already stripped), or ""
+     *  when the path names no node — the common case, and not an error: the shell answers every
+     *  path, `/.browser/settings.yo` included, which has no node by design. */
+    head: (pathname, canonical) => {
+      try {
+        const segs = canonSegs(store0, slashToSegs(pathname), false);
+        const p = storePath(segs);
+        if (!store0.node(p)) return "";
+        const siteName = titleOf(store0, ":") || rootName;
+        return headTags({
+          // the same tokens the client's own title effect walks — segToken, not the raw segment
+          title: pageTitle(titleOf(store0, p), segs.map((g) => segToken(g)), siteName),
+          description: descriptionOf(store0, p),
+          canonical,
+          siteName,
+        });
+      } catch {
+        return ""; // an unparseable path is simply not a page — never a 500 on the shell
+      }
+    },
+  };
+
   return Object.assign(handler, {
     ready,
+    seo,
     close: (): void => {
       if (closed) return;
       closed = true;
