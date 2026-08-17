@@ -1,0 +1,20 @@
+[package]
+name = "yamlover-parser"
+version = "0.1.0"
+edition = "2024"
+description = "yamlover + json5p → the shared IR (IR.md). Reimplemented from the specs; shares no code with tools/parser/ts."
+publish = false
+
+# The library is DEPENDENCY-FREE on purpose: `tools/server` ships with no runtime
+# dependencies at all and the TS parser has none either. A hand-written recursive-descent
+# parser over a hand-written serializer needs nothing from the ecosystem, and staying
+# empty here keeps the "separate toolchain and artifact" promise cheap to honour.
+[dependencies]
+
+# serde_json is TEST-ONLY: the conformance harness reads the repo's `ir-full.json`
+# goldens. The library never sees it.
+[dev-dependencies]
+serde_json = "1"
+
+[lints.rust]
+missing_debug_implementations = "warn"

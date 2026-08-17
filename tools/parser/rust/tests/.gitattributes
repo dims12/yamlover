@@ -1,0 +1,4 @@
+# Goldens are BYTES. `ts-parity.json` pins the escaping laws against tools/parser/ts and its
+# corpus deliberately contains control characters; CRLF conversion would rewrite them and turn
+# a real drift signal into noise. No eol translation for anything here.
+* -text

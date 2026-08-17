@@ -1,0 +1,4 @@
+# Cargo's build directory. `Cargo.lock` IS committed: this crate grows binaries (the
+# language server, the importers), and a pinned lock is what makes a CI `cargo test` and a
+# local one the same run.
+/target

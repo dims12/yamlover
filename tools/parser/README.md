@@ -36,7 +36,14 @@ git submodule update --init
 | impl | json5p | yamlover | notes |
 |------|--------|----------|-------|
 | `ts/`   | ✅ done | ✅ practical subset | full `node:test` suite green; Node ≥22 native TS |
-| `rust/` | — | — | planned |
+| `rust/` | — | 🚧 writer half | IR + the escaping/scalar laws, gated against `ts/` by `tests/ts_parity.rs`; serializer next, reader after |
+
+`rust/` is deliberately building the **writer** first (IR → serializer → materializer): it is
+what an importer needs, it is the third of the surface that can be gated byte-for-byte against
+the existing `out.yo` goldens, and it defers the reader until there is something to read back.
+Its `tests/ts_parity.rs` runs both implementations over one committed corpus — the
+cross-implementation harness `../jetbrains-plugin/README.md` has wanted for its Kotlin lexer.
+It found a signed-hex round-trip bug in `ts/` on its first run.
 
 json5p is gated by the full JSON + JSON5 positive corpora. yamlover covers block/flow,
 block scalars (`|`/`>`) + the extensions (parses both `tour` examples), and the

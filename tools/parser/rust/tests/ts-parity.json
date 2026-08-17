@@ -1,0 +1,1034 @@
+{
+ "escaping": {
+  "0": {
+   "keyText": "\"0\"",
+   "flowKeyText": "0",
+   "keyPortion": "'0'",
+   "dq": "\"0\""
+  },
+  "1": {
+   "keyText": "\"1\"",
+   "flowKeyText": "1",
+   "keyPortion": "'1'",
+   "dq": "\"1\""
+  },
+  "": {
+   "keyText": "\"\"",
+   "flowKeyText": "''",
+   "keyPortion": "''",
+   "dq": "\"\""
+  },
+  " ": {
+   "keyText": "\" \"",
+   "flowKeyText": "' '",
+   "keyPortion": "' '",
+   "dq": "\" \""
+  },
+  "a": {
+   "keyText": "a",
+   "flowKeyText": "a",
+   "keyPortion": "a",
+   "dq": "\"a\""
+  },
+  "abc": {
+   "keyText": "abc",
+   "flowKeyText": "abc",
+   "keyPortion": "abc",
+   "dq": "\"abc\""
+  },
+  " a": {
+   "keyText": "\" a\"",
+   "flowKeyText": "' a'",
+   "keyPortion": "' a'",
+   "dq": "\" a\""
+  },
+  "a ": {
+   "keyText": "\"a \"",
+   "flowKeyText": "'a '",
+   "keyPortion": "'a '",
+   "dq": "\"a \""
+  },
+  "a b": {
+   "keyText": "a b",
+   "flowKeyText": "'a b'",
+   "keyPortion": "'a b'",
+   "dq": "\"a b\""
+  },
+  "a\tb": {
+   "keyText": "\"a\\tb\"",
+   "flowKeyText": "'a\tb'",
+   "keyPortion": "'a\tb'",
+   "dq": "\"a\\tb\""
+  },
+  "007": {
+   "keyText": "\"007\"",
+   "flowKeyText": "007",
+   "keyPortion": "'007'",
+   "dq": "\"007\""
+  },
+  "1a": {
+   "keyText": "1a",
+   "flowKeyText": "1a",
+   "keyPortion": "1a",
+   "dq": "\"1a\""
+  },
+  "-1": {
+   "keyText": "-1",
+   "flowKeyText": "-1",
+   "keyPortion": "'-1'",
+   "dq": "\"-1\""
+  },
+  "-0": {
+   "keyText": "-0",
+   "flowKeyText": "-0",
+   "keyPortion": "'-0'",
+   "dq": "\"-0\""
+  },
+  "1.5": {
+   "keyText": "1.5",
+   "flowKeyText": "1.5",
+   "keyPortion": "1.5",
+   "dq": "\"1.5\""
+  },
+  "-": {
+   "keyText": "\"-\"",
+   "flowKeyText": "'-'",
+   "keyPortion": "'-'",
+   "dq": "\"-\""
+  },
+  "-a": {
+   "keyText": "-a",
+   "flowKeyText": "-a",
+   "keyPortion": "-a",
+   "dq": "\"-a\""
+  },
+  "-:": {
+   "keyText": "-:",
+   "flowKeyText": "'-:'",
+   "keyPortion": "-\\:",
+   "dq": "\"-:\""
+  },
+  "--": {
+   "keyText": "--",
+   "flowKeyText": "--",
+   "keyPortion": "--",
+   "dq": "\"--\""
+  },
+  "a-b": {
+   "keyText": "a-b",
+   "flowKeyText": "a-b",
+   "keyPortion": "a-b",
+   "dq": "\"a-b\""
+  },
+  "- ": {
+   "keyText": "\"- \"",
+   "flowKeyText": "'- '",
+   "keyPortion": "'- '",
+   "dq": "\"- \""
+  },
+  "~": {
+   "keyText": "\\~",
+   "flowKeyText": "'~'",
+   "keyPortion": "'~'",
+   "dq": "\"~\""
+  },
+  "..": {
+   "keyText": "..",
+   "flowKeyText": "..",
+   "keyPortion": "\\.\\.",
+   "dq": "\"..\""
+  },
+  ".": {
+   "keyText": ".",
+   "flowKeyText": ".",
+   "keyPortion": ".",
+   "dq": "\".\""
+  },
+  "...": {
+   "keyText": "...",
+   "flowKeyText": "...",
+   "keyPortion": "...",
+   "dq": "\"...\""
+  },
+  ".a": {
+   "keyText": ".a",
+   "flowKeyText": ".a",
+   "keyPortion": ".a",
+   "dq": "\".a\""
+  },
+  "'q": {
+   "keyText": "\"'q\"",
+   "flowKeyText": "'''q'",
+   "keyPortion": "'''q'",
+   "dq": "\"'q\""
+  },
+  "\"q": {
+   "keyText": "\"\\\"q\"",
+   "flowKeyText": "'\"q'",
+   "keyPortion": "'\"q'",
+   "dq": "\"\\\"q\""
+  },
+  "a\"b": {
+   "keyText": "a\"b",
+   "flowKeyText": "'a\"b'",
+   "keyPortion": "a\"b",
+   "dq": "\"a\\\"b\""
+  },
+  "it's": {
+   "keyText": "it's",
+   "flowKeyText": "'it''s'",
+   "keyPortion": "it's",
+   "dq": "\"it's\""
+  },
+  "a 'b'": {
+   "keyText": "a 'b'",
+   "flowKeyText": "'a ''b'''",
+   "keyPortion": "'a ''b'''",
+   "dq": "\"a 'b'\""
+  },
+  "''": {
+   "keyText": "\"''\"",
+   "flowKeyText": "''''''",
+   "keyPortion": "''''''",
+   "dq": "\"''\""
+  },
+  "\"\"": {
+   "keyText": "\"\\\"\\\"\"",
+   "flowKeyText": "'\"\"'",
+   "keyPortion": "'\"\"'",
+   "dq": "\"\\\"\\\"\""
+  },
+  "a:b": {
+   "keyText": "a:b",
+   "flowKeyText": "'a:b'",
+   "keyPortion": "a\\:b",
+   "dq": "\"a:b\""
+  },
+  "a: b": {
+   "keyText": "\"a: b\"",
+   "flowKeyText": "'a: b'",
+   "keyPortion": "'a: b'",
+   "dq": "\"a: b\""
+  },
+  "a::b": {
+   "keyText": "a::b",
+   "flowKeyText": "'a::b'",
+   "keyPortion": "a\\:\\:b",
+   "dq": "\"a::b\""
+  },
+  ":": {
+   "keyText": ":",
+   "flowKeyText": "':'",
+   "keyPortion": "\\:",
+   "dq": "\":\""
+  },
+  ":: x": {
+   "keyText": "\":: x\"",
+   "flowKeyText": "':: x'",
+   "keyPortion": "':: x'",
+   "dq": "\":: x\""
+  },
+  "a/b": {
+   "keyText": "a\\/b",
+   "flowKeyText": "a/b",
+   "keyPortion": "a/b",
+   "dq": "\"a/b\""
+  },
+  "/a": {
+   "keyText": "\\/a",
+   "flowKeyText": "/a",
+   "keyPortion": "/a",
+   "dq": "\"/a\""
+  },
+  "a//b": {
+   "keyText": "a\\/\\/b",
+   "flowKeyText": "a//b",
+   "keyPortion": "a//b",
+   "dq": "\"a//b\""
+  },
+  "a\\b": {
+   "keyText": "\"a\\\\b\"",
+   "flowKeyText": "'a\\b'",
+   "keyPortion": "a\\\\b",
+   "dq": "\"a\\\\b\""
+  },
+  "\\": {
+   "keyText": "\"\\\\\"",
+   "flowKeyText": "'\\'",
+   "keyPortion": "\\\\",
+   "dq": "\"\\\\\""
+  },
+  "a\\\\b": {
+   "keyText": "\"a\\\\\\\\b\"",
+   "flowKeyText": "'a\\\\b'",
+   "keyPortion": "a\\\\\\\\b",
+   "dq": "\"a\\\\\\\\b\""
+  },
+  "a*b": {
+   "keyText": "a\\*b",
+   "flowKeyText": "'a*b'",
+   "keyPortion": "a\\*b",
+   "dq": "\"a*b\""
+  },
+  "a&b": {
+   "keyText": "a\\&b",
+   "flowKeyText": "'a&b'",
+   "keyPortion": "a\\&b",
+   "dq": "\"a&b\""
+  },
+  "a#b": {
+   "keyText": "a\\#b",
+   "flowKeyText": "'a#b'",
+   "keyPortion": "a\\#b",
+   "dq": "\"a#b\""
+  },
+  "a?b": {
+   "keyText": "a\\?b",
+   "flowKeyText": "'a?b'",
+   "keyPortion": "a\\?b",
+   "dq": "\"a?b\""
+  },
+  "a!b": {
+   "keyText": "a\\!b",
+   "flowKeyText": "'a!b'",
+   "keyPortion": "a\\!b",
+   "dq": "\"a!b\""
+  },
+  "a(b)": {
+   "keyText": "a\\(b\\)",
+   "flowKeyText": "'a(b)'",
+   "keyPortion": "a\\(b\\)",
+   "dq": "\"a(b)\""
+  },
+  "a<b>": {
+   "keyText": "a\\<b\\>",
+   "flowKeyText": "'a<b>'",
+   "keyPortion": "a\\<b\\>",
+   "dq": "\"a<b>\""
+  },
+  "a=b": {
+   "keyText": "a\\=b",
+   "flowKeyText": "'a=b'",
+   "keyPortion": "a\\=b",
+   "dq": "\"a=b\""
+  },
+  "a|b": {
+   "keyText": "a\\|b",
+   "flowKeyText": "'a|b'",
+   "keyPortion": "a\\|b",
+   "dq": "\"a|b\""
+  },
+  "a[0]": {
+   "keyText": "a\\[0\\]",
+   "flowKeyText": "'a[0]'",
+   "keyPortion": "a\\[0\\]",
+   "dq": "\"a[0]\""
+  },
+  "a]b": {
+   "keyText": "a\\]b",
+   "flowKeyText": "'a]b'",
+   "keyPortion": "a\\]b",
+   "dq": "\"a]b\""
+  },
+  "a[b": {
+   "keyText": "a\\[b",
+   "flowKeyText": "'a[b'",
+   "keyPortion": "a\\[b",
+   "dq": "\"a[b\""
+  },
+  "{}": {
+   "keyText": "{}",
+   "flowKeyText": "'{}'",
+   "keyPortion": "{}",
+   "dq": "\"{}\""
+  },
+  "[]": {
+   "keyText": "\\[\\]",
+   "flowKeyText": "'[]'",
+   "keyPortion": "\\[\\]",
+   "dq": "\"[]\""
+  },
+  "{a}": {
+   "keyText": "{a}",
+   "flowKeyText": "'{a}'",
+   "keyPortion": "{a}",
+   "dq": "\"{a}\""
+  },
+  "a\nb": {
+   "keyText": "\"a\\nb\"",
+   "flowKeyText": "'a\nb'",
+   "keyPortion": "a\nb",
+   "dq": "\"a\\nb\""
+  },
+  "a\rb": {
+   "keyText": "\"a\\rb\"",
+   "flowKeyText": "'a\rb'",
+   "keyPortion": "a\rb",
+   "dq": "\"a\\rb\""
+  },
+  "a\u0000b": {
+   "keyText": "\"a\\u0000b\"",
+   "flowKeyText": "'a\u0000b'",
+   "keyPortion": "a\u0000b",
+   "dq": "\"a\\u0000b\""
+  },
+  "a\u0001b": {
+   "keyText": "\"a\\u0001b\"",
+   "flowKeyText": "'a\u0001b'",
+   "keyPortion": "a\u0001b",
+   "dq": "\"a\\u0001b\""
+  },
+  "a\u001fb": {
+   "keyText": "\"a\\u001fb\"",
+   "flowKeyText": "'a\u001fb'",
+   "keyPortion": "a\u001fb",
+   "dq": "\"a\\u001fb\""
+  },
+  "ab": {
+   "keyText": "\"ab\"",
+   "flowKeyText": "'ab'",
+   "keyPortion": "ab",
+   "dq": "\"ab\""
+  },
+  "a\bb": {
+   "keyText": "\"a\\bb\"",
+   "flowKeyText": "'a\bb'",
+   "keyPortion": "a\bb",
+   "dq": "\"a\\bb\""
+  },
+  "a\fb": {
+   "keyText": "\"a\\fb\"",
+   "flowKeyText": "'a\fb'",
+   "keyPortion": "a\fb",
+   "dq": "\"a\\fb\""
+  },
+  "имя": {
+   "keyText": "имя",
+   "flowKeyText": "'имя'",
+   "keyPortion": "имя",
+   "dq": "\"имя\""
+  },
+  "Алиса": {
+   "keyText": "Алиса",
+   "flowKeyText": "'Алиса'",
+   "keyPortion": "Алиса",
+   "dq": "\"Алиса\""
+  },
+  "Москва": {
+   "keyText": "Москва",
+   "flowKeyText": "'Москва'",
+   "keyPortion": "Москва",
+   "dq": "\"Москва\""
+  },
+  "🐱": {
+   "keyText": "🐱",
+   "flowKeyText": "'🐱'",
+   "keyPortion": "🐱",
+   "dq": "\"🐱\""
+  },
+  "a🐱b": {
+   "keyText": "a🐱b",
+   "flowKeyText": "'a🐱b'",
+   "keyPortion": "a🐱b",
+   "dq": "\"a🐱b\""
+  },
+  "café": {
+   "keyText": "café",
+   "flowKeyText": "'café'",
+   "keyPortion": "café",
+   "dq": "\"café\""
+  },
+  "ß": {
+   "keyText": "ß",
+   "flowKeyText": "'ß'",
+   "keyPortion": "ß",
+   "dq": "\"ß\""
+  },
+  "$defs": {
+   "keyText": "$defs",
+   "flowKeyText": "$defs",
+   "keyPortion": "$defs",
+   "dq": "\"$defs\""
+  },
+  "x.y": {
+   "keyText": "x.y",
+   "flowKeyText": "x.y",
+   "keyPortion": "x.y",
+   "dq": "\"x.y\""
+  },
+  "a_b": {
+   "keyText": "a_b",
+   "flowKeyText": "a_b",
+   "keyPortion": "a_b",
+   "dq": "\"a_b\""
+  },
+  "null": {
+   "keyText": "null",
+   "flowKeyText": "null",
+   "keyPortion": "null",
+   "dq": "\"null\""
+  },
+  "true": {
+   "keyText": "true",
+   "flowKeyText": "true",
+   "keyPortion": "true",
+   "dq": "\"true\""
+  },
+  "false": {
+   "keyText": "false",
+   "flowKeyText": "false",
+   "keyPortion": "false",
+   "dq": "\"false\""
+  },
+  "0x10": {
+   "keyText": "0x10",
+   "flowKeyText": "0x10",
+   "keyPortion": "0x10",
+   "dq": "\"0x10\""
+  },
+  "chapter": {
+   "keyText": "chapter",
+   "flowKeyText": "chapter",
+   "keyPortion": "chapter",
+   "dq": "\"chapter\""
+  },
+  "body.yo": {
+   "keyText": "body.yo",
+   "flowKeyText": "body.yo",
+   "keyPortion": "body.yo",
+   "dq": "\"body.yo\""
+  },
+  "MESSAGES.TBB": {
+   "keyText": "MESSAGES.TBB",
+   "flowKeyText": "MESSAGES.TBB",
+   "keyPortion": "MESSAGES.TBB",
+   "dq": "\"MESSAGES.TBB\""
+  },
+  "message.eml": {
+   "keyText": "message.eml",
+   "flowKeyText": "message.eml",
+   "keyPortion": "message.eml",
+   "dq": "\"message.eml\""
+  },
+  "00001-Тема письма.yo": {
+   "keyText": "00001-Тема письма.yo",
+   "flowKeyText": "'00001-Тема письма.yo'",
+   "keyPortion": "'00001-Тема письма.yo'",
+   "dq": "\"00001-Тема письма.yo\""
+  },
+  "Received": {
+   "keyText": "Received",
+   "flowKeyText": "Received",
+   "keyPortion": "Received",
+   "dq": "\"Received\""
+  },
+  "X-Mailer": {
+   "keyText": "X-Mailer",
+   "flowKeyText": "X-Mailer",
+   "keyPortion": "X-Mailer",
+   "dq": "\"X-Mailer\""
+  },
+  "dims2000@mtu-net.ru": {
+   "keyText": "dims2000@mtu-net.ru",
+   "flowKeyText": "'dims2000@mtu-net.ru'",
+   "keyPortion": "dims2000@mtu-net.ru",
+   "dq": "\"dims2000@mtu-net.ru\""
+  },
+  "$JUNK$": {
+   "keyText": "$JUNK$",
+   "flowKeyText": "$JUNK$",
+   "keyPortion": "$JUNK$",
+   "dq": "\"$JUNK$\""
+  },
+  "Архивные папки": {
+   "keyText": "Архивные папки",
+   "flowKeyText": "'Архивные папки'",
+   "keyPortion": "'Архивные папки'",
+   "dq": "\"Архивные папки\""
+  }
+ },
+ "scalars": {
+  "0": {
+   "t": "num",
+   "v": 0
+  },
+  "1": {
+   "t": "num",
+   "v": 1
+  },
+  "": {
+   "t": "null"
+  },
+  "~": {
+   "t": "null"
+  },
+  "null": {
+   "t": "null"
+  },
+  "Null": {
+   "t": "null"
+  },
+  "NULL": {
+   "t": "null"
+  },
+  "nul": {
+   "t": "str",
+   "v": "nul"
+  },
+  "NuLL": {
+   "t": "str",
+   "v": "NuLL"
+  },
+  "true": {
+   "t": "bool",
+   "v": true
+  },
+  "True": {
+   "t": "bool",
+   "v": true
+  },
+  "TRUE": {
+   "t": "bool",
+   "v": true
+  },
+  "false": {
+   "t": "bool",
+   "v": false
+  },
+  "False": {
+   "t": "bool",
+   "v": false
+  },
+  "FALSE": {
+   "t": "bool",
+   "v": false
+  },
+  "tru": {
+   "t": "str",
+   "v": "tru"
+  },
+  "TrUe": {
+   "t": "str",
+   "v": "TrUe"
+  },
+  ".inf": {
+   "t": "num",
+   "special": "inf"
+  },
+  "-.inf": {
+   "t": "num",
+   "special": "-inf"
+  },
+  "+.inf": {
+   "t": "num",
+   "special": "inf"
+  },
+  ".Inf": {
+   "t": "num",
+   "special": "inf"
+  },
+  ".INF": {
+   "t": "num",
+   "special": "inf"
+  },
+  ".nan": {
+   "t": "num",
+   "special": "nan"
+  },
+  ".NaN": {
+   "t": "num",
+   "special": "nan"
+  },
+  ".NAN": {
+   "t": "num",
+   "special": "nan"
+  },
+  "-.nan": {
+   "t": "str",
+   "v": "-.nan"
+  },
+  "Infinity": {
+   "t": "str",
+   "v": "Infinity"
+  },
+  "-Infinity": {
+   "t": "str",
+   "v": "-Infinity"
+  },
+  "NaN": {
+   "t": "str",
+   "v": "NaN"
+  },
+  "-1": {
+   "t": "num",
+   "v": -1
+  },
+  "+7": {
+   "t": "num",
+   "v": 7
+  },
+  "-0": {
+   "t": "num",
+   "special": "-0"
+  },
+  "1.0": {
+   "t": "num",
+   "v": 1
+  },
+  "1.5": {
+   "t": "num",
+   "v": 1.5
+  },
+  ".5": {
+   "t": "num",
+   "v": 0.5
+  },
+  "5.": {
+   "t": "num",
+   "v": 5
+  },
+  "007": {
+   "t": "num",
+   "v": 7
+  },
+  "1e3": {
+   "t": "num",
+   "v": 1000
+  },
+  "1E3": {
+   "t": "num",
+   "v": 1000
+  },
+  "1e+3": {
+   "t": "num",
+   "v": 1000
+  },
+  "1e-3": {
+   "t": "num",
+   "v": 0.001
+  },
+  "1.5e10": {
+   "t": "num",
+   "v": 15000000000
+  },
+  "-2.5E-4": {
+   "t": "num",
+   "v": -0.00025
+  },
+  "0x10": {
+   "t": "num",
+   "v": 16
+  },
+  "0x1F": {
+   "t": "num",
+   "v": 31
+  },
+  "0xff": {
+   "t": "num",
+   "v": 255
+  },
+  "-0xff": {
+   "t": "num",
+   "v": -255
+  },
+  "+0x1": {
+   "t": "num",
+   "v": 1
+  },
+  "0X10": {
+   "t": "str",
+   "v": "0X10"
+  },
+  "0x": {
+   "t": "str",
+   "v": "0x"
+  },
+  "0xzz": {
+   "t": "str",
+   "v": "0xzz"
+  },
+  "1.2.3": {
+   "t": "str",
+   "v": "1.2.3"
+  },
+  "1e": {
+   "t": "str",
+   "v": "1e"
+  },
+  ".": {
+   "t": "str",
+   "v": "."
+  },
+  "..": {
+   "t": "str",
+   "v": ".."
+  },
+  "1 2": {
+   "t": "str",
+   "v": "1 2"
+  },
+  "--1": {
+   "t": "str",
+   "v": "--1"
+  },
+  "1-": {
+   "t": "str",
+   "v": "1-"
+  },
+  "- 1": {
+   "t": "str",
+   "v": "- 1"
+  },
+  "1_000": {
+   "t": "str",
+   "v": "1_000"
+  },
+  "1,5": {
+   "t": "str",
+   "v": "1,5"
+  },
+  "abc": {
+   "t": "str",
+   "v": "abc"
+  },
+  "a b": {
+   "t": "str",
+   "v": "a b"
+  },
+  "a: b": {
+   "t": "str",
+   "v": "a: b"
+  },
+  "a:b": {
+   "t": "str",
+   "v": "a:b"
+  },
+  "#x": {
+   "t": "str",
+   "v": "#x"
+  },
+  "a #x": {
+   "t": "str",
+   "v": "a #x"
+  },
+  "имя": {
+   "t": "str",
+   "v": "имя"
+  },
+  "🐱": {
+   "t": "str",
+   "v": "🐱"
+  },
+  " padded ": {
+   "t": "str",
+   "v": "padded"
+  }
+ },
+ "splits": {
+  "key: value": {
+   "key": "key",
+   "rest": "value"
+  },
+  "key:": {
+   "key": "key",
+   "rest": ""
+  },
+  "key:value": null,
+  "no colon here": null,
+  "": null,
+  "a: b: c": {
+   "key": "a",
+   "rest": "b: c"
+  },
+  "'a: b': v": {
+   "key": "'a: b'",
+   "rest": "v"
+  },
+  "\"a: b\": v": {
+   "key": "\"a: b\"",
+   "rest": "v"
+  },
+  "a : b": {
+   "key": "a",
+   "rest": "b"
+  },
+  "key:  spaced": {
+   "key": "key",
+   "rest": "spaced"
+  },
+  "{a: 1}": null,
+  "{a: [1]}": null,
+  "[1, 2]": null,
+  "[256, 256]: *x": {
+   "key": "[256, 256]",
+   "rest": "*x"
+  },
+  "{a: 1}: v": {
+   "key": "{a: 1}",
+   "rest": "v"
+  },
+  "{unterminated: 1": null,
+  "['a: b']: v": {
+   "key": "['a: b']",
+   "rest": "v"
+  },
+  "{}: 12": {
+   "key": "{}",
+   "rest": "12"
+  },
+  "[]: v": {
+   "key": "[]",
+   "rest": "v"
+  },
+  "- item": null,
+  "-: item": {
+   "key": "-",
+   "rest": "item"
+  },
+  "*ptr: v": {
+   "key": "*ptr",
+   "rest": "v"
+  },
+  "&anchor: v": {
+   "key": "&anchor",
+   "rest": "v"
+  },
+  "~: v": {
+   "key": "~",
+   "rest": "v"
+  },
+  "~key: *p": {
+   "key": "~key",
+   "rest": "*p"
+  }
+ },
+ "unquotes": {
+  "abc": {
+   "ok": "abc"
+  },
+  "'a b'": {
+   "ok": "a b"
+  },
+  "'it''s'": {
+   "ok": "it's"
+  },
+  "\"a\\nb\"": {
+   "ok": "a\nb"
+  },
+  "\"a\\tb\"": {
+   "ok": "a\tb"
+  },
+  "\"\\u0041\"": {
+   "ok": "A"
+  },
+  "\"\\x41\"": {
+   "ok": "A"
+  },
+  "a\\*b": {
+   "ok": "a*b"
+  },
+  "a\\:b": {
+   "ok": "a:b"
+  },
+  "\\.\\.": {
+   "ok": ".."
+  },
+  "''": {
+   "ok": ""
+  },
+  "\"\"": {
+   "ok": ""
+  },
+  "'": {
+   "ok": ""
+  },
+  "\"": {
+   "ok": ""
+  },
+  " padded ": {
+   "ok": "padded"
+  },
+  "\"a\\\\b\"": {
+   "ok": "a\\b"
+  },
+  "\"unterminated": {
+   "ok": "\"unterminated"
+  },
+  "'q": {
+   "ok": "'q"
+  },
+  "имя": {
+   "ok": "имя"
+  },
+  "'имя'": {
+   "ok": "имя"
+  }
+ },
+ "folds": [
+  {
+   "lines": [],
+   "out": ""
+  },
+  {
+   "lines": [
+    "a"
+   ],
+   "out": "a"
+  },
+  {
+   "lines": [
+    "a",
+    "b"
+   ],
+   "out": "a b"
+  },
+  {
+   "lines": [
+    "a",
+    "",
+    "b"
+   ],
+   "out": "a\n\nb"
+  },
+  {
+   "lines": [
+    "",
+    "a"
+   ],
+   "out": "\na"
+  },
+  {
+   "lines": [
+    "a",
+    ""
+   ],
+   "out": "a\n"
+  },
+  {
+   "lines": [
+    "a",
+    "b",
+    "",
+    "c",
+    "d"
+   ],
+   "out": "a b\n\nc d"
+  },
+  {
+   "lines": [
+    "",
+    "",
+    "a"
+   ],
+   "out": "\n\na"
+  },
+  {
+   "lines": [
+    "one",
+    "two",
+    "three"
+   ],
+   "out": "one two three"
+  }
+ ]
+}
