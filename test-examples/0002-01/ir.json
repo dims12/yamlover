@@ -1,0 +1,78 @@
+{
+  "root": {
+    "kind": "mapping",
+    "array": false,
+    "set": false,
+    "yo": false,
+    "anchors": [],
+    "entries": [
+      {
+        "key": "plain",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": 255,
+          "array": false,
+          "set": false,
+          "yo": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "neg",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": -255,
+          "array": false,
+          "set": false,
+          "yo": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "pos",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": 1,
+          "array": false,
+          "set": false,
+          "yo": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "upper",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": 31,
+          "array": false,
+          "set": false,
+          "yo": false,
+          "anchors": [],
+          "entries": []
+        }
+      },
+      {
+        "key": "negzero",
+        "edge": "contain",
+        "value": {
+          "kind": "scalar",
+          "value": {
+            "$num": "-0"
+          },
+          "array": false,
+          "set": false,
+          "yo": false,
+          "anchors": [],
+          "entries": []
+        }
+      }
+    ]
+  }
+}

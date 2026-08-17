@@ -1,0 +1,10 @@
+# Every one of these round-trips: the raw-first law re-emits the authored spelling once it
+# proves the token still reads back to the same number. Until 2026-08-17 it could not, because
+# `-0xff` valued to NaN — the regex accepted the sign and `Number()` then rejected it — so this
+# file emitted `neg: .nan`. YAML 1.2 spells a negative hex int exactly this way.
+plain: 0xff
+neg: -0xff
+pos: +0x1
+upper: 0x1F
+# the sign survives on zero, like the decimal `-0` (canon pins it with the $num sentinel)
+negzero: -0x0

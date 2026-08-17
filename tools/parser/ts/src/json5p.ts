@@ -10,6 +10,7 @@ import type { Document, Node, Mapping, Scalar, Entry, Value } from './ir.ts';
 import { isPointer } from './ir.ts';
 import { parsePointer, makeAnchor } from './pointer.ts';
 import { attachComments, type RawComment } from './comments.ts';
+import { hexValue } from './serialize-common.ts';
 
 const WS = new Set([' ', '\t', '\n', '\r', '\v', '\f', ' ', '﻿']);
 
@@ -266,8 +267,12 @@ function isDelim(c: string): boolean {
     c === '[' || c === ']' || c === '"' || c === "'" || c === '/';
 }
 
-function json5number(tok: string): number | undefined {
-  if (/^[+-]?0[xX][0-9a-fA-F]+$/.test(tok)) return Number(tok);
+/** The json5p number grammar and its valuation. Exported so the SERIALIZER's round-trip guard
+ *  (serialize-json5p.ts) reads a raw the one way this reads it — it used to keep a hand-copied
+ *  "mirror of the parser's number recognizer", and the copy is how the signed-hex bug came to
+ *  live in two places at once. */
+export function json5number(tok: string): number | undefined {
+  if (/^[+-]?0[xX][0-9a-fA-F]+$/.test(tok)) return hexValue(tok);
   if (/^[+-]?Infinity$/.test(tok)) return tok[0] === '-' ? -Infinity : Infinity;
   if (/^[+-]?NaN$/.test(tok)) return NaN;
   if (/^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/.test(tok)) return Number(tok);

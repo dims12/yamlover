@@ -14,6 +14,23 @@ export function dq(s: string): string {
   return JSON.stringify(s);
 }
 
+/** The value of a HEX integer token (`0xff`, `-0x1F`, `+0X10`) — the ONE law, shared by both
+ *  parsers and the json5p serializer's round-trip guard (three places that must never disagree).
+ *
+ *  NOT `Number(tok)`: JS's string-to-number conversion accepts a hex prefix only UNSIGNED, so
+ *  `Number('-0xff')` is NaN while `Number('0xff')` is 255. Every call site tested a regex that
+ *  ADMITS the sign and then valued the token with `Number`, so a signed hex int parsed to NaN and
+ *  re-serialized as `.nan` — silent corruption on a round-trip, and YAML 1.2 spells a negative hex
+ *  int exactly this way. The sign is applied to the magnitude instead.
+ *
+ *  The caller gates on its own grammar's regex first (yamlover takes `0x` only; json5p takes
+ *  `0[xX]`), so this trusts the token and returns NaN for anything else. */
+export function hexValue(tok: string): number {
+  const signed = tok[0] === '-' || tok[0] === '+';
+  const mag = Number(signed ? tok.slice(1) : tok);
+  return tok[0] === '-' ? -mag : mag;
+}
+
 /** The KEYLESS MARKER at the head of a block line — the ONE law, shared by the parser, every
  *  serializer, and the server's line scanner (three places that must never disagree about what
  *  opens an entry). Returns the marker's WIDTH, or null when the line opens no keyless entry:

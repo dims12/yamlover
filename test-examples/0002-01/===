@@ -1,0 +1,1 @@
+signed hex ints take their sign (regression: the grammar admitted it, the valuation dropped it)

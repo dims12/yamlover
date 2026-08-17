@@ -10,6 +10,9 @@ import { isPointer } from './ir.ts';
 import { LossyError, anchorBody, isAnchorizableBack, backAnchorBody } from './serialize-common.ts';
 import { renderPointer } from './pointer.ts';
 import { unquoteKey } from './yamlover.ts';
+// the parser's own recognizer, not a copy of it: the round-trip guard must read a raw the one
+// way the reader reads it
+import { json5number } from './json5p.ts';
 
 const STEP = 2;
 
@@ -161,11 +164,3 @@ function scalarTok(s: Scalar): string {
   return String(v);
 }
 
-/** Mirror of the parser's number recognizer (json5p.ts). */
-function json5number(tok: string): number | undefined {
-  if (/^[+-]?0[xX][0-9a-fA-F]+$/.test(tok)) return Number(tok);
-  if (/^[+-]?Infinity$/.test(tok)) return tok[0] === '-' ? -Infinity : Infinity;
-  if (/^[+-]?NaN$/.test(tok)) return NaN;
-  if (/^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/.test(tok)) return Number(tok);
-  return undefined;
-}

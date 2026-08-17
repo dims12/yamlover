@@ -16,7 +16,7 @@
 import type { Document, Node, Mapping, Scalar, Entry, Value, Pointer, Span, Anchor } from './ir.ts';
 import { isPointer } from './ir.ts';
 import { parsePointer, makeAnchor } from './pointer.ts';
-import { keyRawWorthKeeping, seqMarkLen } from './serialize-common.ts';
+import { hexValue, keyRawWorthKeeping, seqMarkLen } from './serialize-common.ts';
 import { attachComments, type RawComment } from './comments.ts';
 
 interface Line {
@@ -1167,7 +1167,7 @@ export function plainScalar(text: string): Scalar {
   if (/^[-+]?\.(?:inf|Inf|INF)$/.test(t)) return { kind: 'scalar', value: t[0] === '-' ? -Infinity : Infinity, raw: text };
   if (/^\.(?:nan|NaN|NAN)$/.test(t)) return { kind: 'scalar', value: NaN, raw: text };
   if (/^[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/.test(t)) return { kind: 'scalar', value: Number(t), raw: text };
-  if (/^[-+]?0x[0-9a-fA-F]+$/.test(t)) return { kind: 'scalar', value: Number(t), raw: text };
+  if (/^[-+]?0x[0-9a-fA-F]+$/.test(t)) return { kind: 'scalar', value: hexValue(t), raw: text };
   return { kind: 'scalar', value: t, raw: text };
 }
 
