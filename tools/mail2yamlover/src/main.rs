@@ -11,8 +11,11 @@ mod tree;
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::io::IsTerminal;
 use std::process::ExitCode;
 use std::time::Instant;
+
+use indicatif::{ProgressBar, ProgressDrawTarget, ProgressStyle};
 
 use emit::{EmitOptions, emit};
 use source::{FolderNode, MailSource, RawMessage};
@@ -124,6 +127,7 @@ fn main() -> ExitCode {
     };
     match run(&args) {
         Ok(stats) => {
+            stats.bar.finish_and_clear();
             stats.report();
             ExitCode::SUCCESS
         }
@@ -134,7 +138,6 @@ fn main() -> ExitCode {
     }
 }
 
-#[derive(Default)]
 struct Stats {
     folders: usize,
     messages: usize,
@@ -143,6 +146,58 @@ struct Stats {
     bytes: u64,
     warnings: Vec<String>,
     started: Option<Instant>,
+    bar: ProgressBar,
+}
+
+impl Default for Stats {
+    fn default() -> Self {
+        Stats {
+            folders: 0,
+            messages: 0,
+            unparsable: 0,
+            attachments: 0,
+            bytes: 0,
+            warnings: Vec::new(),
+            started: None,
+            bar: ProgressBar::hidden(),
+        }
+    }
+}
+
+/// An indeterminate spinner for the pre-scan, hidden when stderr is not a terminal.
+fn spinner(what: &str) -> ProgressBar {
+    if !std::io::stderr().is_terminal() {
+        return ProgressBar::hidden();
+    }
+    let bar = ProgressBar::new_spinner();
+    bar.set_style(
+        ProgressStyle::with_template("{spinner:.cyan} [{elapsed_precise}] {msg}…")
+            .unwrap_or_else(|_| ProgressStyle::default_spinner()),
+    );
+    bar.set_message(what.to_string());
+    bar.set_draw_target(ProgressDrawTarget::stderr_with_hz(10));
+    bar
+}
+
+/// A bar over the whole archive, or a hidden no-op when stderr is not a terminal.
+///
+/// Hidden when piped on purpose: a redraw-per-message turns a log file into megabytes of
+/// escape codes, and this tool gets run into `tail` as often as into a console.
+fn progress_bar(total: usize) -> ProgressBar {
+    if !std::io::stderr().is_terminal() {
+        return ProgressBar::hidden();
+    }
+    let bar = ProgressBar::new(total as u64);
+    bar.set_style(
+        ProgressStyle::with_template(
+            "{spinner:.cyan} [{elapsed_precise}] {bar:32.cyan/blue} {human_pos}/{human_len} msgs · {per_sec} · ETA {eta} · {wide_msg}",
+        )
+        .unwrap_or_else(|_| ProgressStyle::default_bar())
+        .progress_chars("=> "),
+    );
+    // Redrawing 57k times costs more than the work between ticks; 10/s is smooth to the eye.
+    bar.set_draw_target(ProgressDrawTarget::stderr_with_hz(10));
+    bar
 }
 
 impl Stats {
@@ -195,8 +250,32 @@ fn run(args: &Args) -> Result<Stats, String> {
         return Err("no folders matched — check --from and --accounts".into());
     }
 
+    // The total, before any work: cheap in bytes for a reader that can seek its store (TheBat
+    // touches ~2 MB of record headers for the whole archive), and simply absent for one that
+    // cannot. It is NOT cheap in wall-clock — opening 73 stores past an antivirus takes about
+    // fifteen seconds — so the count gets its own spinner rather than fifteen seconds of
+    // silence before the bar appears.
+    let counting = spinner("scanning message stores");
+    let total: usize = roots
+        .iter()
+        .flat_map(|r| r.walk())
+        .map(|f| {
+            counting.tick();
+            let n = reader.count(f).unwrap_or(0);
+            match args.limit {
+                Some(limit) => n.min(limit),
+                None => n,
+            }
+        })
+        .sum();
+    counting.finish_and_clear();
+
     let opts = EmitOptions { keep_raw: args.keep_raw };
-    let mut stats = Stats { started: Some(Instant::now()), ..Default::default() };
+    let mut stats = Stats {
+        started: Some(Instant::now()),
+        bar: progress_bar(total),
+        ..Default::default()
+    };
     tree::create_dir_all(&args.dest).map_err(|e| format!("creating --dest: {e}"))?;
 
     // The destination root's own `.yo/body.yo` is deliberately NOT written: the user may have
@@ -223,6 +302,7 @@ fn write_folder(
 ) -> Result<(), String> {
     tree::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
     stats.folders += 1;
+    stats.bar.set_message(folder.name.clone());
 
     // An unreadable store loses that folder, not the import: a locked, quarantined or
     // truncated file should cost exactly what it contains.
@@ -324,6 +404,7 @@ fn write_message(
     }
     e.chapter.field("flags", emit::flags_node(raw.is_read()));
     stats.messages += 1;
+    stats.bar.inc(1);
 
     // NN- prefix + the subject: the numbers give a stable, sortable, collision-free name for
     // what is an ordinal collection, and the parent's pointer array carries the real order.

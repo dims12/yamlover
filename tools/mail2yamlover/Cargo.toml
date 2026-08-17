@@ -15,3 +15,8 @@ yamlover-parser = { path = "../parser/rust" }
 # `concrete: text/<label>` feature already speaks through TextDecoder, so the label set
 # matches exactly rather than approximately.
 mail-parser = { version = "0.11", features = ["full_encoding"] }
+
+# The progress bar. A full archive is ~57k messages and an antivirus inspecting every
+# extracted attachment makes it a coffee-break job — silence for ten minutes is not an
+# acceptable UI. Rust's answer to tqdm.
+indicatif = "0.18"

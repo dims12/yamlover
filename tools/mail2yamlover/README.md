@@ -84,6 +84,12 @@ Decisions worth knowing, and why:
 | `--no-raw` | do not keep each message's verbatim RFC-822 as `message.eml` |
 | `--limit <n>` | stop after n messages per folder — for a quick look |
 
+It shows a progress bar with a real total and an ETA. Getting the total means seeking every
+store's record chain first (~2 MB of headers for the whole archive, but ~15 s of wall-clock
+with an antivirus inspecting each file), so that phase has its own spinner rather than
+leaving you staring at nothing. Both are hidden when stderr is not a terminal, so piping into
+a log does not produce megabytes of escape codes.
+
 `message.eml` is kept by default and roughly doubles the output. It is the only thing that
 makes "nothing was lost" true regardless of what MIME parsing got wrong, and it means a
 re-import never needs the original mailbox again.

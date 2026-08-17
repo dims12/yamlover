@@ -37,6 +37,7 @@
 
 use std::fs;
 use std::io;
+use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
 use super::{FolderKind, FolderNode, MailSource, RawMessage};
@@ -80,9 +81,48 @@ impl MailSource for TheBat {
 
     fn messages(&self, folder: &FolderNode) -> io::Result<Vec<RawMessage>> {
         let Some(store) = &folder.store else { return Ok(Vec::new()) };
-        let bytes = fs::read(store)?;
+        let bytes = fs::read(crate::tree::long_path(store))?;
         Ok(parse_tbb(&bytes, &store.to_string_lossy()))
     }
+
+    fn count(&self, folder: &FolderNode) -> io::Result<usize> {
+        let Some(store) = &folder.store else { return Ok(0) };
+        let f = fs::File::open(crate::tree::long_path(store))?;
+        Ok(count_tbb(io::BufReader::new(f)))
+    }
+}
+
+/// How many records the chain holds, WITHOUT loading the store.
+///
+/// The progress bar wants a total before any work starts, and reading all 506 MB twice to get
+/// one would be absurd — worse with an antivirus inspecting every read. This seeks the chain
+/// and touches only the 40-byte record headers: ~2 MB across the whole archive.
+///
+/// It must agree with [`parse_tbb`] exactly; the test below pins that.
+pub fn count_tbb(mut f: impl Read + Seek) -> usize {
+    let mut magic = [0u8; 4];
+    if f.read_exact(&mut magic).is_err() || magic != FILE_MAGIC {
+        return 0;
+    }
+    let mut off = FILE_HEADER as u64;
+    let mut hdr = [0u8; 0x28];
+    let mut n = 0usize;
+    loop {
+        if f.seek(SeekFrom::Start(off)).is_err() || f.read_exact(&mut hdr).is_err() {
+            break;
+        }
+        if hdr[..4] != REC_MAGIC {
+            break;
+        }
+        let header_size = u32::from_le_bytes([hdr[4], hdr[5], hdr[6], hdr[7]]) as u64;
+        let size = u32::from_le_bytes([hdr[0x24], hdr[0x25], hdr[0x26], hdr[0x27]]) as u64;
+        if header_size < 0x28 {
+            break;
+        }
+        n += 1;
+        off += header_size + size;
+    }
+    n
 }
 
 fn node_at(dir: &Path, name: String, kind: FolderKind) -> io::Result<FolderNode> {
@@ -181,7 +221,7 @@ mod tests {
     use super::*;
 
     /// Build a synthetic TBB. Real mail is never committed to this repo.
-    fn tbb(messages: &[(&str, u32, u32)]) -> Vec<u8> {
+    pub(super) fn tbb(messages: &[(&str, u32, u32)]) -> Vec<u8> {
         let mut b = Vec::new();
         b.extend_from_slice(&FILE_MAGIC);
         b.resize(FILE_HEADER, 0);
@@ -245,5 +285,41 @@ mod tests {
         let second = FILE_HEADER + 48 + "Subject: one\r\n\r\nbody".len();
         b[second] = 0xFF; // corrupt the second record's magic
         assert_eq!(parse_tbb(&b, "t").len(), 1);
+    }
+}
+
+#[cfg(test)]
+mod counting {
+    use super::*;
+    use super::tests::tbb;
+    use std::io::Cursor;
+
+    /// The seeking counter and the loading walker must never disagree — the progress bar's
+    /// total comes from one and its ticks from the other.
+    #[test]
+    fn count_agrees_with_the_full_walk() {
+        for case in [
+            vec![],
+            vec![("Subject: a\r\n\r\nx", 1u32, 0u32)],
+            vec![("Subject: a\r\n\r\nx", 1, 0), ("Subject: b\r\n\r\nyy", 2, 5)],
+        ] {
+            let b = tbb(&case);
+            assert_eq!(count_tbb(Cursor::new(&b)), parse_tbb(&b, "t").len(), "{} record(s)", case.len());
+        }
+    }
+
+    #[test]
+    fn count_stops_where_the_walk_stops() {
+        let mut b = tbb(&[("Subject: a\r\n\r\nx", 1, 0), ("Subject: b\r\n\r\ny", 2, 0)]);
+        let second = FILE_HEADER + 48 + "Subject: a\r\n\r\nx".len();
+        b[second] = 0xFF;
+        assert_eq!(count_tbb(Cursor::new(&b)), 1);
+        assert_eq!(count_tbb(Cursor::new(&b)), parse_tbb(&b, "t").len());
+    }
+
+    #[test]
+    fn a_foreign_file_counts_zero() {
+        assert_eq!(count_tbb(Cursor::new(b"not a TBB".to_vec())), 0);
+        assert_eq!(count_tbb(Cursor::new(Vec::new())), 0);
     }
 }

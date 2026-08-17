@@ -90,6 +90,15 @@ pub trait MailSource {
 
     /// Read one folder's messages.
     fn messages(&self, folder: &FolderNode) -> io::Result<Vec<RawMessage>>;
+
+    /// How many messages the folder holds, ideally WITHOUT reading them.
+    ///
+    /// Only the progress bar's total depends on this, so the default is honest about not
+    /// knowing: a reader that cannot answer cheaply should not read 506 MB twice to try. A
+    /// zero here just means the bar runs without a total for that folder.
+    fn count(&self, _folder: &FolderNode) -> io::Result<usize> {
+        Ok(0)
+    }
 }
 
 /// Resolve a `--source` name to a reader.
