@@ -1,0 +1,13 @@
+# Double-quoted so the serializer has no authored BLOCK raw to re-emit and must choose the
+# block spelling itself — which is the path that had the bug.
+#
+# The first line is blank and the first CONTENT line is indented. The old guard tested
+# lines[0], which is the blank one, so it let this through and emitted a block anchored at the
+# deeper column; the shallower line then dedented out of the block and the document no longer
+# reparsed ("a node may carry at most one scalar value line"). Found by importing real mail —
+# 5 of 2,746 messages in one account. Now the value falls back to a quoted scalar.
+- "\n indented first\nless indented\n"
+# a leading blank line with NO indented content is still perfectly good block territory
+- "\nfirst\n\nsecond\n"
+# and an indented line that is not the first content line is fine — deeper is allowed
+- "a\n  deeper\nback\n"

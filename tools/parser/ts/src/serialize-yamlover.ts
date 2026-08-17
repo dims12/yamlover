@@ -560,7 +560,10 @@ function rawBlock(s: Scalar): { header: string; lines: string[] } | null {
   const header = nl < 0 ? raw : raw.slice(0, nl);
   if (!/^[|>][+-]?$/.test(header)) return null;
   const lines = nl < 0 ? [] : raw.slice(nl + 1).split('\n');
-  if (lines.length > 0 && /^[ \t]/.test(lines[0])) return null; // the indent base cannot re-anchor
+  // the first NON-EMPTY line is the indent base (see blockLines) — a leading blank line must
+  // not let an indented content line through
+  const firstRawContent = lines.find((l) => l !== '');
+  if (firstRawContent !== undefined && /^[ \t]/.test(firstRawContent)) return null;
   if (lines.some((l) => l !== '' && /^ +$/.test(l))) return null; // all-space lines reparse as empty
   const folded = header[0] === '>';
   const chomp = header.includes('-') ? 'strip' : header.includes('+') ? 'keep' : 'clip';
@@ -635,7 +638,12 @@ function blockLines(v: string): { header: string; lines: string[] } | null {
   const body = v.slice(0, end);
   if (body === '') return null; // whitespace-only string
   const lines = body.split('\n');
-  if (/^[ \t]/.test(lines[0])) return null; // would corrupt the block's indent base
+  // The parser anchors the block's indent on the first NON-EMPTY line, so that is the line
+  // that must not be indented. Testing lines[0] misses a LEADING BLANK LINE: `\n indented\nless\n`
+  // then emitted a block anchored at the deeper column, and the shallower line dedented out of
+  // it — source that does not reparse ("a node may carry at most one scalar value line").
+  const firstContent = lines.find((l) => l !== '');
+  if (firstContent !== undefined && /^[ \t]/.test(firstContent)) return null;
   if (lines.some((l) => l !== '' && /^ +$/.test(l))) return null; // all-space lines read as empty
   const header = trailing === 0 ? '|-' : trailing === 1 ? '|' : '|+';
   for (let i = 1; i < trailing; i++) lines.push('');

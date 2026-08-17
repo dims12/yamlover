@@ -1027,8 +1027,8 @@ fn raw_block(n: &Node, value: &str) -> Option<BlockText> {
         None => Vec::new(),
         Some(r) => r.split('\n').map(str::to_string).collect(),
     };
-    if lines.first().is_some_and(|l| l.starts_with(' ') || l.starts_with('\t')) {
-        return None; // the indent base cannot re-anchor
+    if first_content_indented(&lines) {
+        return None; // the indent base cannot re-anchor (see block_lines)
     }
     if lines.iter().any(|l| !l.is_empty() && l.chars().all(|c| c == ' ')) {
         return None; // all-space lines reparse as empty
@@ -1140,8 +1140,13 @@ fn block_lines(v: &str) -> Option<BlockText> {
         return None; // whitespace-only string
     }
     let mut lines: Vec<String> = body.split('\n').map(str::to_string).collect();
-    if lines[0].starts_with(' ') || lines[0].starts_with('\t') {
-        return None; // would corrupt the block's indent base
+    // The parser anchors the block's indent on the first NON-EMPTY line, so that is the line
+    // that must not be indented. Testing `lines[0]` misses a LEADING BLANK LINE:
+    // `\n indented\nless\n` emitted a block anchored at the deeper column and the shallower
+    // line dedented out of it — source that does not reparse. Found by importing real mail
+    // (5 of 2,746 messages) and fixed in both implementations.
+    if first_content_indented(&lines) {
+        return None;
     }
     if lines.iter().any(|l| !l.is_empty() && l.chars().all(|c| c == ' ')) {
         return None; // all-space lines read as empty
@@ -1155,6 +1160,16 @@ fn block_lines(v: &str) -> Option<BlockText> {
         lines.push(String::new());
     }
     Some(BlockText { header: header.to_string(), lines })
+}
+
+/// Is the first NON-EMPTY line indented? That line is what the parser takes as the block's
+/// indent base, so an indented one makes every shallower line below it a dedent — ending the
+/// block early and turning its tail into a second scalar value line.
+fn first_content_indented(lines: &[String]) -> bool {
+    lines
+        .iter()
+        .find(|l| !l.is_empty())
+        .is_some_and(|l| l.starts_with(' ') || l.starts_with('\t'))
 }
 
 /// `(body, trailing_newline_count)`.

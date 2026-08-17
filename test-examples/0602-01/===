@@ -1,0 +1,1 @@
+a block scalar's indent base is the first NON-EMPTY line, so a leading blank line cannot hide an indented one
