@@ -17,7 +17,7 @@
 
 import { asLink, asMixed, scalarValue } from "../render";
 import { fragmentOf, isAncestorPath, segsToStr, strToSegs } from "../paths";
-import { entryRole, isOverlayKey, titleSlot } from "../../../../yed/src/chapter/roles.ts";
+import { entryRole, isHiddenEntryKey, isOverlayKey, titleSlot } from "../../../../yed/src/chapter/roles.ts";
 
 export { entryRole, isOverlayKey };
 
@@ -189,9 +189,10 @@ export function bodyKindOf(v: unknown): FlowKind {
   if (mixed) {
     if (mixed.yo === true) return "data";
     if (mixed.format != null) return isSubchapter(mixed.format) ? "subchapter" : "chunk"; // tagged: the tag decides
-    // untagged: a CONTAINER is a subchapter — but overlay keys are not body, so a scalar wearing
-    // only an annotation/fragment overlay is still the chunk it was
-    return mixed.entries.some((e) => !isOverlayKey(e.key)) ? "subchapter" : "chunk";
+    // untagged: a CONTAINER is a subchapter — but hidden-by-name keys are not body, so a scalar
+    // wearing only annotation/fragment overlays (either spelling, dot-keys, legacy yamlover-*)
+    // is still the chunk it was
+    return mixed.entries.some((e) => !isHiddenEntryKey(e.key)) ? "subchapter" : "chunk";
   }
   return Array.isArray(v) ? "subchapter" : "chunk";
 }

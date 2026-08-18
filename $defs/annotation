@@ -1,4 +1,6 @@
-# $defs/annotation — ONE TAG APPLICATION on the host node (a whole document, or a fragment within
+# $defs/annotation — RETIRED (docs/annotations: applications are membership bookmarks now).
+# Kept because legacy trees still carry it — read forever, never written anew.
+# ONE TAG APPLICATION on the host node (a whole document, or a fragment within
 # it). It lives as an element of the host's `yamlover-annotations` array. Two forms:
 #   • parameterless — a bare tag pointer (`- *::ontos:…`): the host simply HAS this tag.
 #   • parametrized  — an object carrying `tag: *::ontos:…` plus parameters (e.g. `description`).

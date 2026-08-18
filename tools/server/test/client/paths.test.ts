@@ -97,15 +97,18 @@ describe("client paths", () => {
     expect(window.location.search).toBe("?format=pdf");
   });
 
-  it("fragmentAnchorId is the material-relative tail, leading-slashed like chunk anchors (#/yo/fragments/<slug>)", () => {
-    // mirrors the chunk anchors (`<doc>#/chunks[n]`) so the `#` reads the same for both
+  it("fragmentAnchorId is the material-relative tail, leading-slashed like chunk anchors (#/.yo/fragments/<slug>)", () => {
+    // mirrors the chunk anchors (`<doc>#/chunks[n]`) so the `#` reads the same for both;
+    // ALWAYS the canonical `.yo` spelling — the id is a page-internal key (paths.ts)
     expect(fragmentAnchorId(":72-images:eiffel-tower:IMG.jpg", "mr0zbe2l-rqyow7"))
-      .toBe("/yo/fragments/mr0zbe2l-rqyow7");
+      .toBe("/.yo/fragments/mr0zbe2l-rqyow7");
     // root material: still leading-slashed
-    expect(fragmentAnchorId(":", "abc")).toBe("/yo/fragments/abc");
+    expect(fragmentAnchorId(":", "abc")).toBe("/.yo/fragments/abc");
   });
 
-  it("splitFragmentPath reads <host>:yo:fragments:<slug>", () => {
+  it("splitFragmentPath reads <host>:.yo:fragments:<slug> — the legacy `yo` spelling included", () => {
+    expect(splitFragmentPath(":72-images:eiffel-tower:IMG.jpg:.yo:fragments:abc"))
+      .toEqual({ host: ":72-images:eiffel-tower:IMG.jpg", slug: "abc" });
     expect(splitFragmentPath(":72-images:eiffel-tower:IMG.jpg:yo:fragments:abc"))
       .toEqual({ host: ":72-images:eiffel-tower:IMG.jpg", slug: "abc" });
     expect(splitFragmentPath(":68-math-chapter:0:yo:fragments:mqgwoar6-xbn407"))

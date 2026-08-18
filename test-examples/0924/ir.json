@@ -27,6 +27,19 @@
                 "anchors": [],
                 "entries": [
                   {
+                    "key": "body.yo",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "\"IMG_20120725_182044.jpg\":\n  .yo:\n    fragments:\n      mqee46pt-m1wdko: !!<*:: yamlover: $defs: fragment>\n        &:: yamlover: ontos: 'fifth tag': -\n        &:: yamlover: ontos: 'forth tag': -\n        &:: yamlover: ontos: верхушка: -\n        type: \"rect\"\n        x: 588\n        y: 653\n        w: 227\n        h: 277\n        image: *: .yo: fragments: mqee46pt-m1wdko.png\n        created: 2026-06-14T23:03:07.266Z\n      mqgw3srv-bi70ib: !!<*:: yamlover: $defs: fragment>\n        &:: yamlover: ontos: 'fifth tag': -\n        type: \"rect\"\n        x: 182\n        y: 1040\n        w: 225\n        h: 198\n        image: *: .yo: fragments: mqgw3srv-bi70ib.png\n        created: 2026-06-16T17:02:14.638Z\n      mqgw40jq-18b8iw: !!<*:: yamlover: $defs: fragment>\n        &:: yamlover: ontos: 'fifth tag': -\n        &:: yamlover: ontos: 'forth tag': -\n        type: \"rect\"\n        x: 402\n        y: 1342\n        w: 225\n        h: 148\n        image: *: .yo: fragments: mqgw40jq-18b8iw.png\n        created: 2026-06-16T17:02:24.710Z\n    thumbnails:\n      [512, 512]: *: .yo: thumbnails: xxh64-1b5282b9d3435166-512x512.jpg\n      [256, 256]: *: .yo: thumbnails: xxh64-1b5282b9d3435166-256x256.jpg\n\"IMG_20120725_182723.jpg\":\n  .yo:\n    fragments:\n      mqgw4p2e-2wif88: !!<*:: yamlover: $defs: fragment>\n        &:: yamlover: ontos: 'forth tag': -\n        type: \"rect\"\n        x: 1093\n        y: 484\n        w: 371\n        h: 390\n        image: *: .yo: fragments: mqgw4p2e-2wif88.png\n        created: 2026-06-16T17:02:56.487Z\n    thumbnails:\n      [512, 512]: *: .yo: thumbnails: xxh64-fc72506e96579626-512x512.jpg\n      [256, 256]: *: .yo: thumbnails: xxh64-fc72506e96579626-256x256.jpg\n\"IMG_20120725_194255.jpg\":\n  .yo:\n    thumbnails:\n      [512, 512]: *: .yo: thumbnails: xxh64-e62188f8d066c01c-512x512.jpg\n      [256, 256]: *: .yo: thumbnails: xxh64-e62188f8d066c01c-256x256.jpg\n\"IMG_20120725_194756.jpg\":\n  .yo:\n    thumbnails:\n      [512, 512]: *: .yo: thumbnails: xxh64-9d1e9a4b8b882ca6-512x512.jpg\n      [256, 256]: *: .yo: thumbnails: xxh64-9d1e9a4b8b882ca6-256x256.jpg\n",
+                      "array": false,
+                      "set": false,
+                      "yo": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
                     "key": "fragments",
                     "edge": "contain",
                     "value": {
@@ -275,7 +288,7 @@
                 "anchors": [],
                 "entries": [
                   {
-                    "key": "yo",
+                    "key": ".yo",
                     "edge": "contain",
                     "value": {
                       "kind": "mapping",
@@ -803,68 +816,68 @@
                               }
                             ]
                           }
-                        }
-                      ]
-                    }
-                  },
-                  {
-                    "key": "yamlover-thumbnails",
-                    "edge": "contain",
-                    "value": {
-                      "kind": "mapping",
-                      "array": false,
-                      "set": false,
-                      "yo": false,
-                      "anchors": [],
-                      "entries": [
-                        {
-                          "key": "[512, 512]",
-                          "edge": "ref",
-                          "value": {
-                            "ptr": {
-                              "base": {
-                                "scope": "document"
-                              },
-                              "steps": [
-                                {
-                                  "sel": "key",
-                                  "name": ".yo"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "thumbnails"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "xxh64-1b5282b9d3435166-512x512.jpg"
-                                }
-                              ]
-                            }
-                          }
                         },
                         {
-                          "key": "[256, 256]",
-                          "edge": "ref",
+                          "key": "thumbnails",
+                          "edge": "contain",
                           "value": {
-                            "ptr": {
-                              "base": {
-                                "scope": "document"
-                              },
-                              "steps": [
-                                {
-                                  "sel": "key",
-                                  "name": ".yo"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "thumbnails"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "xxh64-1b5282b9d3435166-256x256.jpg"
+                            "kind": "mapping",
+                            "array": false,
+                            "set": false,
+                            "yo": false,
+                            "anchors": [],
+                            "entries": [
+                              {
+                                "key": "[512, 512]",
+                                "edge": "ref",
+                                "value": {
+                                  "ptr": {
+                                    "base": {
+                                      "scope": "document"
+                                    },
+                                    "steps": [
+                                      {
+                                        "sel": "key",
+                                        "name": ".yo"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "thumbnails"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "xxh64-1b5282b9d3435166-512x512.jpg"
+                                      }
+                                    ]
+                                  }
                                 }
-                              ]
-                            }
+                              },
+                              {
+                                "key": "[256, 256]",
+                                "edge": "ref",
+                                "value": {
+                                  "ptr": {
+                                    "base": {
+                                      "scope": "document"
+                                    },
+                                    "steps": [
+                                      {
+                                        "sel": "key",
+                                        "name": ".yo"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "thumbnails"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "xxh64-1b5282b9d3435166-256x256.jpg"
+                                      }
+                                    ]
+                                  }
+                                }
+                              }
+                            ]
                           }
                         }
                       ]
@@ -889,70 +902,7 @@
                 "anchors": [],
                 "entries": [
                   {
-                    "key": "yamlover-thumbnails",
-                    "edge": "contain",
-                    "value": {
-                      "kind": "mapping",
-                      "array": false,
-                      "set": false,
-                      "yo": false,
-                      "anchors": [],
-                      "entries": [
-                        {
-                          "key": "[512, 512]",
-                          "edge": "ref",
-                          "value": {
-                            "ptr": {
-                              "base": {
-                                "scope": "document"
-                              },
-                              "steps": [
-                                {
-                                  "sel": "key",
-                                  "name": ".yo"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "thumbnails"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "xxh64-fc72506e96579626-512x512.jpg"
-                                }
-                              ]
-                            }
-                          }
-                        },
-                        {
-                          "key": "[256, 256]",
-                          "edge": "ref",
-                          "value": {
-                            "ptr": {
-                              "base": {
-                                "scope": "document"
-                              },
-                              "steps": [
-                                {
-                                  "sel": "key",
-                                  "name": ".yo"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "thumbnails"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "xxh64-fc72506e96579626-256x256.jpg"
-                                }
-                              ]
-                            }
-                          }
-                        }
-                      ]
-                    }
-                  },
-                  {
-                    "key": "yo",
+                    "key": ".yo",
                     "edge": "contain",
                     "value": {
                       "kind": "mapping",
@@ -1125,6 +1075,69 @@
                               }
                             ]
                           }
+                        },
+                        {
+                          "key": "thumbnails",
+                          "edge": "contain",
+                          "value": {
+                            "kind": "mapping",
+                            "array": false,
+                            "set": false,
+                            "yo": false,
+                            "anchors": [],
+                            "entries": [
+                              {
+                                "key": "[512, 512]",
+                                "edge": "ref",
+                                "value": {
+                                  "ptr": {
+                                    "base": {
+                                      "scope": "document"
+                                    },
+                                    "steps": [
+                                      {
+                                        "sel": "key",
+                                        "name": ".yo"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "thumbnails"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "xxh64-fc72506e96579626-512x512.jpg"
+                                      }
+                                    ]
+                                  }
+                                }
+                              },
+                              {
+                                "key": "[256, 256]",
+                                "edge": "ref",
+                                "value": {
+                                  "ptr": {
+                                    "base": {
+                                      "scope": "document"
+                                    },
+                                    "steps": [
+                                      {
+                                        "sel": "key",
+                                        "name": ".yo"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "thumbnails"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "xxh64-fc72506e96579626-256x256.jpg"
+                                      }
+                                    ]
+                                  }
+                                }
+                              }
+                            ]
+                          }
                         }
                       ]
                     }
@@ -1148,7 +1161,7 @@
                 "anchors": [],
                 "entries": [
                   {
-                    "key": "yamlover-thumbnails",
+                    "key": ".yo",
                     "edge": "contain",
                     "value": {
                       "kind": "mapping",
@@ -1158,53 +1171,66 @@
                       "anchors": [],
                       "entries": [
                         {
-                          "key": "[512, 512]",
-                          "edge": "ref",
+                          "key": "thumbnails",
+                          "edge": "contain",
                           "value": {
-                            "ptr": {
-                              "base": {
-                                "scope": "document"
-                              },
-                              "steps": [
-                                {
-                                  "sel": "key",
-                                  "name": ".yo"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "thumbnails"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "xxh64-e62188f8d066c01c-512x512.jpg"
+                            "kind": "mapping",
+                            "array": false,
+                            "set": false,
+                            "yo": false,
+                            "anchors": [],
+                            "entries": [
+                              {
+                                "key": "[512, 512]",
+                                "edge": "ref",
+                                "value": {
+                                  "ptr": {
+                                    "base": {
+                                      "scope": "document"
+                                    },
+                                    "steps": [
+                                      {
+                                        "sel": "key",
+                                        "name": ".yo"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "thumbnails"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "xxh64-e62188f8d066c01c-512x512.jpg"
+                                      }
+                                    ]
+                                  }
                                 }
-                              ]
-                            }
-                          }
-                        },
-                        {
-                          "key": "[256, 256]",
-                          "edge": "ref",
-                          "value": {
-                            "ptr": {
-                              "base": {
-                                "scope": "document"
                               },
-                              "steps": [
-                                {
-                                  "sel": "key",
-                                  "name": ".yo"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "thumbnails"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "xxh64-e62188f8d066c01c-256x256.jpg"
+                              {
+                                "key": "[256, 256]",
+                                "edge": "ref",
+                                "value": {
+                                  "ptr": {
+                                    "base": {
+                                      "scope": "document"
+                                    },
+                                    "steps": [
+                                      {
+                                        "sel": "key",
+                                        "name": ".yo"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "thumbnails"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "xxh64-e62188f8d066c01c-256x256.jpg"
+                                      }
+                                    ]
+                                  }
                                 }
-                              ]
-                            }
+                              }
+                            ]
                           }
                         }
                       ]
@@ -1229,7 +1255,7 @@
                 "anchors": [],
                 "entries": [
                   {
-                    "key": "yamlover-thumbnails",
+                    "key": ".yo",
                     "edge": "contain",
                     "value": {
                       "kind": "mapping",
@@ -1239,53 +1265,66 @@
                       "anchors": [],
                       "entries": [
                         {
-                          "key": "[512, 512]",
-                          "edge": "ref",
+                          "key": "thumbnails",
+                          "edge": "contain",
                           "value": {
-                            "ptr": {
-                              "base": {
-                                "scope": "document"
-                              },
-                              "steps": [
-                                {
-                                  "sel": "key",
-                                  "name": ".yo"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "thumbnails"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "xxh64-9d1e9a4b8b882ca6-512x512.jpg"
+                            "kind": "mapping",
+                            "array": false,
+                            "set": false,
+                            "yo": false,
+                            "anchors": [],
+                            "entries": [
+                              {
+                                "key": "[512, 512]",
+                                "edge": "ref",
+                                "value": {
+                                  "ptr": {
+                                    "base": {
+                                      "scope": "document"
+                                    },
+                                    "steps": [
+                                      {
+                                        "sel": "key",
+                                        "name": ".yo"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "thumbnails"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "xxh64-9d1e9a4b8b882ca6-512x512.jpg"
+                                      }
+                                    ]
+                                  }
                                 }
-                              ]
-                            }
-                          }
-                        },
-                        {
-                          "key": "[256, 256]",
-                          "edge": "ref",
-                          "value": {
-                            "ptr": {
-                              "base": {
-                                "scope": "document"
                               },
-                              "steps": [
-                                {
-                                  "sel": "key",
-                                  "name": ".yo"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "thumbnails"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "xxh64-9d1e9a4b8b882ca6-256x256.jpg"
+                              {
+                                "key": "[256, 256]",
+                                "edge": "ref",
+                                "value": {
+                                  "ptr": {
+                                    "base": {
+                                      "scope": "document"
+                                    },
+                                    "steps": [
+                                      {
+                                        "sel": "key",
+                                        "name": ".yo"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "thumbnails"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "xxh64-9d1e9a4b8b882ca6-256x256.jpg"
+                                      }
+                                    ]
+                                  }
                                 }
-                              ]
-                            }
+                              }
+                            ]
                           }
                         }
                       ]
@@ -1317,6 +1356,19 @@
                 "yo": false,
                 "anchors": [],
                 "entries": [
+                  {
+                    "key": "body.yo",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "\"IMG_20120725_111615.jpg\":\n  .yo:\n    thumbnails:\n      [512, 512]: *: .yo: thumbnails: xxh64-1b20aa88e5c31cf6-512x512.jpg\n\"IMG_20120725_112345.jpg\":\n  .yo:\n    thumbnails:\n      [512, 512]: *: .yo: thumbnails: xxh64-42ae67dc7308a693-512x512.jpg\n\"IMG_20120725_112417.jpg\":\n  .yo:\n    fragments:\n      mqgzjq12-09ktac: !!<*:: yamlover: $defs: fragment>\n        type: \"rect\"\n        x: 684\n        y: 374\n        w: 225\n        h: 447\n        image: *: .yo: fragments: mqgzjq12-09ktac.png\n        created: 2026-06-16T18:38:36.423Z\n      mqgzkr8b-o80pq1: !!<*:: yamlover: $defs: fragment>\n        type: \"rect\"\n        x: 1255\n        y: 742\n        w: 187\n        h: 239\n        image: *: .yo: fragments: mqgzkr8b-o80pq1.png\n        created: 2026-06-16T18:39:24.635Z\n      mqgzkx76-qboh2g: !!<*:: yamlover: $defs: fragment>\n        type: \"rect\"\n        x: 598\n        y: 1022\n        w: 147\n        h: 145\n        image: *: .yo: fragments: mqgzkx76-qboh2g.png\n        created: 2026-06-16T18:39:32.370Z\n      mqgzyj5v-xxvd5w: !!<*:: yamlover: $defs: fragment>\n        type: \"rect\"\n        x: 355\n        y: 439\n        w: 169\n        h: 127\n        image: *: .yo: fragments: mqgzyj5v-xxvd5w.png\n        created: 2026-06-16T18:50:07.365Z\n      mqgzyslc-dl2u4w: !!<*:: yamlover: $defs: fragment>\n        type: \"rect\"\n        x: 733\n        y: 429\n        w: 179\n        h: 115\n        image: *: .yo: fragments: mqgzyslc-dl2u4w.png\n        created: 2026-06-16T18:50:19.584Z\n      mqgzyufk-uyulgv: !!<*:: yamlover: $defs: fragment>\n        type: \"rect\"\n        x: 1141\n        y: 444\n        w: 120\n        h: 102\n        image: *: .yo: fragments: mqgzyufk-uyulgv.png\n        created: 2026-06-16T18:50:21.969Z\n    thumbnails:\n      [512, 512]: *: .yo: thumbnails: xxh64-2190e1055bd36022-512x512.jpg\n\"IMG_20120725_112847.jpg\":\n  .yo:\n    thumbnails:\n      [512, 512]: *: .yo: thumbnails: xxh64-a04cc4f5618fbf4d-512x512.jpg\n\"IMG_20120725_120424.jpg\":\n  .yo:\n    thumbnails:\n      [512, 512]: *: .yo: thumbnails: xxh64-b30d47e750f27d0f-512x512.jpg\n",
+                      "array": false,
+                      "set": false,
+                      "yo": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
                   {
                     "key": "fragments",
                     "edge": "contain",
@@ -1549,7 +1601,7 @@
                 "anchors": [],
                 "entries": [
                   {
-                    "key": "yamlover-thumbnails",
+                    "key": ".yo",
                     "edge": "contain",
                     "value": {
                       "kind": "mapping",
@@ -1559,28 +1611,41 @@
                       "anchors": [],
                       "entries": [
                         {
-                          "key": "[512, 512]",
-                          "edge": "ref",
+                          "key": "thumbnails",
+                          "edge": "contain",
                           "value": {
-                            "ptr": {
-                              "base": {
-                                "scope": "document"
-                              },
-                              "steps": [
-                                {
-                                  "sel": "key",
-                                  "name": ".yo"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "thumbnails"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "xxh64-1b20aa88e5c31cf6-512x512.jpg"
+                            "kind": "mapping",
+                            "array": false,
+                            "set": false,
+                            "yo": false,
+                            "anchors": [],
+                            "entries": [
+                              {
+                                "key": "[512, 512]",
+                                "edge": "ref",
+                                "value": {
+                                  "ptr": {
+                                    "base": {
+                                      "scope": "document"
+                                    },
+                                    "steps": [
+                                      {
+                                        "sel": "key",
+                                        "name": ".yo"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "thumbnails"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "xxh64-1b20aa88e5c31cf6-512x512.jpg"
+                                      }
+                                    ]
+                                  }
                                 }
-                              ]
-                            }
+                              }
+                            ]
                           }
                         }
                       ]
@@ -1605,7 +1670,7 @@
                 "anchors": [],
                 "entries": [
                   {
-                    "key": "yamlover-thumbnails",
+                    "key": ".yo",
                     "edge": "contain",
                     "value": {
                       "kind": "mapping",
@@ -1615,28 +1680,41 @@
                       "anchors": [],
                       "entries": [
                         {
-                          "key": "[512, 512]",
-                          "edge": "ref",
+                          "key": "thumbnails",
+                          "edge": "contain",
                           "value": {
-                            "ptr": {
-                              "base": {
-                                "scope": "document"
-                              },
-                              "steps": [
-                                {
-                                  "sel": "key",
-                                  "name": ".yo"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "thumbnails"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "xxh64-42ae67dc7308a693-512x512.jpg"
+                            "kind": "mapping",
+                            "array": false,
+                            "set": false,
+                            "yo": false,
+                            "anchors": [],
+                            "entries": [
+                              {
+                                "key": "[512, 512]",
+                                "edge": "ref",
+                                "value": {
+                                  "ptr": {
+                                    "base": {
+                                      "scope": "document"
+                                    },
+                                    "steps": [
+                                      {
+                                        "sel": "key",
+                                        "name": ".yo"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "thumbnails"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "xxh64-42ae67dc7308a693-512x512.jpg"
+                                      }
+                                    ]
+                                  }
                                 }
-                              ]
-                            }
+                              }
+                            ]
                           }
                         }
                       ]
@@ -1661,45 +1739,7 @@
                 "anchors": [],
                 "entries": [
                   {
-                    "key": "yamlover-thumbnails",
-                    "edge": "contain",
-                    "value": {
-                      "kind": "mapping",
-                      "array": false,
-                      "set": false,
-                      "yo": false,
-                      "anchors": [],
-                      "entries": [
-                        {
-                          "key": "[512, 512]",
-                          "edge": "ref",
-                          "value": {
-                            "ptr": {
-                              "base": {
-                                "scope": "document"
-                              },
-                              "steps": [
-                                {
-                                  "sel": "key",
-                                  "name": ".yo"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "thumbnails"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "xxh64-2190e1055bd36022-512x512.jpg"
-                                }
-                              ]
-                            }
-                          }
-                        }
-                      ]
-                    }
-                  },
-                  {
-                    "key": "yo",
+                    "key": ".yo",
                     "edge": "contain",
                     "value": {
                       "kind": "mapping",
@@ -2524,6 +2564,44 @@
                               }
                             ]
                           }
+                        },
+                        {
+                          "key": "thumbnails",
+                          "edge": "contain",
+                          "value": {
+                            "kind": "mapping",
+                            "array": false,
+                            "set": false,
+                            "yo": false,
+                            "anchors": [],
+                            "entries": [
+                              {
+                                "key": "[512, 512]",
+                                "edge": "ref",
+                                "value": {
+                                  "ptr": {
+                                    "base": {
+                                      "scope": "document"
+                                    },
+                                    "steps": [
+                                      {
+                                        "sel": "key",
+                                        "name": ".yo"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "thumbnails"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "xxh64-2190e1055bd36022-512x512.jpg"
+                                      }
+                                    ]
+                                  }
+                                }
+                              }
+                            ]
+                          }
                         }
                       ]
                     }
@@ -2547,7 +2625,7 @@
                 "anchors": [],
                 "entries": [
                   {
-                    "key": "yamlover-thumbnails",
+                    "key": ".yo",
                     "edge": "contain",
                     "value": {
                       "kind": "mapping",
@@ -2557,28 +2635,41 @@
                       "anchors": [],
                       "entries": [
                         {
-                          "key": "[512, 512]",
-                          "edge": "ref",
+                          "key": "thumbnails",
+                          "edge": "contain",
                           "value": {
-                            "ptr": {
-                              "base": {
-                                "scope": "document"
-                              },
-                              "steps": [
-                                {
-                                  "sel": "key",
-                                  "name": ".yo"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "thumbnails"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "xxh64-a04cc4f5618fbf4d-512x512.jpg"
+                            "kind": "mapping",
+                            "array": false,
+                            "set": false,
+                            "yo": false,
+                            "anchors": [],
+                            "entries": [
+                              {
+                                "key": "[512, 512]",
+                                "edge": "ref",
+                                "value": {
+                                  "ptr": {
+                                    "base": {
+                                      "scope": "document"
+                                    },
+                                    "steps": [
+                                      {
+                                        "sel": "key",
+                                        "name": ".yo"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "thumbnails"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "xxh64-a04cc4f5618fbf4d-512x512.jpg"
+                                      }
+                                    ]
+                                  }
                                 }
-                              ]
-                            }
+                              }
+                            ]
                           }
                         }
                       ]
@@ -2603,7 +2694,7 @@
                 "anchors": [],
                 "entries": [
                   {
-                    "key": "yamlover-thumbnails",
+                    "key": ".yo",
                     "edge": "contain",
                     "value": {
                       "kind": "mapping",
@@ -2613,28 +2704,41 @@
                       "anchors": [],
                       "entries": [
                         {
-                          "key": "[512, 512]",
-                          "edge": "ref",
+                          "key": "thumbnails",
+                          "edge": "contain",
                           "value": {
-                            "ptr": {
-                              "base": {
-                                "scope": "document"
-                              },
-                              "steps": [
-                                {
-                                  "sel": "key",
-                                  "name": ".yo"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "thumbnails"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "xxh64-b30d47e750f27d0f-512x512.jpg"
+                            "kind": "mapping",
+                            "array": false,
+                            "set": false,
+                            "yo": false,
+                            "anchors": [],
+                            "entries": [
+                              {
+                                "key": "[512, 512]",
+                                "edge": "ref",
+                                "value": {
+                                  "ptr": {
+                                    "base": {
+                                      "scope": "document"
+                                    },
+                                    "steps": [
+                                      {
+                                        "sel": "key",
+                                        "name": ".yo"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "thumbnails"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "xxh64-b30d47e750f27d0f-512x512.jpg"
+                                      }
+                                    ]
+                                  }
                                 }
-                              ]
-                            }
+                              }
+                            ]
                           }
                         }
                       ]
@@ -2666,6 +2770,19 @@
                 "yo": false,
                 "anchors": [],
                 "entries": [
+                  {
+                    "key": "body.yo",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "\"IMG_20120724_172958.jpg\":\n  .yo:\n    thumbnails:\n      [512, 512]: *: .yo: thumbnails: xxh64-de2076f19917bdca-512x512.jpg\n",
+                      "array": false,
+                      "set": false,
+                      "yo": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
                   {
                     "key": "thumbnails",
                     "edge": "contain",
@@ -2715,7 +2832,7 @@
                 "anchors": [],
                 "entries": [
                   {
-                    "key": "yamlover-thumbnails",
+                    "key": ".yo",
                     "edge": "contain",
                     "value": {
                       "kind": "mapping",
@@ -2725,28 +2842,41 @@
                       "anchors": [],
                       "entries": [
                         {
-                          "key": "[512, 512]",
-                          "edge": "ref",
+                          "key": "thumbnails",
+                          "edge": "contain",
                           "value": {
-                            "ptr": {
-                              "base": {
-                                "scope": "document"
-                              },
-                              "steps": [
-                                {
-                                  "sel": "key",
-                                  "name": ".yo"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "thumbnails"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "xxh64-de2076f19917bdca-512x512.jpg"
+                            "kind": "mapping",
+                            "array": false,
+                            "set": false,
+                            "yo": false,
+                            "anchors": [],
+                            "entries": [
+                              {
+                                "key": "[512, 512]",
+                                "edge": "ref",
+                                "value": {
+                                  "ptr": {
+                                    "base": {
+                                      "scope": "document"
+                                    },
+                                    "steps": [
+                                      {
+                                        "sel": "key",
+                                        "name": ".yo"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "thumbnails"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "xxh64-de2076f19917bdca-512x512.jpg"
+                                      }
+                                    ]
+                                  }
                                 }
-                              ]
-                            }
+                              }
+                            ]
                           }
                         }
                       ]
@@ -2778,6 +2908,19 @@
                 "yo": false,
                 "anchors": [],
                 "entries": [
+                  {
+                    "key": "body.yo",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "\"IMG_20120725_103555.jpg\":\n  .yo:\n    thumbnails:\n      [512, 512]: *: .yo: thumbnails: xxh64-fb5bb0b52b69291d-512x512.jpg\n\"IMG_20120725_174206.jpg\":\n  .yo:\n    thumbnails:\n      [512, 512]: *: .yo: thumbnails: xxh64-f1bf8c26a5351bcf-512x512.jpg\n\"IMG_20120726_115430.jpg\":\n  .yo:\n    thumbnails:\n      [512, 512]: *: .yo: thumbnails: xxh64-ca2d7f852930092f-512x512.jpg\n\"IMG_20120726_115420.jpg\":\n  .yo:\n    thumbnails:\n      [512, 512]: *: .yo: thumbnails: xxh64-15d3eddb84a44a0d-512x512.jpg\n\"IMG_20120726_115417.jpg\":\n  .yo:\n    thumbnails:\n      [512, 512]: *: .yo: thumbnails: xxh64-cdfbbe3c539aba6d-512x512.jpg\n",
+                      "array": false,
+                      "set": false,
+                      "yo": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
                   {
                     "key": "thumbnails",
                     "edge": "contain",
@@ -2895,7 +3038,7 @@
                 "anchors": [],
                 "entries": [
                   {
-                    "key": "yamlover-thumbnails",
+                    "key": ".yo",
                     "edge": "contain",
                     "value": {
                       "kind": "mapping",
@@ -2905,28 +3048,41 @@
                       "anchors": [],
                       "entries": [
                         {
-                          "key": "[512, 512]",
-                          "edge": "ref",
+                          "key": "thumbnails",
+                          "edge": "contain",
                           "value": {
-                            "ptr": {
-                              "base": {
-                                "scope": "document"
-                              },
-                              "steps": [
-                                {
-                                  "sel": "key",
-                                  "name": ".yo"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "thumbnails"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "xxh64-fb5bb0b52b69291d-512x512.jpg"
+                            "kind": "mapping",
+                            "array": false,
+                            "set": false,
+                            "yo": false,
+                            "anchors": [],
+                            "entries": [
+                              {
+                                "key": "[512, 512]",
+                                "edge": "ref",
+                                "value": {
+                                  "ptr": {
+                                    "base": {
+                                      "scope": "document"
+                                    },
+                                    "steps": [
+                                      {
+                                        "sel": "key",
+                                        "name": ".yo"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "thumbnails"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "xxh64-fb5bb0b52b69291d-512x512.jpg"
+                                      }
+                                    ]
+                                  }
                                 }
-                              ]
-                            }
+                              }
+                            ]
                           }
                         }
                       ]
@@ -2951,7 +3107,7 @@
                 "anchors": [],
                 "entries": [
                   {
-                    "key": "yamlover-thumbnails",
+                    "key": ".yo",
                     "edge": "contain",
                     "value": {
                       "kind": "mapping",
@@ -2961,28 +3117,41 @@
                       "anchors": [],
                       "entries": [
                         {
-                          "key": "[512, 512]",
-                          "edge": "ref",
+                          "key": "thumbnails",
+                          "edge": "contain",
                           "value": {
-                            "ptr": {
-                              "base": {
-                                "scope": "document"
-                              },
-                              "steps": [
-                                {
-                                  "sel": "key",
-                                  "name": ".yo"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "thumbnails"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "xxh64-f1bf8c26a5351bcf-512x512.jpg"
+                            "kind": "mapping",
+                            "array": false,
+                            "set": false,
+                            "yo": false,
+                            "anchors": [],
+                            "entries": [
+                              {
+                                "key": "[512, 512]",
+                                "edge": "ref",
+                                "value": {
+                                  "ptr": {
+                                    "base": {
+                                      "scope": "document"
+                                    },
+                                    "steps": [
+                                      {
+                                        "sel": "key",
+                                        "name": ".yo"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "thumbnails"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "xxh64-f1bf8c26a5351bcf-512x512.jpg"
+                                      }
+                                    ]
+                                  }
                                 }
-                              ]
-                            }
+                              }
+                            ]
                           }
                         }
                       ]
@@ -3007,7 +3176,7 @@
                 "anchors": [],
                 "entries": [
                   {
-                    "key": "yamlover-thumbnails",
+                    "key": ".yo",
                     "edge": "contain",
                     "value": {
                       "kind": "mapping",
@@ -3017,28 +3186,41 @@
                       "anchors": [],
                       "entries": [
                         {
-                          "key": "[512, 512]",
-                          "edge": "ref",
+                          "key": "thumbnails",
+                          "edge": "contain",
                           "value": {
-                            "ptr": {
-                              "base": {
-                                "scope": "document"
-                              },
-                              "steps": [
-                                {
-                                  "sel": "key",
-                                  "name": ".yo"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "thumbnails"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "xxh64-cdfbbe3c539aba6d-512x512.jpg"
+                            "kind": "mapping",
+                            "array": false,
+                            "set": false,
+                            "yo": false,
+                            "anchors": [],
+                            "entries": [
+                              {
+                                "key": "[512, 512]",
+                                "edge": "ref",
+                                "value": {
+                                  "ptr": {
+                                    "base": {
+                                      "scope": "document"
+                                    },
+                                    "steps": [
+                                      {
+                                        "sel": "key",
+                                        "name": ".yo"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "thumbnails"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "xxh64-cdfbbe3c539aba6d-512x512.jpg"
+                                      }
+                                    ]
+                                  }
                                 }
-                              ]
-                            }
+                              }
+                            ]
                           }
                         }
                       ]
@@ -3063,7 +3245,7 @@
                 "anchors": [],
                 "entries": [
                   {
-                    "key": "yamlover-thumbnails",
+                    "key": ".yo",
                     "edge": "contain",
                     "value": {
                       "kind": "mapping",
@@ -3073,28 +3255,41 @@
                       "anchors": [],
                       "entries": [
                         {
-                          "key": "[512, 512]",
-                          "edge": "ref",
+                          "key": "thumbnails",
+                          "edge": "contain",
                           "value": {
-                            "ptr": {
-                              "base": {
-                                "scope": "document"
-                              },
-                              "steps": [
-                                {
-                                  "sel": "key",
-                                  "name": ".yo"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "thumbnails"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "xxh64-15d3eddb84a44a0d-512x512.jpg"
+                            "kind": "mapping",
+                            "array": false,
+                            "set": false,
+                            "yo": false,
+                            "anchors": [],
+                            "entries": [
+                              {
+                                "key": "[512, 512]",
+                                "edge": "ref",
+                                "value": {
+                                  "ptr": {
+                                    "base": {
+                                      "scope": "document"
+                                    },
+                                    "steps": [
+                                      {
+                                        "sel": "key",
+                                        "name": ".yo"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "thumbnails"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "xxh64-15d3eddb84a44a0d-512x512.jpg"
+                                      }
+                                    ]
+                                  }
                                 }
-                              ]
-                            }
+                              }
+                            ]
                           }
                         }
                       ]
@@ -3119,7 +3314,7 @@
                 "anchors": [],
                 "entries": [
                   {
-                    "key": "yamlover-thumbnails",
+                    "key": ".yo",
                     "edge": "contain",
                     "value": {
                       "kind": "mapping",
@@ -3129,28 +3324,41 @@
                       "anchors": [],
                       "entries": [
                         {
-                          "key": "[512, 512]",
-                          "edge": "ref",
+                          "key": "thumbnails",
+                          "edge": "contain",
                           "value": {
-                            "ptr": {
-                              "base": {
-                                "scope": "document"
-                              },
-                              "steps": [
-                                {
-                                  "sel": "key",
-                                  "name": ".yo"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "thumbnails"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "xxh64-ca2d7f852930092f-512x512.jpg"
+                            "kind": "mapping",
+                            "array": false,
+                            "set": false,
+                            "yo": false,
+                            "anchors": [],
+                            "entries": [
+                              {
+                                "key": "[512, 512]",
+                                "edge": "ref",
+                                "value": {
+                                  "ptr": {
+                                    "base": {
+                                      "scope": "document"
+                                    },
+                                    "steps": [
+                                      {
+                                        "sel": "key",
+                                        "name": ".yo"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "thumbnails"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "xxh64-ca2d7f852930092f-512x512.jpg"
+                                      }
+                                    ]
+                                  }
                                 }
-                              ]
-                            }
+                              }
+                            ]
                           }
                         }
                       ]

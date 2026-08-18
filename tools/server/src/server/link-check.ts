@@ -8,6 +8,7 @@
 
 import * as path from 'node:path';
 import type { Document } from '../../../parser/ts/src/ir.ts';
+import { isOverlayKey, LEGACY_OVERLAY_KEY, LEGACY_THUMBNAILS_KEY } from '../../../parser/ts/src/overlay-keys.ts';
 import { scanTextLinks } from '../../../engine/ts/src/resolve.ts';
 import type { Store } from '../../../engine/ts/src/store.ts';
 import type { Diagnostic } from '../validate.ts';
@@ -32,10 +33,10 @@ export function deadLinkDiagnostics(doc: Document, store: Store, dataRoot: strin
   return out;
 }
 
-/** STALE DOUBLED FRAGMENTS: a `fragments:` mapping nested DIRECTLY inside `yo: fragments:`.
- *  Nothing writes this shape any more (the embed walk reads the flat `yo: fragments:` row
- *  now), but pre-fix annotates over a flat-spelled overlay left it behind — real fragments
- *  buried one level too deep, whose member pointers spell the doubled
+/** STALE DOUBLED FRAGMENTS: a `fragments:` mapping nested DIRECTLY inside `.yo: fragments:`
+ *  (either overlay spelling). Nothing writes this shape any more (the embed walk reads the
+ *  flat `.yo: fragments:` row now), but pre-fix annotates over a flat-spelled overlay left it
+ *  behind — real fragments buried one level too deep, whose member pointers spell the doubled
  *  `…: fragments: fragments: <slug>` and whose locate can never fire. The doctor surfaces
  *  the damage; the repair is moving the buried children up one level. */
 export function doubledFragmentDiagnostics(doc: Document): Diagnostic[] {
@@ -47,14 +48,40 @@ export function doubledFragmentDiagnostics(doc: Document): Diagnostic[] {
       if (
         key === 'fragments' &&
         segs[segs.length - 1] === 'fragments' &&
-        segs[segs.length - 2] === 'yo'
+        isOverlayKey(segs[segs.length - 2])
       ) {
         out.push({
           code: 'annotations/doubled-fragments',
           severity: 'warning',
-          message: `a \`fragments:\` mapping nested inside \`yo: fragments:\` — left by a pre-fix annotate over the flat spelling`,
+          message: `a \`fragments:\` mapping nested inside \`${segs[segs.length - 2]}: fragments:\` — left by a pre-fix annotate over the flat spelling`,
           path: ':' + [...segs, key].join(':'),
           hint: 'move its child fragments up one level, into the enclosing fragments mapping',
+        });
+      }
+      if (e.value !== null && typeof e.value === 'object') walk(e.value, [...segs, key ?? String(i)]);
+    });
+  };
+  walk(doc.root, []);
+  return out;
+}
+
+/** LEGACY OVERLAY SPELLINGS: a document-internal `yo:` or `yamlover-thumbnails:` key. Read
+ *  forever — nothing is broken — but the canonical spelling is `.yo:` / `.yo: thumbnails:`,
+ *  and the migration script rewrites a whole tree in one pass. Severity `info`: a nudge the
+ *  doctor lists, never a refusal. */
+export function legacyOverlaySpellingDiagnostics(doc: Document): Diagnostic[] {
+  const out: Diagnostic[] = [];
+  const walk = (node: unknown, segs: string[]): void => {
+    const entries = (node as { entries?: { key?: string | null; value?: unknown }[] }).entries ?? [];
+    entries.forEach((e, i) => {
+      const key = typeof e.key === 'string' ? e.key : null;
+      if (key === LEGACY_OVERLAY_KEY || key === LEGACY_THUMBNAILS_KEY) {
+        out.push({
+          code: 'annotations/legacy-overlay-spelling',
+          severity: 'info',
+          message: `the legacy \`${key}:\` spelling — the canonical key is ${key === LEGACY_OVERLAY_KEY ? '`.yo:`' : '`.yo: thumbnails:`'}`,
+          path: ':' + [...segs, key].join(':'),
+          hint: 'migrate the tree with tools/migrate-dot-yo.mjs (legacy spellings stay readable forever)',
         });
       }
       if (e.value !== null && typeof e.value === 'object') walk(e.value, [...segs, key ?? String(i)]);

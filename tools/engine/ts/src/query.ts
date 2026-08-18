@@ -204,6 +204,21 @@ function keyName(portion: string): string {
   return steps[0].name;
 }
 
+/** Whether a query text is POINTER-SHAPED: every portion navigates deterministically
+ *  (keys / indices / the null key / `..` ups — no wildcards, sweeps or tests), so it yields
+ *  at most one result (§6.2). A pointer-shaped query NAMES its target outright — the server
+ *  lets it reach HIDDEN nodes (hidden, not secret: typing `.yo` at the breadcrumb's end is
+ *  an explicit ask), while search-shaped queries keep the TOC hiding. Unparsable → false. */
+export function isPointerShapedQuery(text: string): boolean {
+  try {
+    return parseQuery(text).portions.every(
+      (p) => p.kind === 'key' || p.kind === 'index' || p.kind === 'nullkey' || p.kind === 'up',
+    );
+  } catch {
+    return false;
+  }
+}
+
 // ──────────────────────────── evaluation over the Store ────────────────────────────
 
 /** The yamlover project's world URI (mirrors mounts.ts; local literal avoids an import cycle). */

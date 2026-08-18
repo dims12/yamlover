@@ -310,6 +310,32 @@
         }
       },
       {
+        "key": ".yo",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": false,
+          "set": false,
+          "yo": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": "body.yo",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "# A heap of famously short / deadpan academic papers — the real files, with their real\n# (messy) names — organized by a tag taxonomy. This `.yo/body.yo` overlay turns the\n# bare directory into an instance: it adds the `tags` tree and gives each file (a blob) its tag\n# memberships as `&…:-` bookmarks (so a blob carries them). Spec: docs/annotations.\n#\n# Each paper is FILED by an own-line `&…:-` membership bookmark — the\n# embedded model: the application lives ON the target (here a blob, via the omni overlay), and the\n# engine derives \"the materials under a tag\" as the reverse of those forward `*` edges. The tag\n# pointers are document-relative (`*: ontos: …` — `:` is this directory's root). Keys are bare; a\n# messy file key is quoted.\n\n# A tag's description is its BODY (the node's own value): `name: <text>` with the sub-tags\n# in the deeper block — the schema ($defs/onto, type: variant) declares the value-plus-fields\n# shape, so no `!!var` tag is needed (docs/language/vs-yaml/differences/mixtures: the shape itself is the intention).\nontos: !!<*yamlover: $defs: onto> A small taxonomy for short / deadpan papers — two axes, field and genre\n  field: What the paper is about\n    mathematics: Mathematics\n      number-theory: Number theory — Diophantine equations, sums of powers\n    physics: Physics\n      quantum: Quantum mechanics and measurement\n      particle: Particle physics — neutrinos and the like\n    earth-science: Earth science\n      seismology: Seismology — earthquakes and their statistics\n    chemistry: Chemistry\n    psychology: Psychology\n      behavior-analysis: Applied behavior analysis\n  genre: How the paper is short\n    brevity: The paper is famously short\n      shortest-paper: Famously the shortest paper in its journal\n      one-word-answer: The title is a question; the abstract answers it in a word\n      empty-body: The body of the paper is (almost) entirely blank\n    humor: The paper is a joke\n      deadpan: Plays it completely straight\n      satire: Mocks its target\n    annotation: A secondary / derivative edition of another paper\n\n# --- the papers: each is the real file (a blob) tagged by the leaf tags it belongs to, as bare\n#     `&…:-` membership bookmarks (docs/annotations) ---\n\n\"S0002-9904-1966-11654-3.pdf\":\n  &: ontos: field: mathematics: number-theory: -\n  &: ontos: genre: brevity: shortest-paper: -\n  &::yamlover:ontos:'fifth tag':-\n\n\"jaba00061-0143a.pdf\":\n  &: ontos: field: psychology: behavior-analysis: -\n  &: ontos: genre: brevity: empty-body: -\n  &: ontos: genre: humor: deadpan: -\n\n\"Chemical-Free.pdf\":\n  &: ontos: field: chemistry: -\n  &: ontos: genre: brevity: empty-body: -\n  &: ontos: genre: humor: satire: -\n  &::yamlover:ontos:colors:yellow:-\n  &::yamlover:ontos:'first tag':-\n\n\"1110.2832v2.pdf\":\n  &: ontos: field: physics: quantum: -\n  &: ontos: field: physics: particle: -\n  &: ontos: genre: brevity: one-word-answer: -\n  &: ontos: genre: humor: deadpan: -\n  &::yamlover:ontos:'fifth tag':-\n  &::yamlover:ontos:colors:yellow:-\n  &::yamlover:ontos:'first tag':-\n\n\"1105-2_abstract_Is the sequence of earthquake in southern California, with aftershocks removed, Poissonian.pdf\":\n  &: ontos: field: earth-science: seismology: -\n  &: ontos: genre: brevity: one-word-answer: -\n  &: ontos: genre: humor: deadpan: -\n",
+                "array": false,
+                "set": false,
+                "yo": false,
+                "anchors": [],
+                "entries": []
+              }
+            }
+          ]
+        }
+      },
+      {
         "key": "1105-2_abstract_Is the sequence of earthquake in southern California, with aftershocks removed, Poissonian.pdf",
         "edge": "contain",
         "value": {

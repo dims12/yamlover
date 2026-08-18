@@ -15,6 +15,7 @@ description: the binding walk, and the rules every extension must keep
   - '**Termination** - the template is finite, every fan-out is finite, pointer-following is cycle-safe; stated once so every extension must re-earn it.'
   - '**Link scope** - the ladder is honored: document descent does not see the project graft, a bare project rung binds the project root graft included, and the self-import is absorbed. An unmounted authority yields the empty result plus an "external" diagnostic - a link is an identifier, not a fetch.'
   - '**Empty versus error** - a syntactically valid query never errors at evaluation: a missing target yields the empty result with a dangling diagnostic, reported, never dropped.'
+  - '**Hidden nodes answer only explicit asks** - a POINTER-SHAPED query (every segment a key, position, `~` or `..` - at most one result) reaches hidden nodes ([the dot convention](*::language:concretes:03-yamlover:01-dir:00-dir_yo)): naming `.yo` outright is an ask, not a search. Any fan-out - a wildcard, descent, matcher - keeps hidden subtrees out of its results; the grafted self-import''s content is the one project-scope exception.'
 - >
   Determinism closes the contract: results arrive in walk order, stable across runs and re-indexes -
   and evaluating over the authored graph and over its normalized form gives identical results.

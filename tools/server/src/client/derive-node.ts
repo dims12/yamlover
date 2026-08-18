@@ -319,6 +319,7 @@ export function deriveNodeJson(content: Content, oldDepth?: number | null): Node
     title: (h.title ?? null) as string | null,
     description: (h.description ?? null) as string | null,
     ...(h.parseError ? { parseError: h.parseError as NodeJson["parseError"] } : {}),
+    ...(h.special ? { special: String(h.special) } : {}),
     value,
     comments: isBinaryTop ? {} : (deriveComments(content, depth) as NodeJson["comments"]),
     relations: content.relations as NodeJson["relations"],

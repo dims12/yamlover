@@ -237,23 +237,26 @@ see §10).
 
 The human marks up documents in the UI. These live **on the target node**, not in side files:
 
-- **`yo: fragments:`** — a mapping of slug → selector (a text span, image/PDF rectangle, or
-  map box) identifying a region within the node.
-- **`yamlover-annotations`** — a sequence; each element applies a tag to the node (or a
-  fragment). An element is either a bare **tag pointer** or an object with a `tag:` field plus
-  parameters:
+- **`.yo: fragments:`** — a mapping of slug → selector (a text span, image/PDF rectangle, or
+  map box) identifying a region within the node. `.yo` is the reserved hidden technical key
+  (the legacy spelling `yo:` is read forever — reuse it where a file already has it, never add
+  a second overlay key).
+- **membership bookmarks** — applying a tag is one own-line `&…:-` bookmark on the target
+  (the node, or a fragment member):
   ```yamlover
-  yamlover-annotations:
-    - *:: ontos: genre: brevity            # parameterless
-    - {description: 'A math block', tag: *:: ontos: topic: math}   # parametrized
+  .yo: fragments:
+    mq1abc-x2:
+      &:: ontos: topic: math:-             # this fragment IS filed under topic/math
+      type: text
+      exact: the marked words
   ```
+  (You may still meet a legacy `yamlover-annotations:` array — read-only history; do not grow
+  it.)
 
-  (A flow scalar carrying a SPACE must be quoted — an unquoted `A math block` inside `{…}` is a
-  parse error.)
-
-Prefer letting the human create these through the UI. If you must touch them by hand, keep the
-exact key names (`yo: fragments:`, `yamlover-annotations`) and the tag-pointer form, and do
-not renumber or reorder fragment slugs.
+Any key starting with `.` is HIDDEN from the TOC and listings but browsable by direct path.
+The `.yo` subtree is engine-managed: do not edit it by hand except through the UI verbs; the
+one editable file is `.yo/settings.yo`. If you must touch fragments by hand, keep the exact
+key names and do not renumber or reorder fragment slugs.
 
 ---
 

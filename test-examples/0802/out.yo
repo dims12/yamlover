@@ -1,2 +1,6 @@
 zzz: second
 aaa: first
+.yo:
+  body.yo: |
+    - *zzz
+    - *aaa

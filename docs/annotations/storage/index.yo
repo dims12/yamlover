@@ -1,11 +1,11 @@
 Where the keys physically live (omni)
-description: memberships and yo: fragments: sit beside the node's value - root, chunk, or blob
+description: memberships and .yo: fragments: sit beside the node's value - root, chunk, or blob
 - >
   A target usually already *has a value* (a markdown string, a PDF's bytes). yamlover's **omni**
   shape ([the logical graph](*::language:logical-graph)) lets a node carry that self-value
-  **and** fields at once, so the membership bookmarks and `yo: fragments:` sit beside it.
+  **and** fields at once, so the membership bookmarks and `.yo: fragments:` sit beside it.
 - >
-  **Whole yamlover document** - the bookmark rides after the root's value, `yo: fragments:` is a
+  **Whole yamlover document** - the bookmark rides after the root's value, `.yo: fragments:` is a
   plain root key:
 - !!<format: text/x-yamlover> |
   !!<*::yamlover:$defs:chapter>
@@ -24,7 +24,7 @@ description: memberships and yo: fragments: sit beside the node's value - root, 
   - |
       Mathematics likes to hide, but a standalone LaTeX block
       gives it away.
-    yo: fragments:
+    .yo: fragments:
       - LaTeX
         type: text
         prefix: ', a standalone '
@@ -38,7 +38,7 @@ description: memberships and yo: fragments: sit beside the node's value - root, 
   # papers/.yo/body.yo
   "S0002-9904-1966-11654-3.pdf":
     &:: ontos: genre: brevity: shortest-paper: -
-    yo: fragments:
+    .yo: fragments:
       myslag:
         type: pdf
         page: 1

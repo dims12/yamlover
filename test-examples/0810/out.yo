@@ -1,1 +1,6 @@
+.yo:
+  meta.yo: |
+    members:
+      age:
+        concrete: binary/int32/le
 age: 30

@@ -1,10 +1,10 @@
+!!<*yamlover: $defs: chapter>
+All Supported Formats — as a chapter
 # The format catalogue as a CHAPTER — one chunk per renderable (type, format), top to
 # bottom. Textual chunks are inline (block scalars); binary chunks point at the sample
 # files in this directory. The first chunk is the DEFAULT format, marklower; every other
 # non-default textual chunk carries an inline schema (`!!<format: …>`); the binary file
 # types live in meta.yo. The body is one positional stream (docs/documents/chapter).
-!!<*yamlover: $defs: chapter>
-All Supported Formats — as a chapter
 - |
   A **marklower** chunk — the *default* for a chunk with no format. marklower is
   inline-only (no headings): **bold**, *italic*, ~~strikethrough~~, `inline code`,
@@ -39,14 +39,18 @@ All Supported Formats — as a chapter
 - *: sample.epub
 - *: sample.psd
 "sample.bmp":
-  yamlover-thumbnails:
-    [256, 256]: *:.yo:thumbnails:xxh64-d5eed55624a55a5e-256x256.jpg
+  .yo:
+    thumbnails:
+      [256, 256]: *: .yo: thumbnails: xxh64-d5eed55624a55a5e-256x256.jpg
 "sample.gif":
-  yamlover-thumbnails:
-    [256, 256]: *:.yo:thumbnails:xxh64-852d9f6a62844d89-256x256.jpg
+  .yo:
+    thumbnails:
+      [256, 256]: *: .yo: thumbnails: xxh64-852d9f6a62844d89-256x256.jpg
 "sample.png":
-  yamlover-thumbnails:
-    [256, 256]: *:.yo:thumbnails:xxh64-2a8e48bede9eff6a-256x256.jpg
+  .yo:
+    thumbnails:
+      [256, 256]: *: .yo: thumbnails: xxh64-2a8e48bede9eff6a-256x256.jpg
 "sample.tiff":
-  yamlover-thumbnails:
-    [256, 256]: *:.yo:thumbnails:xxh64-b1ac4be4ce4fb34c-256x256.jpg
+  .yo:
+    thumbnails:
+      [256, 256]: *: .yo: thumbnails: xxh64-b1ac4be4ce4fb34c-256x256.jpg

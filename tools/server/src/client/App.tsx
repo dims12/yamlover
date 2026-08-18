@@ -383,7 +383,7 @@ export function App() {
   // WINS over the target's renderer (as long as it can travel there).
   const navigate = useCallback(
     (p: string, pinFormat = false) => {
-      // A fragment node's default click is LOCATE: open its host material at `#/yo/fragments/<slug>`
+      // A fragment node's default click is LOCATE: open its host material at `#/.yo/fragments/<slug>`
       // (the in-document region), never the fragment node as a page. Already on a page that
       // renders the host (the material itself, or a chapter that inlines the chunk) → just the hash.
       const frag = splitFragmentPath(p);

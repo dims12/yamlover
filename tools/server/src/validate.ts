@@ -61,7 +61,10 @@ const TITLE_NAME = /^\d+(?:-\d+)*(?:-.*)?$/;
 // Diagnostics
 // --------------------------------------------------------------------------- //
 
-export type Severity = "error" | "warning";
+/** `info` is a NUDGE (a legacy spelling the migration script would rewrite): listed by the
+ *  doctor, never a refusal — even `throw` mode passes it, or every dev suite over a legacy
+ *  fixture would go red for data that is read forever by design. */
+export type Severity = "error" | "warning" | "info";
 
 /** Stable, machine-readable diagnostic codes. `layout/*` ship today (schema-less); `value/*` are
  *  RESERVED for {@link compileMeta}'s future output and are emitted by nothing yet. */
@@ -85,6 +88,7 @@ export type DiagnosticCode =
   | "link/dead-target"
   // annotations — embedded-shape invariants (the doctor sweep over the walked doc)
   | "annotations/doubled-fragments"
+  | "annotations/legacy-overlay-spelling"
   // value — RESERVED for meta.yo (docs/meta)
   | "value/type"
   | "value/required"
@@ -538,8 +542,11 @@ export function enforce(v: ValidationVerdict, mode: EnforcementMode): Diagnostic
   if (mode === "off") return [];
   if (mode === "report") return v.diagnostics;
   if (mode === "throw") {
-    if (v.diagnostics.length) throw new ValidationError(v.allowed ? v.diagnostics[0].message : v.reason, v.diagnostics);
-    return [];
+    // `info` never aborts, even here: a legacy-spelling nudge over a read-forever fixture is
+    // not corruption — it is returned to be logged, exactly like a warning under `refuse`
+    const fatal = v.diagnostics.filter((d) => d.severity !== "info");
+    if (fatal.length) throw new ValidationError(v.allowed ? fatal[0].message : v.reason, v.diagnostics);
+    return v.diagnostics;
   }
   if (!v.allowed) throw new ValidationError(v.reason, v.diagnostics);
   return v.diagnostics;

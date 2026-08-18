@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { appendBookmark, upsertFragment, removeBookmark, removeMapEntry, bookmarksRemain, keyToken, reachBody, replaceSeqEntryAt } from "../src/server/embed";
+import { appendBookmark, upsertFragment, upsertThumbnail, removeBookmark, removeMapEntry, bookmarksRemain, keyToken, reachBody, replaceSeqEntryAt } from "../src/server/embed";
 
 // Surgical embedding of fragments + membership bookmarks into a yamlover host body
 // (docs/annotations). Pure string transforms — no fs / Store; the round-trip target is
@@ -47,18 +47,26 @@ describe("upsertFragment", () => {
     `${" ".repeat(i + 2)}page: 1`,
   ];
 
-  it("creates yo: fragments: + the slug on a fresh file block", () => {
+  it("creates .yo: fragments: + the slug on a fresh file block (the canonical spelling)", () => {
     const out = upsertFragment("", ["a.pdf"], "slug1", frag);
     expect(out).toBe(
-      `"a.pdf":\n  yo:\n    fragments:\n      slug1:\n        type: pdf\n        page: 1\n`,
+      `"a.pdf":\n  .yo:\n    fragments:\n      slug1:\n        type: pdf\n        page: 1\n`,
     );
   });
 
-  it("adds a second slug into an existing fragments map", () => {
+  it("REUSES a legacy `yo:` overlay key — a file never grows two overlay keys", () => {
     const src = `"a.pdf":\n  yo:\n    fragments:\n      slug0:\n        type: pdf\n`;
     const out = upsertFragment(src, ["a.pdf"], "slug1", frag);
     expect(out).toBe(
       `"a.pdf":\n  yo:\n    fragments:\n      slug0:\n        type: pdf\n      slug1:\n        type: pdf\n        page: 1\n`,
+    );
+  });
+
+  it("adds a second slug into an existing .yo: fragments map", () => {
+    const src = `"a.pdf":\n  .yo:\n    fragments:\n      slug0:\n        type: pdf\n`;
+    const out = upsertFragment(src, ["a.pdf"], "slug1", frag);
+    expect(out).toBe(
+      `"a.pdf":\n  .yo:\n    fragments:\n      slug0:\n        type: pdf\n      slug1:\n        type: pdf\n        page: 1\n`,
     );
   });
 
@@ -118,6 +126,30 @@ describe("the flat `yo: fragments:` row across the OTHER verbs", () => {
     const src = `"a.jpg":\n  yo: fragments:\n    slug0:\n      x: 1\n    slug1:\n      x: 2\n`;
     const out = removeMapEntry(src, ["a.jpg"], ["yo", "fragments"], "slug0");
     expect(out).toBe(`"a.jpg":\n  yo: fragments:\n    slug1:\n      x: 2\n`);
+  });
+
+  it("the flat CANONICAL `.yo: fragments:` row reads the same way", () => {
+    const src = `"a.jpg":\n  .yo: fragments:\n    slug0:\n      x: 1\n    slug1:\n      x: 2\n`;
+    const out = removeMapEntry(src, ["a.jpg"], [".yo", "fragments"], "slug0");
+    expect(out).toBe(`"a.jpg":\n  .yo: fragments:\n    slug1:\n      x: 2\n`);
+  });
+});
+
+describe("upsertThumbnail — the `.yo: thumbnails:` registry", () => {
+  const line = (k: string) => (i: number) => [`${" ".repeat(i)}${k}: *:.yo:thumbnails:t.jpg`];
+
+  it("a fresh file grows the canonical `.yo: thumbnails:` mapping", () => {
+    const out = upsertThumbnail('"pic.png":\n', ["pic.png"], "[2, 2]", line("[2, 2]"));
+    expect(out).toBe(`"pic.png":\n  .yo:\n    thumbnails:\n      [2, 2]: *:.yo:thumbnails:t.jpg\n`);
+  });
+
+  it("a file already carrying the LEGACY `yamlover-thumbnails:` keeps growing there", () => {
+    const src = `"pic.png":\n  yamlover-thumbnails:\n    [1, 1]: *:.yo:thumbnails:a.jpg\n`;
+    const out = upsertThumbnail(src, ["pic.png"], "[2, 2]", line("[2, 2]"));
+    expect(out).toBe(
+      `"pic.png":\n  yamlover-thumbnails:\n    [1, 1]: *:.yo:thumbnails:a.jpg\n    [2, 2]: *:.yo:thumbnails:t.jpg\n`,
+    );
+    expect(out).not.toContain(".yo:\n"); // never a SECOND registry beside the legacy one
   });
 });
 

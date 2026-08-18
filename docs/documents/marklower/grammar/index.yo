@@ -34,7 +34,7 @@ description: five constructs, atomic tokens, soft breaks - and the fragment toke
     `[...](...)` is **flow syntax for an omni**: the `[]` part holds a node's **self-value** (and
     optional `&` bookmarks), the `()` part its **fields**, spelled `key: value` and
     comma-separated. In prose the omni it spells is a **text fragment** - a member of the chunk's
-    `yo: fragments:` ([fragments](*::annotations:fragments)) whose self-value is the token's
+    `.yo: fragments:` ([fragments](*::annotations:fragments)) whose self-value is the token's
     visible text. A **keyless pointer or URL field is the fragment's link**, so a token whose
     parens hold only that is an ordinary hyperlink; empty parens (`[once to scan]()`) define a
     fragment with no fields. A bare `[text]` without parens stays plain prose, as do bare
@@ -44,7 +44,7 @@ description: five constructs, atomic tokens, soft breaks - and the fragment toke
     reads the file twice: [once to scan](*::annotations:fragments), once to build
   - !!<format: text/x-yamlover> |
     'reads the file twice: once to scan, once to build'
-    yo: fragments:
+    .yo: fragments:
       - once to scan
         type: text
         prefix: 'reads the file twice: '
@@ -58,7 +58,7 @@ description: five constructs, atomic tokens, soft breaks - and the fragment toke
     exactly the [bookmarks](*::language:pointers:bookmarks) placement law.
   - >
     The token is marklower's **normalized** spelling of a text fragment; the explicit
-    `yo: fragments:` member is the same fragment authored from the other end - legal but
+    `.yo: fragments:` member is the same fragment authored from the other end - legal but
     denormalized, the forward/reverse pair of bookmarks all over again. Folding an explicit
     member into the text is possible only where its quote resolves uniquely and crosses no other
     token; elsewhere the explicit form stays. Formats other than marklower have no token to fold

@@ -1,6 +1,6 @@
 // BOARD MODEL — the pure policy of the tag board (TICKETS.md §3). Like drop-policy.ts /
 // concrete-rules.ts this module is deliberately tiny and pure (no I/O, no DOM, no Store):
-// the board's STRUCTURE (`yo: lanes:` — lanes of compartments, each compartment a tagged
+// the board's STRUCTURE (`.yo: lanes:`, legacy `yo:` read forever — lanes of compartments, each compartment a tagged
 // container of chapter refs) is data both the server (engine-api.ts, which reads/writes it)
 // and the client (board.tsx, which previews a gesture's tag deltas for the confirm popup)
 // reason about, so the rules live here once.
@@ -30,7 +30,7 @@ export interface Compartment {
 /** One lane: a stack of one or more compartments. */
 export type BoardLane = Compartment[];
 
-/** The whole `yo: lanes:` value: the board's lanes in order. */
+/** The whole `.yo: lanes:` value: the board's lanes in order. */
 export type BoardStructure = BoardLane[];
 
 /** A compartment's coordinates in the structure; null = the backlog. */

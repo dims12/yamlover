@@ -46,7 +46,7 @@ Fill the **Decision** column: `switch` (rename to `yo`), `alias` (accept both, e
 | 5  | yed dialect id `yamlover`                                   | keep     |       |
 | 6  | Format names `x-yamlover-*`                                 | keep     |       |
 | 7  | JSON API marker keys `$yamlover*`                           | keep     |       |
-| 8  | Reserved node keys `yamlover-annotations/-fragments/-thumbnails` | keep |      |
+| 8  | Reserved node keys `yamlover-annotations/-fragments/-thumbnails` | switch | 2026-08-18 (the dot-yo unification): the reserved key is `.yo:` (`fragments`/`lanes`/`thumbnails` under it); legacy `yo:` and `yamlover-thumbnails:` read forever, reused in place, never written anew; `yamlover-annotations` stays retired (husk-pruned on untag only). Any dot-prefixed key is HIDDEN by default. Migrate a tree with `node tools/migrate-dot-yo.ts <root> [--dry-run]`; the doctor's `annotations/legacy-overlay-spelling` (info) lists what it would touch |
 | 9  | Self-import key + world URI `yamlover.inthemoon.net`        | keep     |       |
 | 10 | Edit-API field name `yamlover:`                             | keep     |       |
 | 11 | Package / binary / product / repo names                     | keep     | avoids the `npx yo` / Yeoman collision entirely |
@@ -209,15 +209,19 @@ The client/server wire protocol.
 
 Stored *inside user documents* — the strongest on-disk coupling after the overlay dir.
 
-- Server: `engine-api.ts:586-659` (annotate/fragment flows), `walk.ts:914`
-  (`OVERLAY_KEYS = {yamlover-annotations, yamlover-fragments}`), thumbnails overlay
-  (`extract/thumbnails.ts`, `yamlover-thumbnails:[w,h]`).
-- Client: `Fragments.tsx:8`, `paths.ts:81-85` (URL anchors `#/yamlover-fragments/<slug>`),
-  `chapter-model.ts:154` (`isOverlayKey`), `board.tsx:75`, `workflow.ts:74`,
-  `renderers/headings.ts:78`, `styles.css:2216`.
-- ANNOTATIONS.md is the spec.
-- **Note**: renaming changes the schema of every already-annotated user file; needs a
-  read-both / write-new policy or a migration pass.
+**Executed 2026-08-18 as the dot-yo unification.** The one reserved key is `.yo:` — the same
+namespace as the on-disk `.yo/` dir — with `fragments:` / `lanes:` / `thumbnails:` under it,
+and the shared vocabulary lives in `tools/parser/ts/src/overlay-keys.ts` (every consumer —
+walk, engine-api, embed, roles.ts, the clients — imports THOSE predicates). Read-both /
+write-new: legacy `yo:` and `yamlover-thumbnails:` are recognized forever and REUSED in place
+(a file never carries two overlay keys); `yamlover-fragments` was already dead;
+`yamlover-annotations` stays retired (read + husk-pruned on untag, never grown). The
+migration pass is `node tools/migrate-dot-yo.ts <root> [--dry-run]` (IR-level, comment-
+preserving, parse-checked); `annotations/legacy-overlay-spelling` (an `info` doctor
+diagnostic) lists what it would touch. Any dot-prefixed key is HIDDEN by default — off the
+TOC/listings/queries, reachable by direct path; the `.yo` subtree is additionally SPECIAL
+(engine-managed): browsed directly it renders as the generic read-only data view, and the
+edit routes refuse it (`:.yo:settings.yo` excepted). docs/annotations is the spec.
 
 ## 9. The self-import key `yamlover` and world URI `yamlover.inthemoon.net`
 

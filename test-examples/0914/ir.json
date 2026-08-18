@@ -132,6 +132,32 @@
         }
       },
       {
+        "key": ".yo",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": false,
+          "set": false,
+          "yo": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": "body.yo",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "# Textual content (the string-typed entries). Their formats live in meta.yo; the\n# binary entries are the files in this directory (sample.*). Together they form one object\n# with one property per renderable (type, format).\nmarkdown: |\n  # Markdown\n  Rendered with **marked** — *emphasis*, lists, and `code`. Each heading gets a\n  `§` link, so `#markdown` and `#anchors` jump straight to a section.\n\n  ## Anchors\n  Hover a heading to reveal its `§`; the URL fragment is the heading's slug.\nasciidoc: |\n  == AsciiDoc\n\n  Rendered with Asciidoctor.\n\n  * one\n  * two\n\n  === Anchors\n\n  Each heading gets a `§` link; Asciidoctor's own section id is the fragment.\nplantuml: |\n  @startuml\n  Alice -> Bob : hello\n  Bob --> Alice : hi\n  @enduml\ncsv: |\n  name,role,city\n  Alice,Engineer,Berlin\n  Bob,\"Designer, UX\",Lisbon\n  Carol,Manager,Oslo\n# a chapter is a renderable too — here it is one property of this object (inline schema tag).\n# A chapter is an omni node: the keyed title, then a POSITIONAL body (docs/documents/chapter — no chunks array).\nchapter: !!<*yamlover: $defs: chapter>\n  title: A chapter, as one property\n  - A **chapter** is also a renderable format — here it sits as one property of this object.\n  - Each chunk defaults to marklower; this sentence is the segment an annotation marks.\n",
+                "array": false,
+                "set": false,
+                "yo": false,
+                "anchors": [],
+                "entries": []
+              }
+            }
+          ]
+        }
+      },
+      {
         "key": "sample.bmp",
         "edge": "contain",
         "value": {

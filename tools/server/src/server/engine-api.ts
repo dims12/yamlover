@@ -40,8 +40,8 @@ import fs from "node:fs";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { Store, reindex, reindexAsyncDoc, reindexPathAsync, hashFileAsync, watchTree, walkTree, loadSettings, ensureSettingsFile, mv, relinkMoved, relinkRenamed, evalQuery, isBoundaryRow } from "../../../engine/ts/src/index.ts";
-import { deadLinkDiagnostics, deadLinkTargets, doubledFragmentDiagnostics, logDeadLinks } from "./link-check.js";
+import { Store, reindex, reindexAsyncDoc, reindexPathAsync, hashFileAsync, watchTree, walkTree, loadSettings, ensureSettingsFile, mv, relinkMoved, relinkRenamed, evalQuery, isPointerShapedQuery, isBoundaryRow, stampHiddenKeys } from "../../../engine/ts/src/index.ts";
+import { deadLinkDiagnostics, deadLinkTargets, doubledFragmentDiagnostics, legacyOverlaySpellingDiagnostics, logDeadLinks } from "./link-check.js";
 import type { NodeRow, EdgeRow, Settings, SidecarLocation, IndexDiff } from "../../../engine/ts/src/index.ts";
 import { parseYamlover } from "../../../parser/ts/src/yamlover.ts";
 import { parseJson5p } from "../../../parser/ts/src/json5p.ts";
@@ -49,8 +49,9 @@ import { pointerToken, schemaTagToken, serializeYamlover } from "../../../parser
 import { renderPointer, parsePointer } from "../../../parser/ts/src/pointer.ts";
 import { scanMarklower, type FragToken as FragTokenT } from "../../../parser/ts/src/marklower-links.ts";
 import { pathOfSegs, segsOfPath, segToken } from "../../../parser/ts/src/pathseg.ts";
+import { FRAGMENTS_SUBKEY, isFragmentSegs as isFragmentSegsShared, isHiddenEntryKey, isOverlayKey, LEGACY_OVERLAY_KEY, LEGACY_THUMBNAILS_KEY, OVERLAY_KEY, overlayKeyAlts, THUMBNAILS_SUBKEY } from "../../../parser/ts/src/overlay-keys.ts";
 import { anchorBody, seqMarkLen, stripSeqMark } from "../../../parser/ts/src/serialize-common.ts";
-import { upsertFragment, upsertThumbnail, removeMapEntry, keyToken, upsertMapEntryAt, removeMapEntryAt, pruneEmptyAnnotations, reachBody, reachBodyAt, replaceSeqEntryAt, pruneEmptyKeyAt, pruneEmptyYo, appendBookmark, appendBookmarkAt, removeBookmark, removeBookmarkAt, bookmarksRemain, bookmarksRemainAt, type Region as EmbedRegion } from "./embed.js";
+import { upsertFragment, upsertThumbnail, removeMapEntry, keyToken, upsertMapEntryAt, removeMapEntryAt, pruneEmptyAnnotations, reachBody, reachBodyAt, replaceSeqEntryAt, pruneEmptyKeyAt, pruneEmptyYo, appendBookmark, appendBookmarkAt, removeBookmark, removeBookmarkAt, bookmarksRemain, bookmarksRemainAt, presentStepAlt, overlaySpellingAt, type Region as EmbedRegion } from "./embed.js";
 import { applyMove, compartmentAt, moveDeltas, reconcile as reconcileBoard, seedFromOldLanes, seedFromWorkflow, type BoardItem, type BoardStructure, type Compartment, type CompartmentAt } from "../board-model.js";
 import { BODY_FILE, INDEX_FILE, OVERLAY_DIR, dataFileConcrete, dirConcreteFor, interiorOf, isDirConcrete, isOverlayDirConcrete, overlaySegs, pointerSafeName, type DirConcrete } from "../concrete.js";
 import { classifyScalar, isDefaultRepr, type BlockQualifiers, type Repr, type ScalarStyle } from "../repr.js";
@@ -572,7 +573,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
           // THE LINK INVARIANT rides the same sweep: every in-tree prose link must name a
           // node (link-check.ts). Content warnings, merged after the layout diagnostics.
           const doc = cachedDoc ?? walkTree(dataRoot, walkOpts).doc;
-          sendJson(res, 200, { allowed: v.allowed, diagnostics: [...v.diagnostics, ...deadLinkDiagnostics(doc, s, dataRoot), ...doubledFragmentDiagnostics(doc)] });
+          sendJson(res, 200, { allowed: v.allowed, diagnostics: [...v.diagnostics, ...deadLinkDiagnostics(doc, s, dataRoot), ...doubledFragmentDiagnostics(doc), ...legacyOverlaySpellingDiagnostics(doc)] });
         } catch (e) {
           sendJson(res, 500, { error: String((e as Error).message || e) });
         }
@@ -616,7 +617,13 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
           // and searching `:: ...: colors` must find the built-in palette. Document/current
           // scoped queries keep the strict TOC hiding: `:` is the document, not the project.
           const projectScoped = /^\s*::/.test(q);
-          const dropHidden = (p: string): boolean => (projectScoped ? queryHidden(s, p) : inHiddenSubtree(s, p));
+          // A POINTER-SHAPED query (keys/indices only — at most one result) NAMES its target
+          // outright, so it reaches hidden nodes: typing `.yo` at the breadcrumb's end is an
+          // explicit ask, not a search sweep (hidden, not secret). Everything with a wildcard,
+          // descent or test keeps the TOC hiding.
+          const explicit = isPointerShapedQuery(q);
+          const dropHidden = (p: string): boolean =>
+            !explicit && (projectScoped ? queryHidden(s, p) : inHiddenSubtree(s, p));
           if (shape === "tree") {
             const results = paths
               .filter((p) => !dropHidden(p))
@@ -1002,6 +1009,9 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
             // a DEGRADED node (walk.ts: its source failed to parse) declares it, so the client
             // shows the failure instead of a merely-empty page and keeps its editor shut
             ...(row.meta?.parseError ? { parseError: row.meta.parseError } : {}),
+            // THE OVERLAY LAW: engine-managed `.yo` subtree entries browsed directly are DUMB —
+            // the client forces the generic data view and greys the editor (settings.yo excepted)
+            ...(inYoSubtree(s, segs) && !isSettingsPath(segs) ? { special: "overlay" } : {}),
           };
           const text = buildEnvelope(
             { segs, subtree, docDepth, header, relations: buildRelations(dataRoot, s, segs) as never },
@@ -1056,6 +1066,9 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
                 const segs = strToSegs(p);
                 if (segs.length === 0) throw new Error(`mv: ${what} must name a file or directory`);
                 if (segs.some((g) => typeof g === "number")) throw new Error(`mv: ${what} must be a file/directory path (no positions)`);
+                // THE OVERLAY LAW: engine-managed `.yo` entries never move (mv.ts refuses dot
+                // segments already; this covers the legacy `yo`/thumbnails spellings too)
+                if (inYoSubtree(s, segs)) throw new Error(`mv: ${what} is inside the engine-managed .yo subtree`);
                 return segs.join("/");
               };
               const report = mv(dataRoot, rel(from ?? "", "from"), rel(to ?? "", "to"), { ignore });
@@ -1083,6 +1096,8 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
               const { path: reqPath, key: newKey } = data as { path?: string; key?: string };
               const segs = canonSegs(s, strToSegs(reqPath ?? ""), false);
               if (segs.length === 0 || typeof segs[segs.length - 1] !== "string") throw new Error("rekey needs a keyed node path");
+              // THE OVERLAY LAW: engine-managed `.yo` entries are not renamable (settings.yo excepted)
+              if (inYoSubtree(s, segs) && !isSettingsPath(segs)) throw new Error("entries under .yo are engine-managed and read-only");
               if (typeof newKey !== "string" || newKey === "" || newKey !== newKey.trim()) throw new Error("a key must be a non-empty, un-padded string");
               const parentSegs = segs.slice(0, -1);
               const oldKey = String(segs[segs.length - 1]);
@@ -1236,7 +1251,7 @@ export function createHandlers(dataRoot: string, opts: Options = {}): Handler & 
 
       // A lazily-generated thumbnail of a file-backed blob, fitted within ?w×?h. The first request
       // for a (source, box) decodes + encodes it, stores it the yamlover way (a content-addressed
-      // sidecar under thumbnails/ + a `yamlover-thumbnails:[w,h]` overlay on the source), then
+      // sidecar under thumbnails/ + a `.yo: thumbnails: [w,h]` overlay on the source), then
       // serves it; later requests hit the sidecar directly. Generation runs through the writer
       // queue so concurrent misses collapse onto one encode. A format with no decoder → 415, which
       // the explorer treats as "fall back to the type glyph".
@@ -1487,18 +1502,36 @@ const inHiddenSubtree = (s: Store, p: string): boolean => {
 /** Has a child that ISN'T hidden — the `hasChildren` a directory should report (a dir whose only
  *  child is `.yo` reads as a leaf). */
 const visibleHasChildren = (s: Store, p: string): boolean => s.children(p).some((c) => !isHidden(s, c.to));
+/** THE OVERLAY LAW (docs/annotations): a node inside a `.yo` subtree — the overlay key in either
+ *  spelling, or the legacy `yamlover-thumbnails:` — is ENGINE-MANAGED. Browsed directly it loses
+ *  its magic: the generic read-only data view, no edits ({@link applyEdits} refuses). A prefix
+ *  seg names the overlay only when the node at that prefix is flagged HIDDEN — a legitimate
+ *  directory member named `yo/` is not hidden, so it stays ordinary content. */
+const inYoSubtree = (s: Store, segs: Seg[]): boolean => {
+  for (let i = 1; i <= segs.length; i++) {
+    const seg = segs[i - 1];
+    if (seg === OVERLAY_KEY || seg === LEGACY_OVERLAY_KEY || seg === LEGACY_THUMBNAILS_KEY) {
+      if (isHidden(s, storePath(segs.slice(0, i)))) return true;
+    }
+  }
+  return false;
+};
+/** The ONE human-authored file in `.yo/` — `:.yo:settings.yo` (and every path INSIDE it, the
+ *  settings editor edits sub-entries) stays browsable AND editable. */
+const isSettingsPath = (segs: Seg[]): boolean =>
+  segs.some((g, i) => g === OVERLAY_KEY && segs[i + 1] === "settings.yo");
 /** Hidden for PROJECT-SCOPED query results (`::` / `:::` — see the /api/query handler) —
- *  looser than {@link inHiddenSubtree}: the `.yo` OVERLAY subtrees (dot-named hidden
- *  ancestors) and hidden nodes THEMSELVES stay off search results, but the grafted `yamlover`
- *  self-import's CONTENT answers — it is project furniture, hidden PLUMBING yet fully
- *  reachable, and `:: ...: colors` must find the built-in palette (`:yamlover:ontos:colors`).
- *  So `:: ?` still omits the graft root (a hidden node itself) while `:: yamlover: ?` and
- *  project-wide descent reach inside it. */
+ *  looser than {@link inHiddenSubtree}: the technical subtrees (hidden-BY-NAME ancestors:
+ *  `.yo` in either spelling, dot-keys, legacy `yamlover-*` keys) and hidden nodes THEMSELVES
+ *  stay off search results, but the grafted `yamlover` self-import's CONTENT answers — it is
+ *  project furniture, hidden PLUMBING yet fully reachable, and `:: ...: colors` must find the
+ *  built-in palette (`:yamlover:ontos:colors`). So `:: ?` still omits the graft root (a hidden
+ *  node itself) while `:: yamlover: ?` and project-wide descent reach inside it. */
 const queryHidden = (s: Store, p: string): boolean => {
   if (isHidden(s, p)) return true;
   for (let segs = storePathToSegs(p); segs.length; segs = segs.slice(0, -1)) {
     const sp = storePath(segs);
-    if (isHidden(s, sp) && String(segs[segs.length - 1]).startsWith(".")) return true;
+    if (isHidden(s, sp) && isHiddenEntryKey(segs[segs.length - 1])) return true;
   }
   return false;
 };
@@ -1852,20 +1885,18 @@ function firstChunkText(s: Store, p: string): string | null {
 
 // --------------------------------------------------------------------------- //
 // Tags, fragments & annotations — EMBEDDED in the target (docs/annotations). A user-marked region
-// is a FRAGMENT under the target's `yo: fragments:` mapping (keyed by slug; selector + an
-// optional binary crop). TAGGING a target — a whole node or a fragment — appends to its
-// `yamlover-annotations` array: a bare tag pointer (`- *::tag`) or a `{tag, …params}` object. The
+// is a FRAGMENT under the target's `.yo: fragments:` mapping (keyed by slug; selector + an
+// optional binary crop; the legacy `yo:` spelling is read forever and reused, never doubled).
+// TAGGING a target — a whole node or a fragment — is a membership BOOKMARK (`&…:-`). The
 // applied tag drives the color. A material's annotations / a tag's materials are derived from
-// these forward `*` edges. Writes edit the target's host body (a `*.yo` doc or a directory
+// these edges. Writes edit the target's host body (a `*.yo` doc or a directory
 // `.yo/body.yo` overlay) surgically — see ./embed.ts.
 // --------------------------------------------------------------------------- //
 
 const ONTO_FORMAT = "x-yamlover-onto";
 const FRAGMENT_FORMAT = "x-yamlover-fragment";
-// Fragments nest under the reserved `yo:` key (docs/annotations/fragments): `yo: fragments: <slug>`.
-const YO_KEY = "yo";
-const FRAGS_SUBKEY = "fragments";
-const THUMB_KEY = "yamlover-thumbnails";
+// Fragments nest under the reserved `.yo:` key (docs/annotations/fragments): `.yo: fragments: <slug>`.
+const FRAGS_SUBKEY = FRAGMENTS_SUBKEY;
 const CROP_SUBDIR = "fragments"; // crop sidecar blobs, under a hidden .yo/ overlay dir
 const THUMB_SUBDIR = "thumbnails"; // derived thumbnail blobs, content-addressed, under .yo/
 
@@ -1886,6 +1917,18 @@ interface FragmentInput {
 
 /** A child store-path: `parent` + `:key` (root `:` has no leading owner). */
 const childPath = (parent: string, key: string): string => (parent === ":" ? "" : parent) + ":" + key;
+
+/** The store-path of `host → overlay → sub` (`host:.yo:<sub>`), probing both overlay spellings —
+ *  the canonical `.yo` first, then the legacy `yo` (read forever). Probes the full SUB-path, not
+ *  the overlay key alone: a directory host can carry the `.yo/` dir node AND a legacy `yo:` body
+ *  key at once, and only the sub tells which one holds the data. Null when neither does. */
+const overlaySubPath = (s: Store, hostStore: string, sub: string): string | null => {
+  for (const k of overlayKeyAlts) {
+    const p = childPath(childPath(hostStore, k), sub);
+    if (s.node(p)) return p;
+  }
+  return null;
+};
 
 /** ANY node projected as an annotation ref { path, name, color } — annotating entities are
  *  identified by their scalar OMNI title (or a keyed `title`), else by their key inside the
@@ -1926,12 +1969,13 @@ function readAnnotations(s: Store, hostStore: string): { tag: ReturnType<typeof 
 }
 
 /** A host node's fragments: each slug's selector fields (geometry / text quote) + its crop URL,
- *  read from the `yo: fragments:` mapping. A TEXT fragment's quoted text is the member's
- *  SELF-VALUE (docs/annotations/fragments) — materialized onto the wire as `selector.exact`, so
- *  every consumer keeps the W3C shape. `image` is a `*` pointer (a ref edge) to the crop. */
+ *  read from the `.yo: fragments:` mapping (either overlay spelling). A TEXT fragment's quoted
+ *  text is the member's SELF-VALUE (docs/annotations/fragments) — materialized onto the wire as
+ *  `selector.exact`, so every consumer keeps the W3C shape. `image` is a `*` pointer (a ref
+ *  edge) to the crop. */
 function readFragments(s: Store, hostStore: string): { slug: string; node: string; selector: Record<string, unknown>; description?: string; imageUrl?: string }[] {
-  const frags = childPath(childPath(hostStore, YO_KEY), FRAGS_SUBKEY);
-  if (!s.node(frags)) return [];
+  const frags = overlaySubPath(s, hostStore, FRAGS_SUBKEY);
+  if (!frags) return [];
   const out: { slug: string; node: string; selector: Record<string, unknown>; description?: string; imageUrl?: string }[] = [];
   for (const fc of s.children(frags)) {
     if (!fc.label) continue;
@@ -1988,6 +2032,9 @@ function annotationsFor(dataRoot: string, s: Store, segs: Seg[]): unknown[] {
       for (const a of readAnnotations(s, f.node)) {
         out.push({
           ...a, node: nodeClient, selector: f.selector, fragmentSlug: f.slug,
+          // the fragment node's REAL client path — the delete target must carry the overlay
+          // spelling the file actually uses (`.yo` or the legacy `yo`), never re-mint it
+          fragmentPath: segsToStr(storePathToSegs(f.node)),
           ...(f.description ? { description: f.description } : {}),
           ...(f.imageUrl ? { imageUrl: f.imageUrl } : {}),
         });
@@ -2042,7 +2089,7 @@ function pointerRaw(clientPath: string): string {
 }
 
 // ─────────────── THE TAG BOARD (TICKETS.md §3; board-model.ts is the pure policy) ───────────────
-// The structure lives under the board's `yo: lanes:` member, BLOCK form only (flow refuses
+// The structure lives under the board's `.yo: lanes:` member, BLOCK form only (flow refuses
 // anchors): lane items at the key's own indent, each compartment a nested `- ` item whose body
 // carries its tag bookmarks (`&…:-` own-line — the compartment IS a member of its tags) followed
 // by its item refs (`- *::…` / `key: *::…`). The whole block is machine-owned and rewritten
@@ -2050,11 +2097,13 @@ function pointerRaw(clientPath: string): string {
 // read back, so it drops on the next rewrite — /api/dangling reports it in the meantime.
 
 const LANES_SUBKEY = "lanes";
-// keys the board owns as config/taxonomy/graft — never cards (the client twin: board.tsx)
-const BOARD_CONFIG_KEYS = new Set(["workflow", "lanes", "yamlover", "ontos", YO_KEY]);
+// keys the board owns as config/taxonomy/graft — never cards (the client twin: board.tsx);
+// the overlay key in both spellings (hidden anyway, but the set is the board's own law)
+const BOARD_CONFIG_KEYS = new Set(["workflow", "lanes", "yamlover", "ontos", ...overlayKeyAlts]);
 const TAGISH_FORMATS = new Set([ONTO_FORMAT, "x-yamlover-workflow", "x-yamlover-board"]);
 
-/** Rewrite the board's `yo: lanes:` block from `structure`. A fresh file is seeded with the
+/** Rewrite the board's `.yo: lanes:` block from `structure` — a legacy `yo:` overlay key is
+ *  REUSED (the alt descent), a fresh file grows `.yo:`. A fresh file is seeded with the
  *  board schema tag so it indexes as a board; everything else in the body is preserved. */
 function writeBoardStructure(src: string, structure: BoardStructure): string {
   let lines = src.replace(/\n+$/, "").split("\n");
@@ -2076,7 +2125,7 @@ function writeBoardStructure(src: string, structure: BoardStructure): string {
     }
     return out;
   };
-  replaceSeqEntryAt(lines, reachBody(lines, [YO_KEY]), LANES_SUBKEY, render);
+  replaceSeqEntryAt(lines, reachBody(lines, [overlayKeyAlts]), LANES_SUBKEY, render);
   return lines.join("\n") + "\n";
 }
 
@@ -2088,11 +2137,11 @@ function membershipPathsOf(s: Store, store: string): string[] {
     .map((e) => segsToStr(storePathToSegs(e.to)));
 }
 
-/** The board's materialized `yo: lanes:` structure, read off the index — null when absent
- *  (a legacy board still on its `workflow:`/top-level `lanes:` seed). */
+/** The board's materialized `.yo: lanes:` structure (either overlay spelling), read off the
+ *  index — null when absent (a legacy board still on its `workflow:`/top-level `lanes:` seed). */
 function readBoardStructure(s: Store, boardStore: string): BoardStructure | null {
-  const lanesStore = childPath(childPath(boardStore, YO_KEY), LANES_SUBKEY);
-  if (!s.node(lanesStore)) return null;
+  const lanesStore = overlaySubPath(s, boardStore, LANES_SUBKEY);
+  if (!lanesStore) return null;
   return s.children(lanesStore).map((lane) =>
     s.children(lane.to).map((comp) => ({
       tags: membershipPathsOf(s, comp.to),
@@ -2324,16 +2373,15 @@ function fragmentBlockLines(slug: string, selector: Record<string, unknown>, ima
   return lines;
 }
 
-/** Whether a seg path names a fragment member (`…:yo:fragments:<slug>`). */
-const isFragmentSegs = (segs: Seg[]): boolean =>
-  segs.length >= 3 && segs[segs.length - 3] === YO_KEY && segs[segs.length - 2] === FRAGS_SUBKEY;
+/** Whether a seg path names a fragment member (`…:.yo:fragments:<slug>`, either spelling). */
+const isFragmentSegs = (segs: Seg[]): boolean => isFragmentSegsShared(segs);
 
 // ─────────────── THE INLINE FRAGMENT TOKEN (docs/documents/marklower/grammar) ───────────────
 // In marklower prose the NORMALIZED spelling of a text fragment is the `[…](…)` token in the
 // chunk's own text: creation wraps the selected words, a membership rides the label as a
 // leading `&…:-` bookmark, and removing the last membership unwraps the token — the prose
 // returns byte-exact. Everything an inline op cannot spell (a selection across a soft break or
-// inside another token) falls back to the explicit `yo: fragments:` member, silently.
+// inside another token) falls back to the explicit `.yo: fragments:` member, silently.
 
 /** The `[]` spelling of a value: bare when it survives the label scan; quoted otherwise. */
 const labelToken = (v: string): string =>
@@ -2491,20 +2539,21 @@ function ownDocFile(dataRoot: string, segs: Seg[]): string | null {
   }
 }
 
-/** Embed a fragment under the target's `yo: fragments:` mapping; for an image-like selection,
- *  write the PNG crop as a sidecar blob the fragment references. Returns its slug + node path. */
+/** Embed a fragment under the target's `.yo: fragments:` mapping (a legacy `yo:` key is reused,
+ *  never doubled); for an image-like selection, write the PNG crop as a sidecar blob the
+ *  fragment references. Returns its slug + node path in the SPELLING actually used. */
 function embedFragment(dataRoot: string, s: Store, mode: SidecarLocation, f: FragmentInput): { slug: string; fragmentPath: string } {
   const segs = strToSegs(f.target || ":");
   // The USER-CHOSEN key wins (the picker's key field — `keyToken` quotes whatever needs
   // quoting); a taken one refuses rather than upsert-clobbering the existing fragment.
   // Default: a minted, collision-free slug.
   const chosen = typeof f.slug === "string" ? f.slug.trim() : "";
-  if (chosen !== "" && s.node(storePath([...segs, YO_KEY, FRAGS_SUBKEY, chosen]))) {
+  if (chosen !== "" && overlayKeyAlts.some((yo) => s.node(storePath([...segs, yo, FRAGS_SUBKEY, chosen])))) {
     throw new Error(`a fragment \`${chosen}\` already exists on this node`);
   }
   const slug = chosen !== "" ? chosen : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   // A chunk target (`:chapter[k]`, a positional prose item) can't be reached by the mapping-key
-  // writer — turn the chunk into an omni node and hang `yo: fragments:` off it (docs/annotations/storage).
+  // writer — turn the chunk into an omni node and hang `.yo: fragments:` off it (docs/annotations/storage).
   if (isChunkTarget(s, segs)) {
     const { docSegs, bodyFile } = chapterSource(dataRoot, s, segs);
     const { indices, keys } = splitChunkWithin(segs.slice(docSegs.length));
@@ -2512,9 +2561,10 @@ function embedFragment(dataRoot: string, s: Store, mode: SidecarLocation, f: Fra
     const lines = fs.readFileSync(bodyFile, "utf8").replace(/\n$/, "").split("\n");
     assertProseChunk(lines, indices); // reject a `*…` / non-text chunk
     const region = chunkFieldRegion(lines, indices, /*ensureOmni*/ true); // convert the chunk to an omni node
-    upsertMapEntryAt(lines, reachBodyAt(lines, region, [YO_KEY, FRAGS_SUBKEY]), slug, (indent) => fragmentBlockLines(slug, f.selector, null, indent));
+    const yoKey = presentStepAlt(lines, region, overlayKeyAlts); // the spelling the descent will match/grow
+    upsertMapEntryAt(lines, reachBodyAt(lines, region, [overlayKeyAlts, FRAGS_SUBKEY]), slug, (indent) => fragmentBlockLines(slug, f.selector, null, indent));
     writeBody(dataRoot, s, bodyFile, lines.join("\n") + "\n");
-    return { slug, fragmentPath: segsToStr([...segs, YO_KEY, FRAGS_SUBKEY, slug]) };
+    return { slug, fragmentPath: segsToStr([...segs, yoKey, FRAGS_SUBKEY, slug]) };
   }
   const { bodyFile, within } = hostFor(dataRoot, s, segs);
   let imagePtr: string | null = null;
@@ -2530,13 +2580,15 @@ function embedFragment(dataRoot: string, s: Store, mode: SidecarLocation, f: Fra
   }
   mkdirInside(dataRoot, path.dirname(bodyFile), { recursive: true });
   const src = fs.existsSync(bodyFile) ? fs.readFileSync(bodyFile, "utf8") : "";
+  const yoKey = overlaySpellingAt(src, within); // the spelling upsertFragment will match/grow
   writeBody(dataRoot, s, bodyFile, upsertFragment(src, within, slug, (indent) => fragmentBlockLines(slug, f.selector, imagePtr, indent)));
-  return { slug, fragmentPath: segsToStr([...segs, YO_KEY, FRAGS_SUBKEY, slug]) };
+  return { slug, fragmentPath: segsToStr([...segs, yoKey, FRAGS_SUBKEY, slug]) };
 }
 
 // --- thumbnails: a per-type EXTRACTOR product, stored the yamlover way ------------------------ //
-// A thumbnail is an omni overlay on the source blob, under `yamlover-thumbnails:`, keyed by the
-// `[w, h]` resolution tuple — parallel to `yo: fragments:`. The bytes can't live inline
+// A thumbnail is an omni overlay on the source blob, under `.yo: thumbnails:` (a file already
+// carrying the legacy `yamlover-thumbnails:` keeps growing there — read forever), keyed by the
+// `[w, h]` resolution tuple — parallel to `.yo: fragments:`. The bytes can't live inline
 // (the serializer has no blob text form yet), so each is a content-addressed sidecar blob under
 // `thumbnails/` that the entry references by `*` pointer — exactly the fragment-crop pattern. The
 // content hash in the name gives free dedupe + invalidation (a re-saved source → a new name).
@@ -2561,8 +2613,9 @@ function existingThumb(dataRoot: string, s: Store, mode: SidecarLocation, segs: 
   return fs.existsSync(abs) ? abs : null;
 }
 
-/** Splice/replace the `yamlover-thumbnails: [w, h]:` overlay entry on the source blob, pointing at
- *  the sidecar `name` under the mode-appropriate `.yo/thumbnails/`. */
+/** Splice/replace the `.yo: thumbnails: [w, h]:` overlay entry (legacy `yamlover-thumbnails:`
+ *  reused where present) on the source blob, pointing at the sidecar `name` under the
+ *  mode-appropriate `.yo/thumbnails/`. */
 function embedThumbnail(dataRoot: string, s: Store, mode: SidecarLocation, segs: Seg[], w: number, h: number, name: string, onWrite?: (absFile: string) => void): void {
   const { bodyFile, within } = hostFor(dataRoot, s, segs);
   const { scope } = sidecarTarget(dataRoot, mode, THUMB_SUBDIR, bodyFile);
@@ -2634,9 +2687,10 @@ function unembedAnnotation(dataRoot: string, s: Store, target: string, tag: stri
     const fragRegion = () => reachBodyAt(lines, chunkFieldRegion(lines, indices, /*ensureOmni*/ false), keys);
     removeBookmarkAt(lines, fragRegion, pred);
     if (isFragmentSegs(keys as Seg[]) && !bookmarksRemainAt(lines, fragRegion())) {
-      // keys = ["yo", "fragments", "<slug>"] — the map path rides ONE flat-aware walk
+      // keys = [".yo"|"yo", "fragments", "<slug>"] — the ACTUAL spelling from the path; the
+      // map path rides ONE flat-aware walk
       removeMapEntryAt(lines, chunkFieldRegion(lines, indices, false), keys.slice(0, -1), keys[keys.length - 1]);
-      pruneEmptyKeyAt(lines, chunkFieldRegion(lines, indices, false), YO_KEY); // the emptied `yo:` husk
+      pruneEmptyKeyAt(lines, chunkFieldRegion(lines, indices, false), overlayKeyAlts); // the emptied overlay husk
       collapseChunkOmni(lines, indices); // no fields left → back to a plain `- |` chunk
     } else if (keys.length === 0 && !bookmarksRemainAt(lines, fragRegion())) {
       // the CHUNK's last whole-node membership: when the omni carries nothing else, collapse
@@ -2664,10 +2718,11 @@ function unembedAnnotation(dataRoot: string, s: Store, target: string, tag: stri
   // filename spine) exist solely to host overlay entries. An in-place document's keys are the
   // user's data: a pre-existing empty mapping must not vanish because a membership passed through.
   const overlay = overlaidDir(bodyFile) !== null;
-  // within = [...host, "yo", "fragments", "<slug>"] for a fragment target; drop it when emptied.
+  // within = [...host, ".yo"|"yo", "fragments", "<slug>"] for a fragment target (the ACTUAL
+  // spelling rides the path); drop it when emptied.
   if (isFragmentSegs(within as Seg[]) && !bookmarksRemain(src, within)) {
-    src = removeMapEntry(src, within.slice(0, -3), [YO_KEY, FRAGS_SUBKEY], within[within.length - 1]);
-    src = pruneEmptyYo(src, within.slice(0, -3)); // the emptied `yo:` husk
+    src = removeMapEntry(src, within.slice(0, -3), within.slice(-3, -1), within[within.length - 1]);
+    src = pruneEmptyYo(src, within.slice(0, -3)); // the emptied overlay husk (either spelling)
     src = pruneEmptyAnnotations(src, within.slice(0, -3), overlay); // the host may hold nothing else now
   } else {
     // a whole-node unfiling may empty an overlay host key (a filename spine) — prune it
@@ -4092,7 +4147,7 @@ function assignAt(lines: string[], r: Region, seg: Seg | undefined, op: string, 
 
 // --- chunk fragments (docs/annotations/storage): a text fragment lives ON the chunk it was drawn in ----- //
 // A chunk that carries a fragment becomes an OMNI node — its prose is a block-scalar self-value and
-// `yo:`/`yamlover-annotations:` are keyed fields. These fields sit at the item's
+// `.yo:` (legacy `yo:` reused) is a keyed field. These fields sit at the item's
 // child indent (item-indent + 2); the block-scalar content is pushed one step DEEPER (item-indent +
 // 4) so its dedent to the field level ends the block (docs/language/vs-yaml/differences/mixtures). Reached by ABSOLUTE index
 // (node-path space — what the fragment target uses), NOT the /api/edit rank space.
@@ -4155,9 +4210,9 @@ function convertChunkToOmni(lines: string[], item: ChapterEntry, itemIndent: num
   lines.splice(item.start, item.end - item.start, `${pad}- ${tag}${chomp}`, ...clean.split("\n").map((l) => (l.trim() ? `${pad}    ${l}` : "")));
 }
 
-/** The field-level Region of the chapter body item at absolute `indices` (where `yo:`
- *  / `yamlover-annotations:` live). With `ensureOmni`, a plain chunk is first converted so it can
- *  hold fields. Re-scans after conversion, so the returned span is current. */
+/** The field-level Region of the chapter body item at absolute `indices` (where the `.yo:`
+ *  overlay key lives, either spelling). With `ensureOmni`, a plain chunk is first converted so it
+ *  can hold fields. Re-scans after conversion, so the returned span is current. */
 function chunkFieldRegion(lines: string[], indices: number[], ensureOmni: boolean): EmbedRegion {
   const { item, itemIndent } = reachChapterItem(lines, indices);
   const fieldIndent = itemIndent + 2;
@@ -4197,7 +4252,7 @@ function isChunkTarget(s: Store, segs: Seg[]): boolean {
 }
 
 /** Split a chapter-local `within` into its leading numeric body indices and the trailing mapping
- *  keys (e.g. `[3, "yo", "fragments", "slug"]` → `{ indices:[3], keys:["yo","fragments","slug"] }`). */
+ *  keys (e.g. `[3, ".yo", "fragments", "slug"]` → `{ indices:[3], keys:[".yo","fragments","slug"] }`). */
 function splitChunkWithin(within: Seg[]): { indices: number[]; keys: string[] } {
   let i = 0;
   while (i < within.length && typeof within[i] === "number") i++;
@@ -4779,6 +4834,13 @@ function applyEdits(dataRoot: string, s: Store, edits: EditInput[]): { touched: 
     const editSegs = applyRemap(canonSegs(s, strToSegs(e.path ?? ""), true));
     const op = String(e.op ?? "");
 
+    // THE OVERLAY LAW: entries under `.yo` (either spelling; legacy thumbnails included) are
+    // engine-managed — grown by the annotate/fragment/board verbs, never by direct edits.
+    // `:.yo:settings.yo` is the one human-authored carve-out.
+    if (inYoSubtree(s, editSegs) && !isSettingsPath(editSegs)) {
+      throw new Error("entries under .yo are engine-managed and read-only (settings.yo excepted)");
+    }
+
     // A directory that backs no document has no source to splice: inserting into it creates a
     // MEMBER — a document of its own, named for itself rather than pointed at from a parent's body.
     // (A dir-BACKED document is a directory too, but `chapterSource` finds its body, so it lands in
@@ -5299,6 +5361,7 @@ export function previewEnvelope(source: string): string {
   // stamp what the walk stamps on a parsed file: the root IS a document root, and the head-of-file
   // banner rides its meta (collectComments reads both from the node, not the Document)
   doc.root.meta = { ...doc.root.meta, documentRoot: true, ...(doc.head?.length ? { head: doc.head } : {}) };
+  stampHiddenKeys(doc.root); // hidden-by-name, exactly as the walk stamps a live tree
   const s = new Store(":memory:");
   try {
     s.indexDocument(doc);

@@ -37,6 +37,10 @@ export interface NodeJson {
   // (raw text / plain directory mapping). The banner shows it; the editor stays shut —
   // saving would overwrite the unparsable original (the server refuses too).
   parseError?: { file: string; message: string };
+  // THE OVERLAY LAW: this node lives inside an engine-managed `.yo` subtree, browsed
+  // directly — the client shows the generic data view (no renderer magic) and greys the
+  // editor. `settings.yo` never carries it (the one human-authored carve-out).
+  special?: string;
   value: unknown;
   // Retained source comments to render with the value, keyed by each node's fragment
   // continuation FROM THIS node (`/key`, `[i]`, nested): `{ leading?: string[], trailing?:
@@ -181,6 +185,8 @@ export interface Annotation {
   tag?: TagRef | null;
   selector?: { type?: string; exact?: string; prefix?: string; suffix?: string; [k: string]: unknown };
   fragmentSlug?: string; // set when the tag is on a fragment (the region) rather than the whole node
+  fragmentPath?: string; // the fragment NODE's client path in its real overlay spelling (`.yo` or
+                         // legacy `yo`) — the delete target; never re-minted client-side
   imageUrl?: string; // an image-like fragment's crop (a /api/blob URL)
   description?: string;
   params?: Record<string, unknown>;
@@ -269,7 +275,7 @@ export function createFragment(target: string, selector: Record<string, unknown>
 }
 
 /** Apply the tag at `tag` to the node at `target` (a whole node OR a fragment path) — appends to
- *  the target's `yamlover-annotations`. `description`/`params` make it a parametrized annotation. */
+ *  the target (a membership bookmark). `description`/`params` make it a parametrized annotation. */
 export function annotate(a: { target: string; tag: string; description?: string; params?: Record<string, unknown>; selector?: Record<string, unknown> }): Promise<{ ok: true }> {
   return postJson(api("/api/annotate"), a);
 }
@@ -532,7 +538,7 @@ function objectBody(title: string): string {
 }
 
 /** Remove the application of `tag` from the node at `target` (a whole node OR a fragment path) —
- *  splices the matching element out of its `yamlover-annotations`. */
+ *  removes the matching membership (and an emptied fragment with it). */
 export function deleteAnnotation(target: string, tag: string, selector?: Record<string, unknown>): Promise<void> {
   const q = new URLSearchParams({ target, tag, ...(selector ? { selector: JSON.stringify(selector) } : {}) });
   return fetch(api(`/api/annotate?${q}`), { method: "DELETE" }).then(async (res) => {

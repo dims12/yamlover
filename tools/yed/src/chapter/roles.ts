@@ -11,7 +11,9 @@
 //   4. a LEGACY keyed `title:` entry (an unmigrated file) is the heading in both faces;
 //   5. a body-positioned MEMBER is body whatever its storage name — `anchorKey` is provenance,
 //      not a field, so a member named `description` (or `title`) stays a chunk;
-//   6. the annotation overlay keys are the annotation LAYER, hidden in both faces.
+//   6. HIDDEN-BY-NAME entries (the `.yo`/legacy `yo` overlay, any dot-key, the legacy
+//      `yamlover-*` technical keys — overlay-keys.ts) are the annotation layer / technical
+//      plumbing, hidden in both faces; they still occupy their absolute entry indices.
 
 /** What one entry is on the chapter page. */
 export type EntryRole = "body" | "title" | "description" | "hidden";
@@ -27,16 +29,20 @@ export interface RoleEntry {
   anchored?: boolean;
 }
 
-/** An ANNOTATION OVERLAY key — the reserved `yo:` custom-data key (fragments live under it,
- *  docs/annotations/fragments) or a tag application laid OVER a value (docs/annotations).
- *  The overlay is the annotation layer's storage, never page content. */
-export const isOverlayKey = (k: string | null): boolean =>
-  k === "yo";
+/** An ANNOTATION OVERLAY key — the reserved `.yo:` technical key (fragments/lanes/thumbnails
+ *  live under it, docs/annotations/fragments) in either spelling (`yo:` is the legacy form,
+ *  read forever). The overlay is the annotation layer's storage, never page content.
+ *  Re-exported from the ONE vocabulary module (parser/ts/src/overlay-keys.ts). */
+export { isOverlayKey, isHiddenEntryKey } from "../../../parser/ts/src/overlay-keys.ts";
+import { isHiddenEntryKey } from "../../../parser/ts/src/overlay-keys.ts";
 
 export function entryRole(e: RoleEntry): EntryRole {
   if (e.anchored === true) return "body"; // row 5 — provenance, not a field
   if (e.key === null && e.nullKey !== true) return "body"; // a keyless positional entry
-  if (isOverlayKey(e.key)) return "hidden"; // row 6
+  // row 6 — HIDDEN BY NAME (overlay-keys.ts): the overlay key in either spelling, any dot-key,
+  // and the legacy `yamlover-*` technical keys. Hidden entries still OCCUPY their absolute
+  // entry indices in both faces — unrendered, never renumbered.
+  if (isHiddenEntryKey(e.key)) return "hidden";
   if (e.key === "title") return "title"; // row 4 — the legacy keyed heading
   if (e.key === "description") return "description";
   return "body"; // row 1 — keyed fields are body with a key gutter (the null key included)

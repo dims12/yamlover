@@ -65,7 +65,7 @@ export function anchorizeHeadings(html: string): string {
  *  async — after the browser's own one-shot scroll — so re-scroll when it arrives.
  *  The same pattern the chapter renderer uses for `#/chunks/0`-style chunk anchors.
  *
- *  A FRAGMENT hash (`…#/yo/fragments/<slug>` — see {@link fragmentAnchorId}) also
+ *  A FRAGMENT hash (`…#/.yo/fragments/<slug>` — see {@link fragmentAnchorId}) also
  *  briefly FLASHES its target, so clicking a fragment in the RHS panel (which just sets the
  *  hash) or opening a shared fragment link draws the eye to the region. Heading slug anchors
  *  and ordinary `#/cont` data anchors stay scroll-only. Re-runs on `hashchange` too, so an
@@ -83,7 +83,7 @@ export function useHashScroll(dep: unknown, opts?: { once?: boolean }): void {
   useEffect(() => {
     if (restore.current === undefined) restore.current = decodeURIComponent(window.location.hash.slice(1)) || null;
     const reveal = () => {
-      const id = decodeURIComponent(window.location.hash.slice(1));
+      const id = canonFragmentHash(decodeURIComponent(window.location.hash.slice(1)));
       if (!id) { clearLanding(); return; }
       const fresh = restore.current === id; // the mount's own hash — restored even when spy-written
       if (!fresh && id === spyHash) return; // reader-following hash: never scroll back to it
@@ -108,6 +108,12 @@ export function useHashScroll(dep: unknown, opts?: { once?: boolean }): void {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dep]);
 }
+
+/** A saved/shared LEGACY fragment hash (`#/yo/fragments/<slug>`) normalized to the canonical
+ *  anchor id the marks mint today (`#/.yo/fragments/<slug>`, paths.ts fragmentAnchorId) — old
+ *  links keep landing. Anything else passes through untouched. */
+const canonFragmentHash = (id: string): string =>
+  id.startsWith("/yo/fragments/") ? "/." + id.slice(1) : id;
 
 /** The fragment the spy last wrote while FOLLOWING the reader (null once a real navigation —
  *  a hashchange — happens). {@link useHashScroll} never scrolls back to it: the reader is

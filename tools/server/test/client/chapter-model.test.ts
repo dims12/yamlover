@@ -342,13 +342,15 @@ describe("bodyKindOf — inlined containers", () => {
     expect(bodyKindOf(annotatedLink)).toBe("chunk");
   });
 
-  it("an ANNOTATED chunk stays a chunk — overlay keys are not body (docs/documents/chapter)", () => {
+  it("an ANNOTATED chunk stays a chunk — hidden-by-name keys are not body (docs/documents/chapter)", () => {
     const annotated = (key: string) => ({ $yamloverMixed: { kind: "omni", value: "a **bold** chunk", entries: [{ key, value: [] }] } });
-    expect(bodyKindOf(annotated("yo"))).toBe("chunk");
-    // the RETIRED key is ordinary data now — a keyed entry makes it a subchapter
-    expect(bodyKindOf(annotated("yamlover-annotations"))).toBe("subchapter");
+    expect(bodyKindOf(annotated(".yo"))).toBe("chunk");
+    expect(bodyKindOf(annotated("yo"))).toBe("chunk"); // the legacy spelling, read forever
+    expect(bodyKindOf(annotated(".anything"))).toBe("chunk"); // any dot-key is hidden by name
+    // the retired annotations array is a hidden-by-name legacy key too — never page shape
+    expect(bodyKindOf(annotated("yamlover-annotations"))).toBe("chunk");
     // …but a real body entry alongside the overlay DOES make it a subchapter
-    const both = { $yamloverMixed: { kind: "omni", value: "T", entries: [{ key: "yo", value: {} }, { key: null, value: "body" }] } };
+    const both = { $yamloverMixed: { kind: "omni", value: "T", entries: [{ key: ".yo", value: {} }, { key: null, value: "body" }] } };
     expect(bodyKindOf(both)).toBe("subchapter");
   });
 

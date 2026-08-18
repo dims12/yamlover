@@ -51,7 +51,7 @@ function cropPng(img: HTMLImageElement | null, x: number, y: number, w: number, 
 }
 
 /** The `rect`-type annotations, as pixel regions to overlay on the image. `materialPath` lets a
- *  saved fragment carry its `#/yo/fragments/<slug>` anchor id so a hash reveal can pan to it.
+ *  saved fragment carry its `#/.yo/fragments/<slug>` anchor id so a hash reveal can pan to it.
  *  Annotations are GROUPED by selector (a region's tag applications share one selector — the same
  *  join key as `sameSelector`/`annKey` in annotate.tsx): each frame becomes ONE region carrying all
  *  its tags, so multi-tag frames draw a single rectangle instead of N overlapping ones. */

@@ -80,9 +80,10 @@ test('pointer-array body: inline elements and dangling pointers keep their posit
     // are ordinary keyless elements, which need no marker to read as ordinal
     assert.deepEqual((root?.meta as { anchored?: string[] } | null)?.anchored, ['b']);
     // prefix: b (consumed pointer, keeps its key), the inline 42, the dangling *missing;
-    // remainder: a (unlisted, keyed-only). The hidden built-in graft is plumbing — not content.
+    // remainder: .yo (the hidden overlay node — body.yo is inspectable), then a (unlisted,
+    // keyed-only). The hidden built-in graft is plumbing — not content.
     const entries = s.entries(':').filter((e) => e.label !== 'yamlover');
-    assert.deepEqual(entries.map((e) => e.label), ['b', null, 'a']); // dangling has no edge row
+    assert.deepEqual(entries.map((e) => e.label), ['b', null, '.yo', 'a']); // dangling has no edge row
     assert.equal(s.node(':b')?.value, 'beta');
     assert.equal(s.node(':a')?.value, 'alpha');
     assert.equal(s.unrealizedRefs(':').length, 1); // `*missing` reported, never dropped
@@ -103,7 +104,7 @@ test('pointer-array body: the DEAD slash spelling `- */file` does not consume a 
     const s = new Store(':memory:');
     s.indexDocument(walkDir(dir));
     const entries = s.entries(':').filter((e) => e.label !== 'yamlover');
-    assert.deepEqual(entries.map((e) => e.label), ['b']); // keyed-only remainder; the dangling ref has no edge row
+    assert.deepEqual(entries.map((e) => e.label), ['.yo', 'b']); // keyed-only remainder; the dangling ref has no edge row
     assert.equal(s.unrealizedRefs(':').length, 1); // `*/b` reported as dangling, never resolved
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -612,9 +613,10 @@ test('self-import: explicit `yamlover: *::: …` key materializes the taxonomy; 
   rmSync(root2, { recursive: true, force: true });
 });
 
-test('settings.yo is indexed as a HIDDEN node (x-yamlover-config); body/meta stay unindexed', () => {
+test('settings.yo is indexed as a HIDDEN node (x-yamlover-config); body.yo doubles as a DUMB raw node', () => {
   // the config file is openable/editable at :.yo:settings.yo by the settings editor,
-  // but hidden from the TOC (IMPORTS.md). body/meta remain consumed overlays (not nodes).
+  // but hidden from the TOC (IMPORTS.md). body/meta remain consumed overlays AND are
+  // additionally inspectable as raw-text nodes (hidden, not secret — read-only).
   const root = mkdtempSync(join(tmpdir(), 'yo-settingsnode-'));
   mkdirSync(join(root, '.yo'));
   writeFileSync(join(root, '.yo', 'settings.yo'), '!!<*yamlover:$defs:config>\ntags: *:: ontos\n');
@@ -624,8 +626,9 @@ test('settings.yo is indexed as a HIDDEN node (x-yamlover-config); body/meta sta
   s.indexDocument(walkDir(root));
   assert.equal(s.node(':.yo:settings.yo')?.format, 'x-yamlover-config');
   assert.equal(s.node(':.yo')?.meta?.hidden, true); // parent overlay node is hidden
-  assert.equal(s.node(':.yo:body.yo'), null); // body stays a consumed overlay
-  assert.equal(s.node(':extra')?.value, 1); // …and is applied to the parent
+  assert.equal(s.node(':.yo:body.yo')?.value, 'extra: 1\n'); // the raw source, NEVER a second parse
+  assert.equal(s.node(':.yo:body.yo:extra'), null); // …no children — dumb by construction
+  assert.equal(s.node(':extra')?.value, 1); // …and the overlay is still applied to the parent
   s.close();
   rmSync(root, { recursive: true, force: true });
 });
@@ -679,7 +682,7 @@ test('self-import graft: a root that IS a project is DE-MATERIALIZED — `::yaml
   rmSync(dir, { recursive: true, force: true });
 });
 
-test('.yo is indexed as a HIDDEN subtree: sidecars resolve, the overlay/db are skipped', () => {
+test('.yo is indexed as a HIDDEN subtree: sidecars resolve, overlays read raw, the db is skipped', () => {
   const root = mkdtempSync(join(tmpdir(), 'yo-hidden-'));
   const dir = join(root, 'pics');
   mkdirSync(join(dir, '.yo', 'thumbnails'), { recursive: true });
@@ -692,17 +695,46 @@ test('.yo is indexed as a HIDDEN subtree: sidecars resolve, the overlay/db are s
   // the `.yo` node exists, is flagged hidden, and is a real child of :pics (resolvable)
   assert.equal(s.node(':pics:.yo')?.meta?.hidden, true);
   assert.ok(s.children(':pics').map((c) => c.label).includes('.yo'));
-  // its derived sidecar is indexed + addressable; the engine's own files are NOT
+  // its derived sidecar is indexed + addressable; the overlay is a DUMB raw-text node
+  // (inspectable, never a second parse); the index db is NOT indexed (it would index itself)
   assert.equal(s.node(':pics:.yo:thumbnails:t.jpg')?.type, 'blob');
   assert.equal(s.node(':pics:.yo:index.db'), null);
-  assert.equal(s.node(':pics:.yo:body.yo'), null);
+  assert.equal(typeof s.node(':pics:.yo:body.yo')?.value, 'string');
+  assert.equal(s.node(':pics:.yo:body.yo:pic.png'), null); // dumb — no children
   // the DOCUMENT-relative pointer `*:.yo:thumbnails:t.jpg` resolved (nothing dangling)
   assert.deepEqual(s.dangling(), []);
   s.close();
   rmSync(root, { recursive: true, force: true });
 });
 
-test('a .yo holding only the overlay + index db adds NO node (plain dirs keep their shape)', () => {
+test('hidden by name: dot-keys and legacy technical keys are stamped hidden, TOC-pruned, yet resolvable', () => {
+  const root = mkdtempSync(join(tmpdir(), 'yo-dotkeys-'));
+  const s = new Store(':memory:');
+  try {
+    writeFileSync(
+      join(root, 'page.yo'),
+      'title: Page\n.secret: hush\nvisible: here\nyo:\n  fragments:\n    frag1: note\nyamlover-thumbnails:\n  "a.png": [2, 2]\n',
+    );
+    s.indexDocument(walkDir(root));
+    // the naming rule stamps the flag; ordinary keys stay unflagged
+    assert.equal(s.node(':page.yo:.secret')?.meta?.hidden, true);
+    assert.equal(s.node(':page.yo:yo')?.meta?.hidden, true);
+    assert.equal(s.node(':page.yo:yamlover-thumbnails')?.meta?.hidden, true);
+    assert.equal(s.node(':page.yo:visible')?.meta?.hidden, undefined);
+    // the TOC prunes hidden subtrees whole…
+    const labels = s.toc(':page.yo').map((n) => n.label);
+    assert.ok(labels.includes('visible'));
+    for (const gone of ['.secret', 'yo', 'yamlover-thumbnails', 'fragments']) assert.ok(!labels.includes(gone), gone);
+    // …yet every hidden node resolves when addressed directly (hidden, not secret)
+    assert.equal(s.node(':page.yo:.secret')?.value, 'hush');
+    assert.equal(s.node(':page.yo:yo:fragments:frag1')?.value, 'note');
+  } finally {
+    s.close();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('a .yo holding an overlay carries its raw node; an index-db-only .yo adds NO node', () => {
   const root = mkdtempSync(join(tmpdir(), 'yo-hidden2-'));
   mkdirSync(join(root, '.yo'), { recursive: true });
   writeFileSync(join(root, 'a'), 'Alice\n');
@@ -710,9 +742,24 @@ test('a .yo holding only the overlay + index db adds NO node (plain dirs keep th
   writeFileSync(join(root, '.yo', 'index.db'), 'DB');
   const s = new Store(':memory:');
   s.indexDocument(walkDir(root));
-  assert.equal(s.node(':.yo'), null); // nothing indexable under .yo → no hidden node
+  // the overlay is inspectable as a hidden raw node — but hidden plumbing keeps the dir's
+  // shape: no TOC row, no visible children (plain dirs read the same as before)
+  assert.equal(s.node(':.yo')?.meta?.hidden, true);
+  assert.equal(typeof s.node(':.yo:body.yo')?.value, 'string');
+  assert.ok(!s.toc(':', 1).some((n) => n.label === '.yo'));
   s.close();
   rmSync(root, { recursive: true, force: true });
+
+  // an index-db-only .yo (no overlay, no sidecars) still adds nothing
+  const bare = mkdtempSync(join(tmpdir(), 'yo-hidden3-'));
+  mkdirSync(join(bare, '.yo'), { recursive: true });
+  writeFileSync(join(bare, 'a'), 'Alice\n');
+  writeFileSync(join(bare, '.yo', 'index.db'), 'DB');
+  const s2 = new Store(':memory:');
+  s2.indexDocument(walkDir(bare));
+  assert.equal(s2.node(':.yo'), null);
+  s2.close();
+  rmSync(bare, { recursive: true, force: true });
 });
 
 test('dir/index.yo: the overlay is a plain `index.yo`, CONSUMED rather than listed', () => {

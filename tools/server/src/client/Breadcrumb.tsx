@@ -38,10 +38,12 @@ export function useBreadcrumb(opts: { current: string; select: (path: string) =>
 export function Breadcrumb({ current, rootLabel, api }: { current: string; rootLabel: string; api: BreadcrumbApi }) {
   const { state, dispatch } = api;
 
-  // F4 focuses the append cell from anywhere (skipping inputs, like App's key handler).
+  // F4 / Ctrl-F focus the append cell from anywhere (skipping inputs, like App's key
+  // handler — so the browser's own find stays reachable while actually typing text).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "F4") return;
+      const ctrlF = (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && (e.key === "f" || e.key === "F");
+      if (e.key !== "F4" && !ctrlF) return;
       const t = e.target as HTMLElement | null;
       if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
       e.preventDefault();
@@ -53,8 +55,42 @@ export function Breadcrumb({ current, rootLabel, api }: { current: string; rootL
 
   return (
     <nav className={"crumbs" + (state.mode === "editing" ? " editing" : "")}>
-      {rootLabel && <span className="crumb crumb-root">{rootLabel}</span>}
+      {/* the ROOT crumb is a real link home: clicking it navigates to `:` — routed as a
+          TOC_CLICK so every machine state does the right thing (idle navigates; an edit or
+          a committed query collapses to idle first, exactly like clicking a non-match row) */}
+      {rootLabel && (
+        <span
+          className="crumb crumb-root"
+          role="link"
+          tabIndex={0}
+          title="Go to the project root"
+          onClick={() => dispatch({ type: "TOC_CLICK", path: ":" })}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              dispatch({ type: "TOC_CLICK", path: ":" });
+            }
+          }}
+        >
+          {rootLabel}
+        </span>
+      )}
       <QueryCells host={api} idlePortions={portionsFromPath(current)} leadingSep tail={false} className="crumbs-cells" />
+      {/* the APPEND AFFORDANCE: a dim ghost slot after the last crumb says "the caret goes
+          here" — idle only (an editing cell wears the ring, a filtered query the ✕).
+          mousedown, not click, so it never blurs an active cell first (the tail's rule). */}
+      {state.mode === "idle" && (
+        <span
+          className="crumbs-append"
+          title="Search / go to path — Ctrl-F or F4"
+          onMouseDown={(e) => {
+            e.preventDefault();
+            dispatch({ type: "FOCUS_CELL", caret: "end" });
+          }}
+        >
+          ⌕
+        </span>
+      )}
       {/* the ✕ hugs the path's end — BEFORE the flex spacer (the tail), or it lands at the far edge */}
       {state.mode === "filtered" && (
         <button type="button" className="crumbs-clear" title="Clear the query" aria-label="Clear the query" onClick={() => dispatch({ type: "ESCAPE" })}>

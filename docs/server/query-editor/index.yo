@@ -28,8 +28,10 @@ description: the breadcrumb, the pointer pick cells, and the tag picker - one ma
   is unreachable, and the SCOPE LADDER is the user's: bare (current scope), `:` document, `::`
   project, `:::` world. In pick mode a TOC click is an INSERTION, not a commit. The TOC filter is
   ONE shared surface: a session owner holds it, and a host that starts editing EVICTS the previous
-  owner. The append cell (`click_tail` / F4) REUSES an already-empty trailing cell, never doubles
-  it.
+  owner. The append cell (`click_tail`, the dim `⌕` ghost slot after the last crumb, F4 or
+  Ctrl-F) REUSES an already-empty trailing cell, never doubles it. A pointer-shaped entry
+  (keys only) reaches HIDDEN nodes - typing `.yo` outright is an ask, not a search
+  ([query semantics](*::language:pointers:queries:semantics)).
 - >
   **THE THREE HOSTS.** (1) The BREADCRUMB - browse mode, this chapter's main table. (2) The yed
   editor's REFERENCE CELL (`*` in a hole, and the atom's pick retarget) - pick mode; its outer

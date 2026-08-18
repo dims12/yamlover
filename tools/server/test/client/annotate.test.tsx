@@ -176,7 +176,7 @@ describe("region window (the yamlover-shaped header)", () => {
   });
 
   it("renaming the KEY of an existing fragment rekeys it in place", async () => {
-    vi.stubGlobal("fetch", mockFetch({ ":img.png:yo:fragments:named": { path: ":img.png:yo:fragments:named" } }));
+    vi.stubGlobal("fetch", mockFetch({ ":img.png:.yo:fragments:named": { path: ":img.png:.yo:fragments:named" } }));
     const material = { annotations: [], create: vi.fn(), remove: vi.fn(), annotateRegion: vi.fn() };
     let menu: ReturnType<typeof useAnnotationMenu>;
     function Harness() {
@@ -191,13 +191,13 @@ describe("region window (the yamlover-shaped header)", () => {
     vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       if (String(input).includes("/api/rekey")) {
         rekeyed(JSON.parse(String(init?.body)));
-        return { ok: true, status: 200, json: async () => ({ path: ":img.png:yo:fragments:named" }) } as Response;
+        return { ok: true, status: 200, json: async () => ({ path: ":img.png:.yo:fragments:named" }) } as Response;
       }
       return { ok: false, status: 404, json: async () => ({ error: "no" }) } as Response;
     }));
     fireEvent.change(key, { target: { value: "named" } });
     fireEvent.keyDown(key, { key: "Enter" });
-    await waitFor(() => expect(rekeyed).toHaveBeenCalledWith({ path: ":img.png:yo:fragments:abc123", key: "named" }));
+    await waitFor(() => expect(rekeyed).toHaveBeenCalledWith({ path: ":img.png:.yo:fragments:abc123", key: "named" }));
     await waitFor(() => expect((container.querySelector(".annotate-topbar") as HTMLElement).title).toContain("named"));
   });
 

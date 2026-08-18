@@ -3,7 +3,7 @@ description: select a region, pick an onto - the flow shared by prose, images, m
 - >
   Annotating is **filing a piece of a material under an onto** - one membership, saved **into
   the target itself**: a selected region becomes a fragment on the node (in marklower prose the
-  inline token, elsewhere a `yo: fragments:` member), and each applied onto one bookmark line on
+  inline token, elsewhere a `.yo: fragments:` member), and each applied onto one bookmark line on
   it (the exact shapes: [annotations](*::annotations)) - so it travels with the document,
   persists across reloads, shows up wherever the material is read, and is listed on the onto's
   own page among its members. Its display color is **the applied onto's**: a built-in **pure
@@ -28,7 +28,7 @@ description: select a region, pick an onto - the flow shared by prose, images, m
   the indented, uneditable `&` sigil followed by the **path input**. Then the applied chips,
   the recent pane, and the swatches. The controls:
 - !!<*yamlover: $defs: bullets>
-  - '**The key** - the target''s own key, editable where a rename is possible: an EXISTING member fragment rekeys in place (`/api/rekey` - inbound pointers follow), a whole NODE (the right-click menu) renames the node itself, and a FRESH region''s typed name becomes its fragment key at the first pick (`/api/fragment` refuses a taken one). A fresh region left unnamed gets a minted slug - and a **named text selection** becomes an explicit `yo: fragments:` member (an inline token has no key to give). Escape in the key field reverts a dirty draft first.'
+  - '**The key** - the target''s own key, editable where a rename is possible: an EXISTING member fragment rekeys in place (`/api/rekey` - inbound pointers follow), a whole NODE (the right-click menu) renames the node itself, and a FRESH region''s typed name becomes its fragment key at the first pick (`/api/fragment` refuses a taken one). A fresh region left unnamed gets a minted slug - and a **named text selection** becomes an explicit `.yo: fragments:` member (an inline token has no key to give). Escape in the key field reverts a dirty draft first.'
   - '**⏎ apply** - commits the typed path, exactly like pressing Enter in the cells.'
   - '**A path input** (after the `&` - the picker''s MAIN part) - type any onto''s node path and press **Enter** to file the region there. A **bare name** (no path) works too: if no such onto exists yet it is **created on the spot** - appended to the project''s ontologies (the `ontos: *:: ontos` setting in `.yo/settings.yo`, `<root>/ontos` by default) as `<name>: !!<*::yamlover:$defs:onto>` - and then applied.'
   - '**The applied row** - the ontos this target already carries (shown **outlined**) and those on the same node''s other parts; click an outlined one to remove it. Always visible - hiding the suggestions below can never hide the way to untag.'

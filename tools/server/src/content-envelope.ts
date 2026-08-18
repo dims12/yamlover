@@ -27,6 +27,7 @@ import { isPointer, type Document, type Entry, type Node, type Pointer, type Val
 import { parsePointer } from "../../parser/ts/src/pointer.ts";
 import { serializeYamlover } from "../../parser/ts/src/serialize-yamlover.ts";
 import { segToken } from "../../parser/ts/src/pathseg.ts";
+import { isHiddenEntryKey } from "../../parser/ts/src/overlay-keys.ts";
 import { nodeDeco, scalarRawToken, type CommentBucket } from "./projection-comments.js";
 
 export type Seg = string | number | null;
@@ -192,7 +193,14 @@ function pruneClone(
   // sidecar keys and the client's comment keys can never disagree.
   let renderedIdx = 0;
   (node.entries ?? []).forEach((e, srcIdx) => {
-    if (hiddenNode(e.value)) return; // the `.yo` overlay subtree — never content
+    // THE HIDDEN-WIRE LAW (projection-comments.ts collectComments is the twin): a hidden entry
+    // leaves the wire only when STORAGE stands behind it — the `.yo/` overlay dir, the grafted
+    // `yamlover` self-import — plumbing subtrees, never content. A hidden entry INSIDE the
+    // document (a dot-key, a legacy `yo:` / `yamlover-*` key) is AUTHORED text: it stays in
+    // `source` (and hence in yed's IR), merely unrendered by the chapter faces — pruning it
+    // would make the editor's next sync diff DELETE the author's annotations.
+    if (hiddenNode(e.value) &&
+        (typeof e.key !== "string" || !isHiddenEntryKey(e.key) || deps.memberExists([...segs, e.key]))) return;
     const idx = renderedIdx;
     if ((e as { edge?: string }).edge !== "back") renderedIdx++;
 

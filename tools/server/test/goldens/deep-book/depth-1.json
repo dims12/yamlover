@@ -92,7 +92,7 @@
                 "format": "x-yamlover-chapter",
                 "concrete": "dir/.yo",
                 "title": "Part One",
-                "count": 6,
+                "count": 7,
                 "value": "Part One"
               }
             },
@@ -111,7 +111,7 @@
                 "format": "x-yamlover-chapter",
                 "concrete": "dir/.yo",
                 "title": "Part Two",
-                "count": 7,
+                "count": 8,
                 "value": "Part Two"
               }
             },
@@ -130,7 +130,7 @@
                 "format": "x-yamlover-chapter",
                 "concrete": "dir/.yo",
                 "title": "The Appendix",
-                "count": 4
+                "count": 5
               }
             },
             "anchor": true
@@ -447,15 +447,15 @@
             "value": {
               "$yamloverLink": {
                 "kind": "omni",
-                "type": "vseq",
+                "type": "omni",
                 "valueType": "string",
-                "hasKeyed": false,
+                "hasKeyed": true,
                 "hasOrdinal": true,
                 "path": ":part-one:item01",
                 "format": "x-yamlover-chapter",
                 "concrete": "dir/.yo",
                 "title": "Lists And Tables",
-                "count": 4,
+                "count": 5,
                 "value": "Lists And Tables"
               }
             },
@@ -466,15 +466,15 @@
             "value": {
               "$yamloverLink": {
                 "kind": "omni",
-                "type": "vseq",
+                "type": "omni",
                 "valueType": "string",
-                "hasKeyed": false,
+                "hasKeyed": true,
                 "hasOrdinal": true,
                 "path": ":part-one:01-deep",
                 "format": "x-yamlover-chapter",
                 "concrete": "dir/.yo",
                 "title": "Deep Chapter",
-                "count": 3,
+                "count": 4,
                 "value": "Deep Chapter"
               }
             },
@@ -485,13 +485,13 @@
             "value": {
               "$yamloverLink": {
                 "kind": "omni",
-                "type": "vseq",
+                "type": "omni",
                 "valueType": "string",
-                "hasKeyed": false,
+                "hasKeyed": true,
                 "hasOrdinal": true,
                 "path": ":part-one:stray",
                 "concrete": "dir/.yo",
-                "count": 1,
+                "count": 2,
                 "value": "Stray Member"
               }
             }
@@ -520,10 +520,10 @@
   },
   ":part-one:01-deep": {
     "path": ":part-one:01-deep",
-    "type": "vseq",
+    "type": "omni",
     "format": "x-yamlover-chapter",
     "valueType": "string",
-    "hasKeyed": false,
+    "hasKeyed": true,
     "hasOrdinal": true,
     "concrete": "dir/.yo",
     "documentPath": ":part-one:01-deep",
@@ -570,15 +570,15 @@
             "value": {
               "$yamloverLink": {
                 "kind": "omni",
-                "type": "vseq",
+                "type": "omni",
                 "valueType": "string",
-                "hasKeyed": false,
+                "hasKeyed": true,
                 "hasOrdinal": true,
                 "path": ":part-one:01-deep:item01",
                 "format": "x-yamlover-chapter",
                 "concrete": "dir/.yo",
                 "title": "Deepest",
-                "count": 1,
+                "count": 2,
                 "value": "Deepest"
               }
             },
@@ -658,10 +658,10 @@
   },
   ":part-one:01-deep:item01": {
     "path": ":part-one:01-deep:item01",
-    "type": "vseq",
+    "type": "omni",
     "format": "x-yamlover-chapter",
     "valueType": "string",
-    "hasKeyed": false,
+    "hasKeyed": true,
     "hasOrdinal": true,
     "concrete": "dir/.yo",
     "documentPath": ":part-one:01-deep:item01",
@@ -748,10 +748,10 @@
   },
   ":part-one:item01": {
     "path": ":part-one:item01",
-    "type": "vseq",
+    "type": "omni",
     "format": "x-yamlover-chapter",
     "valueType": "string",
-    "hasKeyed": false,
+    "hasKeyed": true,
     "hasOrdinal": true,
     "concrete": "dir/.yo",
     "documentPath": ":part-one:item01",
@@ -822,7 +822,7 @@
                 "format": "x-yamlover-chapter",
                 "concrete": "dir/.yo",
                 "title": "The Deep Book",
-                "count": 8,
+                "count": 9,
                 "value": "The Deep Book"
               }
             }
@@ -879,10 +879,10 @@
   },
   ":part-one:stray": {
     "path": ":part-one:stray",
-    "type": "vseq",
+    "type": "omni",
     "format": null,
     "valueType": "string",
-    "hasKeyed": false,
+    "hasKeyed": true,
     "hasOrdinal": true,
     "concrete": "dir/.yo",
     "documentPath": ":part-one:stray",

@@ -691,7 +691,7 @@ describe("/api/board (lanes of compartments)", () => {
     expect(fs.readFileSync(path.join(root, ".yo", "body.yo"), "utf8")).toBe(before);
   });
 
-  it("op:structure materializes the pinned `yo: lanes:` spelling and round-trips through the index", async () => {
+  it("op:structure materializes the pinned `.yo: lanes:` spelling and round-trips through the index", async () => {
     const root = boardTree();
     const h = createHandlers(root, { gitignore: false });
     await h.ready;
@@ -715,7 +715,7 @@ describe("/api/board (lanes of compartments)", () => {
     const body = fs.readFileSync(path.join(root, ".yo", "body.yo"), "utf8");
     expect(body).toContain(
       [
-        "yo:",
+        ".yo:",
         "  lanes:",
         "  - -",
         "      &::ontos:workflow:dev:ready:-",
@@ -736,7 +736,7 @@ describe("/api/board (lanes of compartments)", () => {
     ]);
     expect(cardPaths(g.json.lanes[0][0].items)).toEqual([":task-a.yo"]);
     // the compartment IS a member of its tag (its bookmark indexed as a back edge)
-    const anns = call(h, "/api/annotations", { path: ":yo:lanes:0:0" }).json;
+    const anns = call(h, "/api/annotations", { path: ":.yo:lanes:0:0" }).json;
     expect(anns.some((a: any) => a.tag?.path === READY)).toBe(true);
   });
 

@@ -10,7 +10,7 @@ import { dirname, join } from 'node:path';
 import { parseYamlover } from '../../../parser/ts/src/yamlover.ts';
 import { Store } from '../src/store.ts';
 import { walkDir } from '../src/walk.ts';
-import { evalQuery } from '../src/query.ts';
+import { evalQuery, isPointerShapedQuery } from '../src/query.ts';
 import { CASES, INLINE_FIXTURE } from './query.cases.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -71,6 +71,13 @@ for (const c of CASES) {
 
 // §6.2 — every pointer-shaped query yields at most one result (spot-checked over the
 // singleton fragment of the corpus).
+test('isPointerShapedQuery: keys/indices/ups are explicit; wildcards, sweeps and tests are searches', () => {
+  for (const q of [': pets: 1', 'team: alice: age', '..: ontos', ': d: .yo', ':: yamlover: ontos', '1'])
+    assert.equal(isPointerShapedQuery(q), true, q);
+  for (const q of [': ?', ': ...: colors', ': pets: []', '= 5', ': a: !!<format: x>', '::: '])
+    assert.equal(isPointerShapedQuery(q), false, q);
+});
+
 test('pointer-shaped queries are singletons', () => {
   const s = fixture('inline');
   for (const q of ['team: alice: age', ': pets: 1', 'team: zoe', '1', '..: ontos', 'team: alice: pet: name']) {

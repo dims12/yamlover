@@ -106,7 +106,7 @@ function numToken(name: string, syntax: Syntax): string {
 }
 
 /** The scalar SELF-VALUE a string/scalar renderer should show. An OMNI node (a scalar that also
- *  carries fields — e.g. a markdown doc that gained `yamlover-annotations` keys) projects its page
+ *  carries fields — e.g. a markdown doc that gained a `.yo:` overlay key) projects its page
  *  `value` as a `$yamloverMixed` marker, so peel it to the self-value; a plain scalar passes
  *  through. Pairs with the facet-tolerant dispatch (docs/language/logical-graph/matching): routing keeps an annotated string
  *  on its renderer, and this hands that renderer the string — not the marker object. */

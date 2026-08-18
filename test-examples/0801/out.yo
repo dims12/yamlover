@@ -1,3 +1,8 @@
 name: Alice
 age: 30
 isAdmin: true
+.yo:
+  body.yo: |
+    name: Alice
+    age: 30
+    isAdmin: true

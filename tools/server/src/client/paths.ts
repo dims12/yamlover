@@ -9,6 +9,7 @@
 
 import { BASE } from "./base"; // the served URL prefix (--base-path); "" at the root
 import { segToken } from "../../../parser/ts/src/pathseg.ts";
+import { isOverlayKey, OVERLAY_KEY } from "../../../parser/ts/src/overlay-keys.ts";
 
 export type Seg = string | number | null; // string key | integer position | the NULL key
 
@@ -99,20 +100,23 @@ export function fragmentOf(base: string, full: string): string {
 /** The in-page anchor id / URL hash for a fragment of `materialPath`: its slash continuation from
  *  the material — kept leading-slashed to mirror the chunk anchors (`<doc>#/chunks[n]`), so the `#`
  *  of `<material-url>#<id>` reads the same for both.
- *  E.g. (":dir:IMG.jpg", "mr0zbe2l-rqyow7") → "/yo/fragments/mr0zbe2l-rqyow7", so the fragment
- *  node `…/IMG.jpg/yo/fragments/<slug>` is reached in-page as `…/IMG.jpg#/yo/fragments/<slug>`.
- *  Both the fragment's mark (text/region) and the RHS panel's row use this as the single key. */
+ *  E.g. (":dir:IMG.jpg", "mr0zbe2l-rqyow7") → "/.yo/fragments/mr0zbe2l-rqyow7", so the fragment
+ *  node `…/IMG.jpg/.yo/fragments/<slug>` is reached in-page as `…/IMG.jpg#/.yo/fragments/<slug>`.
+ *  Both the fragment's mark (text/region) and the RHS panel's row use this as the single key.
+ *  ALWAYS the canonical `.yo` spelling — the id is a page-internal key, so mark and row agree
+ *  whatever the storage spells; a legacy `#/yo/…` hash is normalized at the reveal
+ *  (headings.ts useHashScroll). */
 export function fragmentAnchorId(materialPath: string, fragmentSlug: string): string {
-  const fragNode = (materialPath === ":" ? "" : materialPath) + ":yo:fragments:" + fragmentSlug;
+  const fragNode = (materialPath === ":" ? "" : materialPath) + ":" + OVERLAY_KEY + ":fragments:" + fragmentSlug;
   return fragmentOf(materialPath, fragNode);
 }
 
-/** Split a fragment node path (`<host>:yo:fragments:<slug>`) into its host material and slug.
- *  Null when the path is not a fragment member. */
+/** Split a fragment node path (`<host>:.yo:fragments:<slug>`, either overlay spelling) into its
+ *  host material and slug. Null when the path is not a fragment member. */
 export function splitFragmentPath(path: string): { host: string; slug: string } | null {
   const segs = strToSegs(path);
   if (segs.length < 3) return null;
-  if (segs[segs.length - 3] !== "yo" || segs[segs.length - 2] !== "fragments") return null;
+  if (!isOverlayKey(segs[segs.length - 3]) || segs[segs.length - 2] !== "fragments") return null;
   const slug = segs[segs.length - 1];
   if (typeof slug !== "string" || !slug) return null;
   return { host: segsToStr(segs.slice(0, -3)), slug };

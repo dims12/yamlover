@@ -164,6 +164,20 @@ body {
   color: var(--dim);
   margin: 0 6px;
 }
+/* the root crumb is a LINK home (Breadcrumb.tsx) — same hover voice as a cell */
+.crumb-root {
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 0 3px;
+  transition: background 0.12s;
+}
+.crumb-root:hover {
+  background: var(--hover, rgba(127, 127, 127, 0.08));
+}
+.crumb-root:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent);
+}
 /* --- the editable breadcrumb (Breadcrumb.tsx): a row of smart cells ----------
    Cells follow the yamlover editor's editable look: accent focus ring, danger
    error ring, dim ellipsis placeholder. The dropdown is literal TOC rows. */
@@ -207,6 +221,23 @@ body {
   align-self: stretch;
   min-width: 40px;
   cursor: text;
+}
+/* the APPEND AFFORDANCE (Breadcrumb.tsx): a dim ghost slot after the last crumb — the
+   visible "the caret goes here" invitation (idle only). Same dim-placeholder voice as an
+   empty cell's ellipsis; hover brightens it like a cell. */
+.crumbs-append {
+  color: var(--dim, #777);
+  opacity: 0.55;
+  border-radius: 4px;
+  padding: 0 5px;
+  margin-left: 4px;
+  cursor: text;
+  user-select: none;
+  transition: opacity 0.12s, background 0.12s;
+}
+.crumbs-append:hover {
+  opacity: 1;
+  background: var(--hover, rgba(127, 127, 127, 0.08));
 }
 .crumbs-clear {
   background: none;
@@ -887,6 +918,14 @@ button.tab:last-of-type {
 }
 .tab.active .tab-mark {
   --yo-o: currentColor;
+}
+/* a PLAIN-TEXT tab glyph (§, $, {}, ∑, •, …): emoji ignore the button's color and the drawn
+   icons stroke a full box, so bare text needs its own weight to sit level with them — worst
+   at fractional browser zoom, where a thin 14px § washes out. Weight, not color: the dim
+   idle voice (and :disabled, and the .active invert) still come from the button. */
+.tab-glyph {
+  font-weight: 600;
+  font-size: 15px;
 }
 /* the drawn tab icons (tab-icons.tsx): same box and block layout as the mark, stroked in
    currentColor so they grey with :disabled and invert with .active */
@@ -2671,7 +2710,7 @@ mark.yo-inline-fragment {
   border-bottom: 1px dotted var(--fg-muted, currentColor);
   border-radius: 2px;
 }
-/* A fragment revealed via its `#/yo/fragments/<slug>` hash (RHS panel click or a shared link)
+/* A fragment revealed via its `#/.yo/fragments/<slug>` hash (RHS panel click or a shared link)
    pulses for ~1s so the eye finds it. Applies to both a text `<mark>` and a region `<div>`. */
 .yo-reveal-flash {
   animation: yo-flash 1s ease-out;

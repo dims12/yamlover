@@ -1,3 +1,4 @@
 "IMG_20120724_172958.jpg":
-  yamlover-thumbnails:
-    [512, 512]: *:.yo:thumbnails:xxh64-de2076f19917bdca-512x512.jpg
+  .yo:
+    thumbnails:
+      [512, 512]: *: .yo: thumbnails: xxh64-de2076f19917bdca-512x512.jpg

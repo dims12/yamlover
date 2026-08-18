@@ -7,25 +7,36 @@
  *
  * A host body is YAML-shaped: a mapping's keys at one indent; a sequence's `- ` items at the
  * SAME indent as their key; an item/value body 2 deeper. We descend a `within` path of mapping
- * KEYS (creating any that are absent, as empty blocks) to reach a target node, then:
- *   • append an element to its `yamlover-annotations:` sequence (creating the key), or
- *   • upsert a `<slug>:` entry into its `yo: fragments:` mapping (creating the keys).
+ * KEYS (creating any that are absent, as empty blocks) to reach a target node, then upsert a
+ * `<slug>:` entry into its `.yo: fragments:` mapping (creating the keys).
+ *
+ * A descent STEP may carry ALTERNATIVE spellings (`KeyStep`: `overlayKeyAlts` = `.yo` then the
+ * legacy `yo`). The walk matches whichever spelling the file already has — so a legacy file
+ * keeps growing under its `yo:` and NEVER gains a second overlay key — and creates a missing
+ * step with the FIRST (canonical) alternative.
  *
  * Index (sequence-position) descent — e.g. tagging a chapter CHUNK, which would turn its
  * block-scalar into an omni node — is intentionally NOT handled here; the server resolves such a
  * target to a key-addressable host. Keep this module free of fs / Store coupling so it unit-tests
- * in isolation (see test/embed.test.ts) — the one import below is the parser's PURE spelling law,
+ * in isolation (see test/embed.test.ts) — the imports below are the parser's PURE spelling laws,
  * which this module must not restate (a second `- ` grammar here is how `-: v` went unseen).
  */
 
-import { seqMarkLen, stripSeqMark } from "../../../parser/ts/src/serialize-common.ts";
+import { seqMarkLen } from "../../../parser/ts/src/serialize-common.ts";
+import {
+  FRAGMENTS_SUBKEY,
+  LEGACY_ANNOTATIONS_KEY,
+  LEGACY_THUMBNAILS_KEY,
+  overlayKeyAlts,
+  THUMBNAILS_SUBKEY,
+} from "../../../parser/ts/src/overlay-keys.ts";
 
-const ANNOTATIONS_KEY = "yamlover-annotations";
-/** Fragments nest under the node's reserved `yo:` key: `yo:` → `fragments:` → `<slug>:`
- *  (docs/annotations/fragments). */
-export const YO_KEY = "yo";
-export const FRAGMENTS_SUBKEY = "fragments";
-const THUMBNAILS_KEY = "yamlover-thumbnails";
+const ANNOTATIONS_KEY = LEGACY_ANNOTATIONS_KEY;
+
+/** One descent step: a key, or ALTERNATIVE spellings of it (first = canonical, used to CREATE
+ *  a missing step; the rest are legacy spellings, matched but never written). */
+export type KeyStep = string | readonly string[];
+const stepAlts = (s: KeyStep): readonly string[] => (typeof s === "string" ? [s] : s);
 
 const indentOf = (line: string): number => { let i = 0; while (line[i] === " ") i++; return i; };
 const isContentLine = (line: string): boolean => { const t = line.trim(); return t.length > 0 && !t.startsWith("#"); };
@@ -41,8 +52,9 @@ function firstContentIndent(lines: string[]): number {
  *  authored as overlay keys (e.g. `"S0002-9904.pdf":`). */
 export function keyToken(key: string): string {
   // an all-digit key must quote: a bare `12:` is a POSITION under the YAML-keys round,
-  // and the parser refuses it as a key outright
-  return /^[A-Za-z0-9_][A-Za-z0-9_-]*$/.test(key) && !/^\d+$/.test(key) ? key : JSON.stringify(key);
+  // and the parser refuses it as a key outright. A leading `.` is bare-safe (the hidden-key
+  // convention: `.yo`), matching the pointer spelling law (pathseg keyPortion).
+  return /^\.?[A-Za-z0-9_][A-Za-z0-9_-]*$/.test(key) && !/^\d+$/.test(key) ? key : JSON.stringify(key);
 }
 
 /** Line index of `key:` at exactly `indent` within [lo,hi); -1 once the mapping ends (a dedent
@@ -61,22 +73,34 @@ function findKeyLine(lines: string[], lo: number, hi: number, indent: number, ke
 }
 
 /** How many of `keys[k..]` the line spells FLAT — the flattening serializer's single-chain
- *  row (`yo: fragments:`, docs/language/flattening): each upcoming walk key is stripped off
+ *  row (`.yo: fragments:`, docs/language/flattening): each upcoming walk key is stripped off
  *  the line's head in turn, and consumption stops at the first remainder that is not the
  *  next key (a value, a deeper flat tail, the line's end). At least 1 — the caller already
  *  matched `keys[k]`. Without this the descent saw `yo: fragments:` as `yo:` alone and grew
- *  a SECOND nested `fragments:` mapping (the reported `…fragments: fragments: <slug>`). */
-function flatRun(line: string, keys: string[], k: number): number {
+ *  a SECOND nested `fragments:` mapping (the reported `…fragments: fragments: <slug>`).
+ *  Alternative spellings match per step, so a legacy flat `yo: fragments:` consumes exactly
+ *  like the canonical `.yo: fragments:`. */
+function flatRun(line: string, keys: readonly KeyStep[], k: number): number {
   let rest = line.trim();
   let n = 0;
   while (k + n < keys.length && rest !== "") {
-    const key = keys[k + n];
-    const tok = [key, keyToken(key)].find((t) => rest === `${t}:` || rest.startsWith(`${t}: `));
+    const tok = stepAlts(keys[k + n])
+      .flatMap((key) => [key, keyToken(key)])
+      .find((t) => rest === `${t}:` || rest.startsWith(`${t}: `));
     if (tok === undefined) break;
     rest = rest === `${tok}:` ? "" : rest.slice(tok.length + 2);
     n++;
   }
   return Math.max(1, n);
+}
+
+/** {@link findKeyLine} over a step's ALTERNATIVES, first spelling found wins. */
+function findStepLine(lines: string[], lo: number, hi: number, indent: number, step: KeyStep): number {
+  for (const alt of stepAlts(step)) {
+    const L = findKeyLine(lines, lo, hi, indent, alt);
+    if (L >= 0) return L;
+  }
+  return -1;
 }
 
 /** Walk `end` back over trailing blank lines, so an insert lands right after the last content. */
@@ -101,9 +125,9 @@ function blockEnd(lines: string[], from: number, hi: number, indent: number): nu
 export interface Region { lo: number; hi: number; indent: number } // a mapping body: child keys at `indent`, within [lo,hi)
 
 /** Descend the mapping-KEY path `within` to the target node's body region, CREATING any missing
- *  key as an empty block (so a fresh overlay grows the `"file":` → `yo:` → `fragments:` →
+ *  key as an empty block (so a fresh overlay grows the `"file":` → `.yo:` → `fragments:` →
  *  `<slug>:` spine on demand). Mutates `lines` in place; returns the region under the last key. */
-export function reachBody(lines: string[], within: string[]): Region {
+export function reachBody(lines: string[], within: readonly KeyStep[]): Region {
   let start: Region = { lo: 0, hi: lines.length, indent: firstContentIndent(lines) };
   if (lines.length === 1 && lines[0] === "") { lines.length = 0; start = { lo: 0, hi: 0, indent: 0 }; } // empty file
   return reachBodyAt(lines, start, within);
@@ -125,20 +149,20 @@ function bodyUnder(lines: string[], L: number, hi: number, indent: number): Regi
 /** {@link reachBody}'s mapping-KEY descent, but starting from an already-resolved `start` region
  *  rather than the file root — so a host reached by NON-key descent (a chapter chunk, by index) can
  *  then descend its own keyed fields (`yo`/`fragments`/`<slug>`). Creates missing keys. */
-export function reachBodyAt(lines: string[], start: Region, within: string[]): Region {
+export function reachBodyAt(lines: string[], start: Region, within: readonly KeyStep[]): Region {
   let { lo, hi, indent } = start;
 
   for (let k = 0; k < within.length; ) {
-    const key = within[k];
-    const L = findKeyLine(lines, lo, hi, indent, key);
+    const L = findStepLine(lines, lo, hi, indent, within[k]);
     if (L < 0) {
+      // a MISSING step is created with its canonical (first) spelling
       const at = trimBack(lines, lo - 1, hi); // append the new key at the end of the current body
-      lines.splice(at, 0, `${" ".repeat(indent)}${keyToken(key)}:`);
+      lines.splice(at, 0, `${" ".repeat(indent)}${keyToken(stepAlts(within[k])[0])}:`);
       lo = at + 1; hi = at + 1; indent += 2; // its (empty) body
       k++;
       continue;
     }
-    // a FLAT row spells several of the upcoming keys on this one line (`yo: fragments:`) —
+    // a FLAT row spells several of the upcoming keys on this one line (`.yo: fragments:`) —
     // the walk consumes them all; the region is the line's own block either way
     const consumed = flatRun(lines[L], within, k);
     ({ lo, hi, indent } = bodyUnder(lines, L, hi, indent));
@@ -147,14 +171,31 @@ export function reachBodyAt(lines: string[], start: Region, within: string[]): R
   return { lo, hi, indent };
 }
 
+/** The spelling of `step` PRESENT at `region` (the alternative the descent would match), else
+ *  the canonical first alternative — so a caller can spell the path it is about to grow. */
+export function presentStepAlt(lines: string[], region: Region, step: KeyStep): string {
+  for (const alt of stepAlts(step)) {
+    if (findKeyLine(lines, region.lo, region.hi, region.indent, alt) >= 0) return alt;
+  }
+  return stepAlts(step)[0];
+}
+
+/** The overlay-key spelling IN USE on the node at `within` — the legacy `yo` when the file
+ *  already carries it there, else the canonical `.yo` (what {@link upsertFragment} will grow). */
+export function overlaySpellingAt(text: string, within: readonly KeyStep[]): string {
+  const lines = text.replace(/\n$/, "").split("\n");
+  const region = within.length === 0 ? { lo: 0, hi: lines.length, indent: firstContentIndent(lines) } : findBody(lines, within);
+  return region ? presentStepAlt(lines, region, overlayKeyAlts) : overlayKeyAlts[0];
+}
+
 /** READ-ONLY descent to the body region at `within` — null when any key is absent. The lookup the
  *  prune path needs: {@link reachBody} would re-CREATE a key that a removal just deleted. */
-function findBody(lines: string[], within: string[]): Region | null {
+function findBody(lines: string[], within: readonly KeyStep[]): Region | null {
   let region: Region = { lo: 0, hi: lines.length, indent: firstContentIndent(lines) };
   for (let k = 0; k < within.length; ) {
-    const L = findKeyLine(lines, region.lo, region.hi, region.indent, within[k]);
+    const L = findStepLine(lines, region.lo, region.hi, region.indent, within[k]);
     if (L < 0) return null;
-    const consumed = flatRun(lines[L], within, k); // the flat row (`yo: fragments:`) reads here too
+    const consumed = flatRun(lines[L], within, k); // the flat row (`.yo: fragments:`) reads here too
     region = bodyUnder(lines, L, region.hi, region.indent);
     k += consumed;
   }
@@ -182,34 +223,13 @@ function seqItemLines(lines: string[], region: Region, key: string): { keyLine: 
   return { keyLine, items, end: trimBack(lines, end, region.hi) };
 }
 
-/** Append one annotation element (rendered at the list indent) to the `yamlover-annotations:`
- *  sequence of the node addressed by `within`, creating the key (and any missing path) if absent.
- *  `render(indent)` returns the element's source lines (a `- *…tag` item, or a `- {…}` object). */
-export function appendAnnotation(text: string, within: string[], render: (indent: number) => string[]): string {
-  const lines = text.replace(/\n$/, "").split("\n");
-  appendAnnotationAt(lines, reachBody(lines, within), render);
-  return lines.join("\n") + "\n";
-}
-
-/** {@link appendAnnotation} rooted at an already-resolved `region` (mutates `lines` in place) — for
- *  a host the mapping-key `reachBody` can't reach, e.g. a chapter CHUNK reached by index descent. */
-export function appendAnnotationAt(lines: string[], region: Region, render: (indent: number) => string[]): void {
-  const seq = seqItemLines(lines, region, ANNOTATIONS_KEY);
-  if (!seq) {
-    const at = trimBack(lines, region.lo - 1, region.hi);
-    lines.splice(at, 0, `${" ".repeat(region.indent)}${ANNOTATIONS_KEY}:`, ...render(region.indent));
-  } else {
-    lines.splice(seq.end, 0, ...render(region.indent));
-  }
-}
-
 /** Upsert an `<entryKey>:` entry into the mapping at `mapPath` under the node addressed by
  *  `within`, creating the map keys (and any missing path) if absent. `render(indent)` returns
  *  the entry's source lines INCLUDING the `<entryKey>:` line, at the mapping's child indent. An
  *  entry whose key already exists is REPLACED (its whole block). The shared engine behind
  *  {@link upsertFragment} and {@link upsertThumbnail}. `mapPath` rides ONE walk with `within`,
- *  so a flat-spelled chain (`yo: fragments:`) is descended, never doubled. */
-function upsertMapEntry(text: string, within: string[], mapPath: string[], entryKey: string, render: (indent: number) => string[]): string {
+ *  so a flat-spelled chain (`.yo: fragments:`) is descended, never doubled. */
+function upsertMapEntry(text: string, within: readonly KeyStep[], mapPath: readonly KeyStep[], entryKey: string, render: (indent: number) => string[]): string {
   const lines = text.replace(/\n$/, "").split("\n");
   upsertMapEntryAt(lines, reachBody(lines, [...within, ...mapPath]), entryKey, render);
   return lines.join("\n") + "\n";
@@ -252,26 +272,30 @@ export function replaceSeqEntryAt(lines: string[], region: Region, key: string, 
   lines.splice(keyLine, trimBack(lines, keyLine, end) - keyLine, ...render(region.indent));
 }
 
-/** Upsert a `<slug>:` entry into the `yo: fragments:` mapping of the node addressed by
- *  `within`, creating the keys (and any missing path) if absent. `render(indent)` returns the
- *  fragment's source lines INCLUDING the `<slug>:` line, at the mapping's child indent. A slug
- *  that already exists is REPLACED (its whole block). */
-export function upsertFragment(text: string, within: string[], slug: string, render: (indent: number) => string[]): string {
-  return upsertMapEntry(text, within, [YO_KEY, FRAGMENTS_SUBKEY], slug, render);
+/** Upsert a `<slug>:` entry into the `.yo: fragments:` mapping of the node addressed by
+ *  `within`, creating the keys (and any missing path) if absent — a legacy `yo:` overlay key
+ *  is REUSED, never doubled. `render(indent)` returns the fragment's source lines INCLUDING
+ *  the `<slug>:` line, at the mapping's child indent. A slug that already exists is REPLACED
+ *  (its whole block). */
+export function upsertFragment(text: string, within: readonly KeyStep[], slug: string, render: (indent: number) => string[]): string {
+  return upsertMapEntry(text, within, [overlayKeyAlts, FRAGMENTS_SUBKEY], slug, render);
 }
 
-/** Drop the bare `key:` line at `region` when its block holds no content — the husk pruner for a
- *  `yo:` key whose `fragments:` mapping was just removed. Mutates `lines`; returns whether it
- *  dropped anything. */
-export function pruneEmptyKeyAt(lines: string[], region: Region, key: string): boolean {
-  const L = findKeyLine(lines, region.lo, region.hi, region.indent, key);
-  if (L < 0) return false;
-  const t = lines[L].trim();
-  if (t !== `${key}:` && t !== `${keyToken(key)}:`) return false; // an inline value — real data
-  const body = bodyUnder(lines, L, region.hi, region.indent);
-  for (let i = body.lo; i < body.hi; i++) if (isContentLine(lines[i])) return false;
-  lines.splice(L, Math.max(1, body.hi - L));
-  return true;
+/** Drop the bare `key:` line at `region` when its block holds no content — the husk pruner for
+ *  a `.yo:` key whose `fragments:` mapping was just removed. Alternative spellings prune
+ *  whichever is present. Mutates `lines`; returns whether it dropped anything. */
+export function pruneEmptyKeyAt(lines: string[], region: Region, key: KeyStep): boolean {
+  for (const alt of stepAlts(key)) {
+    const L = findKeyLine(lines, region.lo, region.hi, region.indent, alt);
+    if (L < 0) continue;
+    const t = lines[L].trim();
+    if (t !== `${alt}:` && t !== `${keyToken(alt)}:`) return false; // an inline value — real data
+    const body = bodyUnder(lines, L, region.hi, region.indent);
+    for (let i = body.lo; i < body.hi; i++) if (isContentLine(lines[i])) return false;
+    lines.splice(L, Math.max(1, body.hi - L));
+    return true;
+  }
+  return false;
 }
 
 // --------------------------------------------------------------------------- //
@@ -292,7 +316,7 @@ export function appendBookmarkAt(lines: string[], region: Region, tokens: string
 }
 
 /** {@link appendBookmarkAt} by mapping-key path (creates missing keys). */
-export function appendBookmark(text: string, within: string[], tokens: string[]): string {
+export function appendBookmark(text: string, within: readonly KeyStep[], tokens: string[]): string {
   const lines = text.replace(/\n$/, "").split("\n");
   appendBookmarkAt(lines, reachBody(lines, within), tokens);
   return lines.join("\n") + "\n";
@@ -316,7 +340,7 @@ export function removeBookmarkAt(lines: string[], region: () => Region, predicat
 }
 
 /** {@link removeBookmarkAt} by mapping-key path (read-only descent — absent path is a no-op). */
-export function removeBookmark(text: string, within: string[], predicate: (line: string) => boolean): string {
+export function removeBookmark(text: string, within: readonly KeyStep[], predicate: (line: string) => boolean): string {
   const lines = text.replace(/\n$/, "").split("\n");
   const region = findBody(lines, within);
   if (!region) return text;
@@ -332,38 +356,37 @@ export function bookmarksRemainAt(lines: string[], region: Region): boolean {
 }
 
 /** {@link bookmarksRemainAt} by mapping-key path (read-only). */
-export function bookmarksRemain(text: string, within: string[]): boolean {
+export function bookmarksRemain(text: string, within: readonly KeyStep[]): boolean {
   const lines = text.replace(/\n$/, "").split("\n");
   const region = findBody(lines, within);
   return region !== null && bookmarksRemainAt(lines, region);
 }
 
-/** Drop an emptied `yo:` husk on the node at `within` (text-level twin of
- *  {@link pruneEmptyKeyAt}) — after the last fragment went, the reserved key must not linger. */
-export function pruneEmptyYo(text: string, within: string[]): string {
+/** Drop an emptied overlay-key husk (`.yo:` or the legacy `yo:`) on the node at `within`
+ *  (text-level twin of {@link pruneEmptyKeyAt}) — after the last fragment went, the reserved
+ *  key must not linger. */
+export function pruneEmptyYo(text: string, within: readonly KeyStep[]): string {
   const lines = text.replace(/\n$/, "").split("\n");
   const region = findBody(lines, within);
   if (!region) return text;
-  return pruneEmptyKeyAt(lines, region, YO_KEY) ? lines.join("\n") + "\n" : text;
+  return pruneEmptyKeyAt(lines, region, overlayKeyAlts) ? lines.join("\n") + "\n" : text;
 }
 
-/** Upsert a `[w, h]:` entry into the `yamlover-thumbnails:` mapping of the node addressed by
- *  `within` (an omni overlay on the original blob — parallel to `yo: fragments:`), creating
- *  the key (and any missing path) if absent. `render(indent)` returns the entry's source line
- *  INCLUDING the resolution key. The same `[w, h]` resolution is REPLACED if already present. */
-export function upsertThumbnail(text: string, within: string[], resKey: string, render: (indent: number) => string[]): string {
-  return upsertMapEntry(text, within, [THUMBNAILS_KEY], resKey, render);
+/** Upsert a `[w, h]:` entry into the `.yo: thumbnails:` mapping of the node addressed by
+ *  `within` (an omni overlay on the original blob — parallel to `.yo: fragments:`), creating
+ *  the keys (and any missing path) if absent. A file that already carries the LEGACY
+ *  `yamlover-thumbnails:` mapping keeps growing there (read-forever; a node never carries the
+ *  registry twice). `render(indent)` returns the entry's source line INCLUDING the resolution
+ *  key. The same `[w, h]` resolution is REPLACED if already present. */
+export function upsertThumbnail(text: string, within: readonly KeyStep[], resKey: string, render: (indent: number) => string[]): string {
+  const probe = text.replace(/\n$/, "").split("\n");
+  const legacy = findBody(probe, [...within, LEGACY_THUMBNAILS_KEY]) !== null;
+  const mapPath: readonly KeyStep[] = legacy ? [LEGACY_THUMBNAILS_KEY] : [overlayKeyAlts, THUMBNAILS_SUBKEY];
+  return upsertMapEntry(text, within, mapPath, resKey, render);
 }
 
-/** Whether the node at `within` still has at least one `yamlover-annotations:` element. Read-only:
- *  works on a copy, so the descent never mutates the caller's text (the path it descends already
- *  exists). Used to decide whether a just-untagged FRAGMENT is now empty (→ delete it). */
-export function annotationsRemain(text: string, within: string[]): boolean {
-  const lines = text.replace(/\n$/, "").split("\n");
-  return annotationsRemainAt(lines, reachBody(lines, within));
-}
-
-/** {@link annotationsRemain} at an already-resolved `region` (read-only). */
+/** Whether the node at `region` still has at least one legacy `yamlover-annotations:` element
+ *  (read-only). Feeds the untag AFTERMATH on legacy trees ({@link pruneEmptyAnnotations}). */
 export function annotationsRemainAt(lines: string[], region: Region): boolean {
   const seq = seqItemLines(lines, region, ANNOTATIONS_KEY);
   return !!seq && seq.items.length > 0;
@@ -384,15 +407,15 @@ export function pruneEmptyAnnotationsAt(lines: string[], region: Region): boolea
  *  once the last entry went the husk chain must go too. A key with an INLINE value is a real data
  *  node — kept, and the walk stops (its ancestors hold it). Mutates `lines`; returns whether
  *  anything was dropped. */
-function pruneEmptyKeys(lines: string[], within: string[]): boolean {
+function pruneEmptyKeys(lines: string[], within: readonly KeyStep[]): boolean {
   let pruned = false;
   for (let d = within.length; d > 0; d--) {
     const parent = findBody(lines, within.slice(0, d - 1));
     if (!parent) break;
-    const L = findKeyLine(lines, parent.lo, parent.hi, parent.indent, within[d - 1]);
+    const L = findStepLine(lines, parent.lo, parent.hi, parent.indent, within[d - 1]);
     if (L < 0) break;
     const t = lines[L].trim();
-    if (t !== `${within[d - 1]}:` && t !== `${keyToken(within[d - 1])}:`) break; // an inline value — keep
+    if (!stepAlts(within[d - 1]).some((alt) => t === `${alt}:` || t === `${keyToken(alt)}:`)) break; // an inline value — keep
     const body = bodyUnder(lines, L, parent.hi, parent.indent);
     let empty = true;
     for (let i = body.lo; i < body.hi; i++) if (isContentLine(lines[i])) { empty = false; break; }
@@ -407,7 +430,7 @@ function pruneEmptyKeys(lines: string[], within: string[]): boolean {
  *  `pruneHosts` (an overlay body, whose keys exist only to host overlay entries; never an in-place
  *  document, whose keys are the user's data) — any host keys emptied with it. Read-only descent: a
  *  path the removal already deleted is left alone, never re-created. */
-export function pruneEmptyAnnotations(text: string, within: string[], pruneHosts: boolean): string {
+export function pruneEmptyAnnotations(text: string, within: readonly KeyStep[], pruneHosts: boolean): string {
   const lines = text.replace(/\n$/, "").split("\n");
   const region = findBody(lines, within);
   if (!region) return text;
@@ -417,13 +440,13 @@ export function pruneEmptyAnnotations(text: string, within: string[], pruneHosts
 }
 
 /** Flat-aware, READ-ONLY lookup of the mapping at `mapPath` under `region`: the physical LINE
- *  that carries the mapping's key (the LAST line consumed — the flat `yo: fragments:` row is
+ *  that carries the mapping's key (the LAST line consumed — the flat `.yo: fragments:` row is
  *  one line for both keys), and the mapping's body. Null when any key is absent. */
-function findMapping(lines: string[], region: Region, mapPath: string[]): { line: number; body: Region } | null {
+function findMapping(lines: string[], region: Region, mapPath: readonly KeyStep[]): { line: number; body: Region } | null {
   let r = region;
   let line = -1;
   for (let k = 0; k < mapPath.length; ) {
-    const L = findKeyLine(lines, r.lo, r.hi, r.indent, mapPath[k]);
+    const L = findStepLine(lines, r.lo, r.hi, r.indent, mapPath[k]);
     if (L < 0) return null;
     const consumed = flatRun(lines[L], mapPath, k);
     line = L;
@@ -434,10 +457,11 @@ function findMapping(lines: string[], region: Region, mapPath: string[]): { line
 }
 
 /** Remove the `<entryKey>:` block from the mapping at `mapPath` under the node at `within`
- *  (e.g. drop one slug from `yo: fragments:`). Returns the text unchanged when the map or entry
- *  is absent. When the mapping is left empty, its key line is removed too — the FLAT spelling
- *  (`yo: fragments:`) drops as the one line it is, so no husk lingers either way. */
-export function removeMapEntry(text: string, within: string[], mapPath: string[], entryKey: string): string {
+ *  (e.g. drop one slug from `.yo: fragments:` in either overlay spelling). Returns the text
+ *  unchanged when the map or entry is absent. When the mapping is left empty, its key line is
+ *  removed too — the FLAT spelling (`.yo: fragments:`) drops as the one line it is, so no husk
+ *  lingers either way. */
+export function removeMapEntry(text: string, within: readonly KeyStep[], mapPath: readonly KeyStep[], entryKey: string): string {
   const lines = text.replace(/\n$/, "").split("\n");
   const region = findBody(lines, within);
   if (!region) return text;
@@ -446,7 +470,7 @@ export function removeMapEntry(text: string, within: string[], mapPath: string[]
 
 /** {@link removeMapEntry} at an already-resolved `region` (mutates `lines`); returns whether anything
  *  was removed (so callers can skip a no-op re-write). */
-export function removeMapEntryAt(lines: string[], region: Region, mapPath: string[], entryKey: string): boolean {
+export function removeMapEntryAt(lines: string[], region: Region, mapPath: readonly KeyStep[], entryKey: string): boolean {
   const map = findMapping(lines, region, mapPath);
   if (!map) return false;
   const entry = findKeyLine(lines, map.body.lo, map.body.hi, map.body.indent, entryKey);
@@ -462,31 +486,4 @@ export function removeMapEntryAt(lines: string[], region: Region, mapPath: strin
   }
   if (!hasChild) lines.splice(map.line, newHi - map.line);
   return true;
-}
-
-/** Remove annotation element(s) from the `yamlover-annotations:` of the node at `within` — EVERY
- *  `- ` item whose trimmed text matches `predicate` (not just the first), so untagging clears a tag
- *  fully even if a create race left it applied twice. Returns the text unchanged if none match. The
- *  block of a multi-line object item is removed whole. Re-descends after each splice (indices shift).*/
-export function removeAnnotation(text: string, within: string[], predicate: (itemText: string) => boolean): string {
-  const lines = text.replace(/\n$/, "").split("\n");
-  return removeAnnotationAt(lines, () => reachBody(lines, within), predicate) ? lines.join("\n") + "\n" : text;
-}
-
-/** {@link removeAnnotation} at a region (mutates `lines`); returns whether anything was removed.
- *  `region` is a THUNK because splices shift line indices — it is re-resolved after each removal
- *  (the mapping-key path via `reachBody`, or a re-scanned chunk region). */
-export function removeAnnotationAt(lines: string[], region: () => Region, predicate: (itemText: string) => boolean): boolean {
-  let removed = false;
-  for (;;) {
-    const seq = seqItemLines(lines, region(), ANNOTATIONS_KEY);
-    if (!seq) break;
-    const k = seq.items.findIndex((i) => { const t = lines[i].trim(); return predicate(stripSeqMark(t) ?? t); });
-    if (k < 0) break;
-    const i = seq.items[k];
-    const next = k + 1 < seq.items.length ? seq.items[k + 1] : seq.end;
-    lines.splice(i, next - i);
-    removed = true;
-  }
-  return removed;
 }

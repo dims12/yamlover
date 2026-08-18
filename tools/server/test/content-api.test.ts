@@ -11,7 +11,7 @@
 //   - the slash path spelling decodes like the colon one (digits = positions, `~` = null key).
 import { describe, it, expect } from "vitest";
 import { createHandlers, tmpExample, tmpTree } from "./helpers";
-import { callText } from "./http";
+import { call, callText } from "./http";
 import { parseYamlover } from "../../parser/ts/src/yamlover.ts";
 import { serializeYamlover } from "../../parser/ts/src/serialize-yamlover.ts";
 import { isPointer, type Node, type Value } from "../../parser/ts/src/ir.ts";
@@ -238,6 +238,47 @@ describe("GET /api/content — a stub value is a label, not a file body", () => 
     expect(chunk?.format).toBe("text/marklower");
     expect(chunk?.valueTruncated).toBeUndefined();
     expect(chunk?.value).toBe(BIG_PROSE);
+  });
+});
+
+describe("hidden-by-name keys — the HIDDEN-WIRE LAW (content-envelope.ts pruneClone)", () => {
+  const PAGE = "title: Page\n.secret: hush\nvisible: here\nyo:\n  fragments:\n    frag1: note\n";
+
+  it("dot-keys and legacy `yo:` ride the source byte-faithfully, browse directly, and never reach the TOC", async () => {
+    const h = createHandlers(tmpTree({ "page.yo": PAGE }), { gitignore: false });
+    await h.ready;
+    const H = h as unknown as Handler;
+    // the wire keeps the authored hidden entries whole — pruning them would make the editor's
+    // next sync diff DELETE them (never drop committer labor)
+    const env = await getContent(H, "page.yo", ".inf");
+    expect(env.status).toBe(200);
+    expect(env.source).toContain(".secret: hush");
+    expect(env.source).toContain("yo:");
+    expect(env.source).toContain("frag1: note");
+    // the source is still a serializer fixed point with the hidden entries aboard
+    expect(serializeYamlover({ root: env.root, source: { concrete: "yamlover", uri: "<t>" } } as never, { comments: true })).toBe(env.source);
+    // the TOC omits them (meta.hidden prunes at the store level)
+    const tree = call(H as never, "/api/tree", { path: ":page.yo", depth: "2" }).json;
+    const labels = (tree.children ?? []).map((c: { label: string }) => c.label);
+    expect(labels).not.toContain(".secret");
+    expect(labels).not.toContain("yo");
+    // hidden, not secret: direct navigation serves them
+    const direct = await getContent(H, "page.yo/.secret");
+    expect(direct.status).toBe(200);
+    const frag = await getContent(H, "page.yo/yo/fragments/frag1");
+    expect(frag.status).toBe(200);
+  });
+
+  it("the storage-backed hidden subtrees (`.yo/` dir, the `yamlover` graft) still never appear", async () => {
+    const h = createHandlers(
+      tmpTree({ "d/a.yo": "alpha\n", "d/.yo/body.yo": "a.yo: !!<format: text/plain>\nextra: from overlay\n" }),
+      { gitignore: false },
+    );
+    await h.ready;
+    const env = await getContent(h as unknown as Handler, "", ".inf");
+    expect(env.status).toBe(200);
+    expect(env.source).not.toContain("body.yo"); // the overlay dir stays off the wire
+    expect(entryKeys(env.root)).not.toContain("yamlover"); // the graft stays off the wire
   });
 });
 

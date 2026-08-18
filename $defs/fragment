@@ -1,10 +1,11 @@
 # $defs/fragment — a user-marked REGION inside a document (the locate/highlight data only; no
-# description or color). Stored under the host node's `yamlover-fragments` mapping, keyed by a
-# slug. `type` selects the locator: a text quote {type:text, exact, prefix, suffix}, an image /
-# pdf / djvu rect {type:rect|pdf|djvu, x,y,w,h (pdf/djvu add page)}, or a map box
-# {type:map, n,s,e,w (geographic edges)}. Image-like fragments also carry an `image` — a PNG crop
-# of the region (a sidecar blob, referenced by a `*` pointer). A fragment may itself be tagged via
-# its own `yamlover-annotations`. Attach with the tag  !!<*::yamlover/$defs/fragment>.
+# color). Stored under the host node's `.yo: fragments:` mapping (the legacy `yo:` spelling is
+# read forever), keyed by a slug. `type` selects the locator: a text quote {type:text, exact,
+# prefix, suffix}, an image / pdf / djvu rect {type:rect|pdf|djvu, x,y,w,h (pdf/djvu add page)},
+# or a map box {type:map, n,s,e,w (geographic edges)}. Image-like fragments also carry an
+# `image` — a PNG crop of the region (a sidecar blob, referenced by a `*` pointer). A fragment
+# is tagged by MEMBERSHIP BOOKMARKS (`&…:-` own-line, docs/annotations/applications).
+# Attach with the tag  !!<*::yamlover/$defs/fragment>.
 type: object
 format: x-yamlover-fragment
 members:
@@ -39,6 +40,3 @@ members:
     description: A PNG crop of the region (image-like fragments only); a sidecar blob by pointer
   created:
     type: string
-  yamlover-annotations:
-    type: array
-    others: *:: yamlover: $defs: annotation

@@ -262,4 +262,52 @@ describe("Breadcrumb", () => {
     expect(cells()).toHaveLength(3); // team, alice, and the fresh append cell
     expect(cells()[2].textContent).toBe("");
   });
+
+  it("the ROOT crumb is a link home: click navigates to `:`, from any state", async () => {
+    vi.useFakeTimers();
+    render(<Host />);
+    selectSpy.mockClear();
+    fireEvent.click(document.querySelector(".crumb-root")!);
+    expect(selectSpy).toHaveBeenCalledWith(":");
+    expect(mode()).toBe("idle");
+    // while editing too: the edit collapses (a non-match TOC click) and navigation happens
+    fireEvent.mouseDown(document.querySelector(".crumbs-tail")!);
+    expect(mode()).toBe("editing");
+    selectSpy.mockClear();
+    fireEvent.click(document.querySelector(".crumb-root")!);
+    expect(selectSpy).toHaveBeenCalledWith(":");
+    expect(mode()).toBe("idle");
+  });
+
+  it("the ⌕ append affordance shows while idle, opens the append cell, and hides while editing", async () => {
+    vi.useFakeTimers();
+    render(<Host />);
+    const ghost = document.querySelector(".crumbs-append");
+    expect(ghost).toBeTruthy(); // idle: the visible "the caret goes here" invitation
+    fireEvent.mouseDown(ghost!);
+    expect(mode()).toBe("editing");
+    expect(cells()[2].textContent).toBe(""); // the fresh append cell, exactly like the tail
+    expect(document.querySelector(".crumbs-append")).toBeNull(); // editing: the ring says it
+  });
+
+  it("Ctrl-F (and F4) focus the append cell from anywhere — except while typing in a field", async () => {
+    vi.useFakeTimers();
+    render(<Host />);
+    fireEvent.keyDown(window, { key: "f", ctrlKey: true });
+    expect(mode()).toBe("editing");
+    expect(cells()).toHaveLength(3);
+    expect(document.activeElement).toBe(cells()[2]); // the caret really lands in the append cell
+    // Escape back to idle, then F4 still works too
+    fireEvent.keyDown(cells()[2], { key: "Escape" });
+    expect(mode()).toBe("idle");
+    fireEvent.keyDown(window, { key: "F4" });
+    expect(mode()).toBe("editing");
+    fireEvent.keyDown(cells()[2], { key: "Escape" });
+    // a Ctrl-F aimed at a real text field stays the browser's (find-in-page)
+    const input = document.createElement("input");
+    document.body.appendChild(input);
+    fireEvent.keyDown(input, { key: "f", ctrlKey: true });
+    expect(mode()).toBe("idle");
+    input.remove();
+  });
 });

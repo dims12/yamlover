@@ -5,9 +5,10 @@ import { navigateToFragment } from "./renderers/headings";
 import { READ_ONLY } from "./base";
 import { TagBadges, TagLink } from "./renderers/tag";
 
-/** A fragment's own node path (`<material>:yo:fragments:<slug>`) — the delete target. */
+/** A fragment's own node path (`<material>:.yo:fragments:<slug>`) — the delete-target FALLBACK
+ *  when the wire carried no `fragmentPath` (the server's spelling always wins over this). */
 function fragmentNodePath(materialPath: string, slug: string): string {
-  return (materialPath === ":" ? "" : materialPath) + ":yo:fragments:" + slug;
+  return (materialPath === ":" ? "" : materialPath) + ":.yo:fragments:" + slug;
 }
 
 /** One row of the fragments panel: a tagged region of the current material, gathered across the
@@ -15,6 +16,7 @@ function fragmentNodePath(materialPath: string, slug: string): string {
 export interface FragmentGroup {
   slug: string;
   node?: string; // the CLIENT path of the node this fragment lives on (a CHUNK, else the material)
+  fragmentPath?: string; // the fragment NODE's real path from the wire — the delete target
   selector?: Annotation["selector"];
   imageUrl?: string; // a crop blob for an image/pdf/djvu fragment
   tags: TagLink[];
@@ -30,7 +32,7 @@ export function fragmentGroups(anns: Annotation[]): FragmentGroup[] {
     if (!a.fragmentSlug) continue;
     let g = bySlug.get(a.fragmentSlug);
     if (!g) {
-      g = { slug: a.fragmentSlug, node: a.node, selector: a.selector, imageUrl: a.imageUrl, tags: [] };
+      g = { slug: a.fragmentSlug, node: a.node, fragmentPath: a.fragmentPath, selector: a.selector, imageUrl: a.imageUrl, tags: [] };
       bySlug.set(a.fragmentSlug, g);
       order.push(a.fragmentSlug);
     } else {
@@ -90,7 +92,7 @@ function DeleteConfirm({ x, y, onConfirm, onCancel }: {
 }
 
 /** The RHS pane: the current entity's fragments, each with its tags. Clicking a row sets the URL
- *  hash to the fragment's `#/yo/fragments/<slug>` anchor — the shared hash-scroll
+ *  hash to the fragment's `#/.yo/fragments/<slug>` anchor — the shared hash-scroll
  *  (headings.ts) and the Leaflet renderers then scroll/pan to and flash the region. Clicking a
  *  tag badge locates the same way (the default fragment click — it does not navigate to the
  *  tag). The trash DELETES the whole fragment after confirm (drops every tag — the server then
@@ -112,7 +114,7 @@ export function Fragments({ path, groups, width }: {
   // the SSE diff refreshes App's annotation list (so this group falls away). Hide it at once.
   const removeFragment = async (g: FragmentGroup) => {
     setRemoving((s) => new Set(s).add(g.slug));
-    const target = fragmentNodePath(g.node ?? path, g.slug);
+    const target = g.fragmentPath ?? fragmentNodePath(g.node ?? path, g.slug);
     try {
       for (const t of g.tags) await deleteAnnotation(target, t.path);
     } catch (e) {

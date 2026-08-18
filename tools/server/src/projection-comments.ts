@@ -7,6 +7,7 @@
 import { isPointer } from "../../parser/ts/src/ir.ts";
 import type { Node as IrNode, Document, Comment as IrComment } from "../../parser/ts/src/ir.ts";
 import { segToken } from "../../parser/ts/src/pathseg.ts";
+import { isHiddenEntryKey } from "../../parser/ts/src/overlay-keys.ts";
 import { renderPointer } from "../../parser/ts/src/pointer.ts";
 import { schemaTagToken } from "../../parser/ts/src/serialize-yamlover.ts";
 import { anchorBody } from "../../parser/ts/src/serialize-common.ts";
@@ -148,7 +149,14 @@ export function nodeDeco(bucket: CommentBucket, node: IrNode): void {
   if (vt.length > 0) bucket.valueTrailing = vt;
 }
 
-export function collectComments(doc: Document, segs: Seg[], depth: number): CommentMap {
+export function collectComments(
+  doc: Document,
+  segs: Seg[],
+  depth: number,
+  // the member test (a real file/dir behind the path) — the HIDDEN-WIRE LAW twin below needs
+  // it to drop storage-backed hidden subtrees; callers without storage pass nothing
+  memberExists: (segs: Seg[]) => boolean = () => false,
+): CommentMap {
   const out: CommentMap = {};
   const root = irNodeAt(doc, segs);
   if (!root) return out;
@@ -169,12 +177,19 @@ export function collectComments(doc: Document, segs: Seg[], depth: number): Comm
   if (tail.length > 0) out.$tail = tail;
   const placed = (cs: IrComment[] | undefined, p: "leading" | "trailing"): string[] =>
     (cs ?? []).filter((c) => c.placement === p).map((c) => c.text);
-  const walk = (node: IrNode, rel: string, d: number, top: boolean): void => {
+  const walk = (node: IrNode, rel: string, segsHere: Seg[], d: number, top: boolean): void => {
     if (!top && d <= 0) return; // a non-top node past the depth budget renders as a link marker
-    let i = 0; // index over RENDERED own entries (own back-edges and hidden children are filtered)
+    let i = 0; // index over RENDERED own entries (own back-edges and hidden members are filtered)
+    let srcIdx = -1; // index over the FULL entries array (the keyless-seg basis, irNodeAt)
     for (const e of node.entries ?? []) {
+      srcIdx++;
       if (e.edge === "back") continue;
-      if (e.edge === "contain" && !isPointer(e.value) && e.value.meta?.hidden) continue;
+      // THE HIDDEN-WIRE LAW (content-envelope.ts pruneClone is the twin): only a hidden entry
+      // with STORAGE behind it (the `.yo/` dir, the `yamlover` graft) is filtered; a hidden
+      // entry inside the document (dot-key, legacy `yo:`/`yamlover-*`) is authored — it rides
+      // the wire and therefore counts here.
+      if (e.edge === "contain" && !isPointer(e.value) && e.value.meta?.hidden &&
+          (typeof e.key !== "string" || !isHiddenEntryKey(e.key) || memberExists([...segsHere, e.key]))) continue;
       // the slash continuation mirrors the client's childFrag/fragmentOf spelling: `/` + the
       // segment's canonical token (`/key`, `/0`, `/~` for the null key)
       const cont = "/" + segToken(e.key != null ? e.key : e.nullKey === true ? null : i);
@@ -199,9 +214,12 @@ export function collectComments(doc: Document, segs: Seg[], depth: number): Comm
         if (tailC.length > 0) bucket.tail = tailC;
       }
       if (Object.keys(bucket).length > 0) out[rel + cont] = bucket;
-      if (e.edge === "contain" && !isPointer(e.value)) walk(e.value, rel + cont, d - 1, false);
+      if (e.edge === "contain" && !isPointer(e.value)) {
+        const childSeg: Seg = e.key != null ? e.key : e.nullKey === true ? null : srcIdx;
+        walk(e.value, rel + cont, [...segsHere, childSeg], d - 1, false);
+      }
     }
   };
-  walk(root, "", depth, true);
+  walk(root, "", segs, depth, true);
   return out;
 }

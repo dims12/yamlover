@@ -1,8 +1,8 @@
+!!<*yamlover: $defs: chapter>
+Dogs
 # The Dogs chapter — its own directory chapter. Positional body: prose, the `dog-bone.png`
 # image chunk (a sibling file in this directory), a PlantUML sequence, and a `puppies`
 # SUBCHAPTER pointer into the nested `puppies/` directory chapter.
-!!<*yamlover: $defs: chapter>
-Dogs
 description: Loyal, loud, and endlessly hopeful
 - |
   A dog is a **social animal** that adopts your family as its pack.
@@ -24,5 +24,6 @@ description: Loyal, loud, and endlessly hopeful
   @enduml
 - *: puppies
 "dog-bone.png":
-  yamlover-thumbnails:
-    [256, 256]: *:.yo:thumbnails:xxh64-5e505632672c09c5-256x256.jpg
+  .yo:
+    thumbnails:
+      [256, 256]: *: .yo: thumbnails: xxh64-5e505632672c09c5-256x256.jpg

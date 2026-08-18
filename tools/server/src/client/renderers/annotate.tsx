@@ -167,11 +167,13 @@ export async function createAnnotation(
 
 /** The host node path that carries a tag application: the node the annotation lives ON (`ann.node`
  *  — a CHUNK for a chunk fragment, else the material), and — when it marks a region — that node's
- *  fragment path (`…:yo:fragments:<slug>`). */
+ *  fragment path (`…:.yo:fragments:<slug>`). The wire's `fragmentPath` wins: it carries the
+ *  overlay spelling the file actually uses (`.yo`, or the legacy `yo` read forever). */
 function annotationTarget(materialPath: string, ann: Annotation): string {
   const host = ann.node ?? materialPath;
   if (!ann.fragmentSlug) return host;
-  return (host === ":" ? "" : host) + ":yo:fragments:" + ann.fragmentSlug;
+  if (ann.fragmentPath) return ann.fragmentPath;
+  return (host === ":" ? "" : host) + ":.yo:fragments:" + ann.fragmentSlug;
 }
 
 /** Read-only fetch of a material's annotations; `bump` (a changing number) forces a refetch.
@@ -286,7 +288,7 @@ export function useMaterialAnnotations(path: string): MaterialAnnotations {
       // the INLINE token spelling: one call per pick — the server wraps the words on the first
       // and appends further memberships to the same token's label (docs/documents/marklower/grammar).
       // A NAMED region (`opts.slug`) skips this: an inline token has no key, so naming it is
-      // choosing the explicit `yo: fragments:` member spelling — it falls through to create().
+      // choosing the explicit `.yo: fragments:` member spelling — it falls through to create().
       const entry = { path: "(pending)", node, selector, tag } as Annotation;
       setOptimistic((o) => [...o, entry]);
       annotate({ target: node, tag: tag.path, selector }).then(refresh).catch((e) => rollback(entry, e, opts?.silent));
@@ -1248,7 +1250,7 @@ function captureRange(sel: Selection, within: HTMLElement): { type: "range"; sta
 }
 
 /** (Re)apply highlight marks for the text annotations in `container`. `materialPath` lets a
- *  fragment mark carry its `#/yo/fragments/<slug>` anchor id so the RHS panel / a shared link
+ *  fragment mark carry its `#/.yo/fragments/<slug>` anchor id so the RHS panel / a shared link
  *  can scroll-to-&-flash it. `preview` is the popup's not-yet-tagged selection, drawn as a mark in
  *  the neutral color so it survives the popup taking the browser's selection. */
 function highlight(container: HTMLElement, anns: Annotation[], materialPath: string, preview?: { selector: Record<string, unknown>; color: string; node?: string } | null): void {

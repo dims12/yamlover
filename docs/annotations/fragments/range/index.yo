@@ -5,7 +5,7 @@ description: a selection that runs across chunks - quoted at both ends, everythi
   one prose chunk and finished in another. It is quoted at **both ends** - where it starts and
   where it stops - and everything between them belongs to it:
 - !!yo
-  yo: fragments:
+  .yo: fragments:
     - type: range
       startSelector: 'appears here in a chunk'
         type: text

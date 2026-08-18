@@ -7,6 +7,32 @@
     "anchors": [],
     "entries": [
       {
+        "key": ".yo",
+        "edge": "contain",
+        "value": {
+          "kind": "mapping",
+          "array": false,
+          "set": false,
+          "yo": false,
+          "anchors": [],
+          "entries": [
+            {
+              "key": "meta.yo",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "# Deliberately the LEGACY spelling (`properties:` + `type: binary`) — this fixture is the\n# corpus-level pin that the old vocabulary reads forever (docs/meta; the authored corpus\n# states `members:`/`concrete:` since the concrete/format split).\nproperties:\n  age:\n    type: binary\n",
+                "array": false,
+                "set": false,
+                "yo": false,
+                "anchors": [],
+                "entries": []
+              }
+            }
+          ]
+        }
+      },
+      {
         "key": "age",
         "edge": "contain",
         "value": {

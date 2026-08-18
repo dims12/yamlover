@@ -8,7 +8,7 @@ import { nodeJson } from "./node-json";
 
 // A TEXT fragment lives ON the chunk it was drawn in (docs/annotations/storage), NOT the whole chapter:
 // tagging a chunk's text turns that chunk into an omni node (its prose becomes a block-scalar
-// self-value; `yo:`/`yamlover-annotations:` become keyed fields). Synthetic temp
+// self-value; the `.yo:` overlay becomes a keyed field). Synthetic temp
 // trees only — never the repo's examples/.
 
 const DEFS = {
@@ -50,8 +50,8 @@ describe("chunk text fragments (docs/annotations/storage)", () => {
     expect(src).toContain("fragments:");
     expect(src).toContain(':fragment> "word"'); // exact IS the member's self-value
     expect(src).toContain("&::ontos.yo:yellow:-");
-    expect(src).not.toMatch(/^yo:/m); // NOT at the chapter root (column 0) — it hangs off the chunk
-    expect(src).toMatch(/^ {2}yo:/m); // at the chunk's field indent (2)
+    expect(src).not.toMatch(/^\.yo:/m); // NOT at the chapter root (column 0) — it hangs off the chunk
+    expect(src).toMatch(/^ {2}\.yo:/m); // at the chunk's field indent (2)
 
     // the fragment node resolves at the chunk path
     expect((await nodeJson(h, { path: fragmentPath })).status).toBe(200);
@@ -128,7 +128,7 @@ describe("range fragments (a selection spanning chunks)", () => {
     const ann = await callBody(h, "POST", "/api/annotate", { target: frag.json.fragmentPath, tag: TAG });
     expect(ann.status).toBe(201);
 
-    expect(frag.json.fragmentPath).toContain(":doc.yo:yo:fragments:");
+    expect(frag.json.fragmentPath).toContain(":doc.yo:.yo:fragments:");
     const anns = call(h, "/api/annotations", { path: ":doc.yo" }).json as { selector?: Record<string, unknown> }[];
     expect(anns).toHaveLength(1);
     expect(anns[0].selector?.type).toBe("range");

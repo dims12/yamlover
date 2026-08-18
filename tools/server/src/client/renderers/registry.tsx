@@ -134,7 +134,7 @@ export interface TypeFacets {
 }
 /** A renderer's acceptance predicate — a hand-coded type formula. What it does NOT test, it
  *  TOLERATES: a `byFormat("text/markdown")` matcher ignores the keyed/ordinal facets, so a
- *  markdown chunk that gained `yamlover-annotations` keys (an omni node) still matches. */
+ *  markdown chunk that gained a `.yo:` overlay key (an omni node) still matches. */
 export type Accepts = (f: TypeFacets) => boolean;
 
 /** Any projected node/chunk/link shape carrying the facet fields. */

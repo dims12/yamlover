@@ -83,7 +83,7 @@
           "anchors": [],
           "entries": [
             {
-              "key": "yamlover-thumbnails",
+              "key": ".yo",
               "edge": "contain",
               "value": {
                 "kind": "mapping",
@@ -93,28 +93,41 @@
                 "anchors": [],
                 "entries": [
                   {
-                    "key": "[256, 256]",
-                    "edge": "ref",
+                    "key": "thumbnails",
+                    "edge": "contain",
                     "value": {
-                      "ptr": {
-                        "base": {
-                          "scope": "document"
-                        },
-                        "steps": [
-                          {
-                            "sel": "key",
-                            "name": ".yo"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "thumbnails"
-                          },
-                          {
-                            "sel": "key",
-                            "name": "xxh64-429a227f097399ce-256x256.jpg"
+                      "kind": "mapping",
+                      "array": false,
+                      "set": false,
+                      "yo": false,
+                      "anchors": [],
+                      "entries": [
+                        {
+                          "key": "[256, 256]",
+                          "edge": "ref",
+                          "value": {
+                            "ptr": {
+                              "base": {
+                                "scope": "document"
+                              },
+                              "steps": [
+                                {
+                                  "sel": "key",
+                                  "name": ".yo"
+                                },
+                                {
+                                  "sel": "key",
+                                  "name": "thumbnails"
+                                },
+                                {
+                                  "sel": "key",
+                                  "name": "xxh64-429a227f097399ce-256x256.jpg"
+                                }
+                              ]
+                            }
                           }
-                        ]
-                      }
+                        }
+                      ]
                     }
                   }
                 ]
@@ -245,7 +258,7 @@
                 "anchors": [],
                 "entries": [
                   {
-                    "key": "yamlover-thumbnails",
+                    "key": ".yo",
                     "edge": "contain",
                     "value": {
                       "kind": "mapping",
@@ -255,28 +268,41 @@
                       "anchors": [],
                       "entries": [
                         {
-                          "key": "[256, 256]",
-                          "edge": "ref",
+                          "key": "thumbnails",
+                          "edge": "contain",
                           "value": {
-                            "ptr": {
-                              "base": {
-                                "scope": "document"
-                              },
-                              "steps": [
-                                {
-                                  "sel": "key",
-                                  "name": ".yo"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "thumbnails"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "xxh64-5e505632672c09c5-256x256.jpg"
+                            "kind": "mapping",
+                            "array": false,
+                            "set": false,
+                            "yo": false,
+                            "anchors": [],
+                            "entries": [
+                              {
+                                "key": "[256, 256]",
+                                "edge": "ref",
+                                "value": {
+                                  "ptr": {
+                                    "base": {
+                                      "scope": "document"
+                                    },
+                                    "steps": [
+                                      {
+                                        "sel": "key",
+                                        "name": ".yo"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "thumbnails"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "xxh64-5e505632672c09c5-256x256.jpg"
+                                      }
+                                    ]
+                                  }
                                 }
-                              ]
-                            }
+                              }
+                            ]
                           }
                         }
                       ]
@@ -420,7 +446,7 @@
                       "anchors": [],
                       "entries": [
                         {
-                          "key": "yamlover-thumbnails",
+                          "key": ".yo",
                           "edge": "contain",
                           "value": {
                             "kind": "mapping",
@@ -430,28 +456,41 @@
                             "anchors": [],
                             "entries": [
                               {
-                                "key": "[256, 256]",
-                                "edge": "ref",
+                                "key": "thumbnails",
+                                "edge": "contain",
                                 "value": {
-                                  "ptr": {
-                                    "base": {
-                                      "scope": "document"
-                                    },
-                                    "steps": [
-                                      {
-                                        "sel": "key",
-                                        "name": ".yo"
-                                      },
-                                      {
-                                        "sel": "key",
-                                        "name": "thumbnails"
-                                      },
-                                      {
-                                        "sel": "key",
-                                        "name": "xxh64-94be71edcf540dac-256x256.jpg"
+                                  "kind": "mapping",
+                                  "array": false,
+                                  "set": false,
+                                  "yo": false,
+                                  "anchors": [],
+                                  "entries": [
+                                    {
+                                      "key": "[256, 256]",
+                                      "edge": "ref",
+                                      "value": {
+                                        "ptr": {
+                                          "base": {
+                                            "scope": "document"
+                                          },
+                                          "steps": [
+                                            {
+                                              "sel": "key",
+                                              "name": ".yo"
+                                            },
+                                            {
+                                              "sel": "key",
+                                              "name": "thumbnails"
+                                            },
+                                            {
+                                              "sel": "key",
+                                              "name": "xxh64-94be71edcf540dac-256x256.jpg"
+                                            }
+                                          ]
+                                        }
                                       }
-                                    ]
-                                  }
+                                    }
+                                  ]
                                 }
                               }
                             ]
@@ -532,6 +571,19 @@
                       "anchors": [],
                       "entries": [
                         {
+                          "key": "body.yo",
+                          "edge": "contain",
+                          "value": {
+                            "kind": "scalar",
+                            "value": "!!<*yamlover: $defs: chapter>\nPuppies\n# The Puppies chapter — a directory chapter nested under dogs/. Positional body: prose, the\n# `puppy-paw.png` image chunk (a sibling file here), and a PlantUML gantt of the first months.\ndescription: The first few months\n- |\n  Puppies sleep most of the day and chew most of the rest.\n- *: puppy-paw.png\n- |\n  Begin house training the day they arrive, reward every success generously, and give\n  early, gentle exposure to people and places — it shapes a calm adult dog.\n- |\n  The first months follow a rough schedule:\n- !!<format: text/x-plantuml> |\n  @startgantt\n  Project starts 2026-01-01\n  [Settle in] lasts 3 days\n  [House training] lasts 28 days\n  [House training] starts at [Settle in]'s end\n  [Socialisation] lasts 60 days\n  [Socialisation] starts at [Settle in]'s end\n  @endgantt\n\"puppy-paw.png\":\n  .yo:\n    thumbnails:\n      [256, 256]: *: .yo: thumbnails: xxh64-94be71edcf540dac-256x256.jpg\n",
+                            "array": false,
+                            "set": false,
+                            "yo": false,
+                            "anchors": [],
+                            "entries": []
+                          }
+                        },
+                        {
                           "key": "thumbnails",
                           "edge": "contain",
                           "value": {
@@ -577,6 +629,19 @@
                 "yo": false,
                 "anchors": [],
                 "entries": [
+                  {
+                    "key": "body.yo",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "!!<*yamlover: $defs: chapter>\nDogs\n# The Dogs chapter — its own directory chapter. Positional body: prose, the `dog-bone.png`\n# image chunk (a sibling file in this directory), a PlantUML sequence, and a `puppies`\n# SUBCHAPTER pointer into the nested `puppies/` directory chapter.\ndescription: Loyal, loud, and endlessly hopeful\n- |\n  A dog is a **social animal** that adopts your family as its pack.\n- *: dog-bone.png\n- |\n  Daily walks are not optional; they are how a dog reads the news of the neighbourhood.\n  Consistency matters more than severity — the same word should always mean the same thing.\n- |\n  A walk is a small ritual you both know by heart:\n- !!<format: text/x-plantuml> |\n  @startuml\n  actor Keeper\n  participant Dog\n  Keeper -> Dog : pick up the lead\n  Dog --> Keeper : spins with delight\n  Keeper -> Dog : walk the usual route\n  Dog -> Dog : reads the news (sniffs)\n  Dog --> Keeper : returns home calm\n  @enduml\n- *: puppies\n\"dog-bone.png\":\n  .yo:\n    thumbnails:\n      [256, 256]: *: .yo: thumbnails: xxh64-5e505632672c09c5-256x256.jpg\n",
+                      "array": false,
+                      "set": false,
+                      "yo": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
                   {
                     "key": "thumbnails",
                     "edge": "contain",
@@ -687,7 +752,7 @@
                 "anchors": [],
                 "entries": [
                   {
-                    "key": "yamlover-thumbnails",
+                    "key": ".yo",
                     "edge": "contain",
                     "value": {
                       "kind": "mapping",
@@ -697,28 +762,41 @@
                       "anchors": [],
                       "entries": [
                         {
-                          "key": "[256, 256]",
-                          "edge": "ref",
+                          "key": "thumbnails",
+                          "edge": "contain",
                           "value": {
-                            "ptr": {
-                              "base": {
-                                "scope": "document"
-                              },
-                              "steps": [
-                                {
-                                  "sel": "key",
-                                  "name": ".yo"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "thumbnails"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "xxh64-be1b2e864457e339-256x256.jpg"
+                            "kind": "mapping",
+                            "array": false,
+                            "set": false,
+                            "yo": false,
+                            "anchors": [],
+                            "entries": [
+                              {
+                                "key": "[256, 256]",
+                                "edge": "ref",
+                                "value": {
+                                  "ptr": {
+                                    "base": {
+                                      "scope": "document"
+                                    },
+                                    "steps": [
+                                      {
+                                        "sel": "key",
+                                        "name": ".yo"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "thumbnails"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "xxh64-be1b2e864457e339-256x256.jpg"
+                                      }
+                                    ]
+                                  }
                                 }
-                              ]
-                            }
+                              }
+                            ]
                           }
                         }
                       ]
@@ -798,6 +876,19 @@
                 "yo": false,
                 "anchors": [],
                 "entries": [
+                  {
+                    "key": "body.yo",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "!!<*yamlover: $defs: chapter>\nCats\n# The Cats chapter — its own directory chapter. Positional body: prose, the `cat-face.png`\n# image chunk (a sibling file here), and a PlantUML state diagram of a cat's day.\ndescription: Independent roommates with opinions\n- |\n  A cat tolerates your presence on terms it renews daily.\n- *: cat-face.png\n- |\n  Vertical space — shelves, perches, a tall scratching post — keeps a cat content. And a\n  clean litter box is the single most important thing you can offer a cat.\n- |\n  A cat's day cycles through a few well-known states:\n- !!<format: text/x-plantuml> |\n  @startuml\n  [*] --> Aloof\n  Aloof --> Hungry : dinnertime\n  Hungry --> Affectionate : fed\n  Affectionate --> Aloof : had enough\n  Aloof --> Zoomies : 3 a.m.\n  Zoomies --> Aloof : worn out\n  @enduml\n\"cat-face.png\":\n  .yo:\n    thumbnails:\n      [256, 256]: *: .yo: thumbnails: xxh64-be1b2e864457e339-256x256.jpg\n",
+                      "array": false,
+                      "set": false,
+                      "yo": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
                   {
                     "key": "thumbnails",
                     "edge": "contain",
@@ -908,7 +999,7 @@
                 "anchors": [],
                 "entries": [
                   {
-                    "key": "yamlover-thumbnails",
+                    "key": ".yo",
                     "edge": "contain",
                     "value": {
                       "kind": "mapping",
@@ -918,28 +1009,41 @@
                       "anchors": [],
                       "entries": [
                         {
-                          "key": "[256, 256]",
-                          "edge": "ref",
+                          "key": "thumbnails",
+                          "edge": "contain",
                           "value": {
-                            "ptr": {
-                              "base": {
-                                "scope": "document"
-                              },
-                              "steps": [
-                                {
-                                  "sel": "key",
-                                  "name": ".yo"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "thumbnails"
-                                },
-                                {
-                                  "sel": "key",
-                                  "name": "xxh64-09ea0c272066f155-256x256.jpg"
+                            "kind": "mapping",
+                            "array": false,
+                            "set": false,
+                            "yo": false,
+                            "anchors": [],
+                            "entries": [
+                              {
+                                "key": "[256, 256]",
+                                "edge": "ref",
+                                "value": {
+                                  "ptr": {
+                                    "base": {
+                                      "scope": "document"
+                                    },
+                                    "steps": [
+                                      {
+                                        "sel": "key",
+                                        "name": ".yo"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "thumbnails"
+                                      },
+                                      {
+                                        "sel": "key",
+                                        "name": "xxh64-09ea0c272066f155-256x256.jpg"
+                                      }
+                                    ]
+                                  }
                                 }
-                              ]
-                            }
+                              }
+                            ]
                           }
                         }
                       ]
@@ -1020,6 +1124,19 @@
                 "anchors": [],
                 "entries": [
                   {
+                    "key": "body.yo",
+                    "edge": "contain",
+                    "value": {
+                      "kind": "scalar",
+                      "value": "!!<*yamlover: $defs: chapter>\nFish\n# The Fish chapter — its own directory chapter. Positional body: prose, the `fish-tank.png`\n# image chunk (a sibling file here), and a PlantUML state diagram of the nitrogen cycle.\ndescription: A quiet window into another world\n- |\n  An aquarium is a small ecosystem, and **water quality is everything.**\n- *: fish-tank.png\n- |\n  Cycle a new tank for weeks before adding fish, so helpful bacteria can establish. Feed\n  sparingly: uneaten food fouls the water faster than anything else.\n- |\n  The bacteria you are waiting for run the **nitrogen cycle**, turning toxic waste into\n  something far milder:\n- !!<format: text/x-plantuml> |\n  @startuml\n  [*] --> Ammonia : fish waste\n  Ammonia --> Nitrite : Nitrosomonas\n  Nitrite --> Nitrate : Nitrobacter\n  Nitrate --> [*] : water change\n  @enduml\n\"fish-tank.png\":\n  .yo:\n    thumbnails:\n      [256, 256]: *: .yo: thumbnails: xxh64-09ea0c272066f155-256x256.jpg\n",
+                      "array": false,
+                      "set": false,
+                      "yo": false,
+                      "anchors": [],
+                      "entries": []
+                    }
+                  },
+                  {
                     "key": "thumbnails",
                     "edge": "contain",
                     "value": {
@@ -1078,6 +1195,19 @@
           "yo": false,
           "anchors": [],
           "entries": [
+            {
+              "key": "body.yo",
+              "edge": "contain",
+              "value": {
+                "kind": "scalar",
+                "value": "!!<*yamlover: $defs: chapter>\nThe Pet Keeper's Handbook\n# A recursive document tree (a pet-keeping handbook) where EACH chapter is its own directory.\n# This root's positional body interleaves prose (default markdown), an image chunk (`*png`\n# pointer — format from the .png extension), a PlantUML diagram (tagged `!!<format: …>`), and\n# three SUBCHAPTERS that are `*`-pointers to the `dogs/`, `cats/`, `fish/` subdirectories — each\n# its own directory chapter with its own `.yo/body.yo`. Spec: docs/documents/chapter, docs/language.\ndescription: A friendly guide to living with animals\n- |\n  **Pets share our homes, our routines, and a surprising amount of our furniture.** This\n  handbook collects what every keeper learns sooner or later, one species at a time.\n- |\n  Read the chapter for your companion, but the first rule is universal: *watch, listen, and\n  be patient.*\n- *: cover-paw.png\n- |\n  Three needs run through every chapter — **company, exercise, and a clean environment** —\n  weighted differently for each animal:\n- !!<format: text/x-plantuml> |\n  @startmindmap\n  * Pet keeping\n  ** Dogs\n  *** Daily walks\n  *** Consistent training\n  ** Cats\n  *** Vertical space\n  *** A clean litter box\n  ** Fish\n  *** Water quality\n  *** Sparing feeding\n  @endmindmap\n- *: dogs\n- *: cats\n- *: fish\n- |\n  **Whatever shares your home**, the craft is the same: notice what it needs before it has to\n  ask. Return to the chapter above whenever a new question arrives — the animals are patient\n  teachers.\n\"cover-paw.png\":\n  .yo:\n    thumbnails:\n      [256, 256]: *: .yo: thumbnails: xxh64-429a227f097399ce-256x256.jpg\n",
+                "array": false,
+                "set": false,
+                "yo": false,
+                "anchors": [],
+                "entries": []
+              }
+            },
             {
               "key": "thumbnails",
               "edge": "contain",

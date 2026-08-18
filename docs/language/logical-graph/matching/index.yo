@@ -25,7 +25,7 @@ description: types compose as predicates; consumers carry their own acceptance f
   closed shape ("a bare string, no fields") by testing every facet. Among the consumers a node
   satisfies, **specificity** picks the winner: a stricter formula outranks a looser one.
 - >
-  A worked failure this design removes: a markdown chunk gains a `yo:` overlay. Facet-wise it
+  A worked failure this design removes: a markdown chunk gains a `.yo:` overlay. Facet-wise it
   is now a string-valued node with keyed elements. A registry keyed on the exact kind-and-format pair
   misses it; the tolerant formula - format only - still claims it, and the annotation layer reads the
   keyed facet separately.

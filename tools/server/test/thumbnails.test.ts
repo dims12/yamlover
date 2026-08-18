@@ -91,17 +91,19 @@ describe("GET /api/thumb", () => {
     expect(sidecars).toHaveLength(1);
     expect(sidecars[0]).toMatch(/^xxh64-[0-9a-f]+-320x240\.jpg$/);
 
-    // the overlay grew a yamlover-thumbnails entry keyed by the [w, h] tuple, with a
-    // DOCUMENT-relative pointer into the hidden .yo/ subtree
+    // the overlay grew a `.yo: thumbnails:` entry keyed by the [w, h] tuple, with a
+    // DOCUMENT-relative pointer into the hidden .yo/ subtree (the canonical spelling — a
+    // legacy `yamlover-thumbnails:` file would keep growing under its own key instead)
     const body = fs.readFileSync(overlayFile(root), "utf8");
-    expect(body).toContain("yamlover-thumbnails:");
+    expect(body).toContain("thumbnails:");
+    expect(body).not.toContain("yamlover-thumbnails:");
     expect(body).toMatch(/\[320, 240\]: \*:\.yo:thumbnails:/);
 
     // and the overlay parsed: the thumbnail is a real node in the graph under the source blob — a
     // `[320, 240]` ref edge (the `*` pointer) resolving to the sidecar's image/jpeg blob.
     const probe = new Store(path.join(root, ".yo", "index.db"));
     onTestFinished(() => probe.close());
-    const edge = probe.relationships(":pic.png:yamlover-thumbnails").out.find((e) => e.label === "[320, 240]");
+    const edge = probe.relationships(":pic.png:.yo:thumbnails").out.find((e) => e.label === "[320, 240]");
     expect(edge?.kind).toBe("ref");
     expect(probe.node(edge!.to)?.format).toBe("image/jpeg");
   });
@@ -132,7 +134,7 @@ describe("GET /api/thumb", () => {
     await callStream(h, "/api/thumb", { path: ":pic.png", w: "128", h: "128" }); // births the sidecar node
     const probe = new Store(path.join(root, ".yo", "index.db"));
     onTestFinished(() => probe.close());
-    const edge = probe.relationships(":pic.png:yamlover-thumbnails").out.find((e) => e.label === "[128, 128]");
+    const edge = probe.relationships(":pic.png:.yo:thumbnails").out.find((e) => e.label === "[128, 128]");
     expect(edge).toBeTruthy();
 
     const r = await callStream(h, "/api/thumb", { path: edge!.to, w: "64", h: "64" });

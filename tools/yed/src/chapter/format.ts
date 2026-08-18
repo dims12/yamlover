@@ -17,7 +17,7 @@ import { schemaText } from "../../../parser/ts/src/serialize-yamlover.ts";
 import type { Node, Path, Value } from "../state";
 import { nodeAt } from "../state";
 import type { Document } from "../state";
-import { isOverlayKey } from "./roles";
+import { isHiddenEntryKey } from "./roles";
 
 /** What a block is. `row` and `row-cell` are positions INSIDE a table, not tags of their own. */
 export type BlockFormat = "chapter" | "table" | "bullets" | "numbered" | "chunk" | "row" | "row-cell";
@@ -172,13 +172,14 @@ export function chunkModeOf(v: Value): ChunkMode {
   // never a subchapter, never prose; edited as inline yamlover source, whatever its shape
   if (n.meta?.yo === true) return "source";
   const explicit = explicitFormatOf(n);
-  // an ANNOTATED scalar — a chunk whose only entries are the annotation OVERLAY keys — is
-  // still the leaf it was (roles.ts row 6: the overlay is the layer's storage, never body);
-  // without this it would read as an untagged container and fold into a spurious subchapter
+  // an ANNOTATED scalar — a chunk whose only entries are HIDDEN-BY-NAME keys (the overlay in
+  // either spelling, dot-keys, legacy `yamlover-*`) — is still the leaf it was (roles.ts row
+  // 6: hidden keys are the layer's storage, never body); without this it would read as an
+  // untagged container and fold into a spurious, face-empty subchapter
   const overlayOnly =
     n.kind === "scalar" &&
     (n.entries ?? []).length > 0 &&
-    (n.entries ?? []).every((e) => isOverlayKey(e.key)) &&
+    (n.entries ?? []).every((e) => isHiddenEntryKey(e.key)) &&
     metaOf(n).chapterWrapped !== true;
   if (isChapterContainer(n) && !overlayOnly) {
     const declared = declaredFormat(n);

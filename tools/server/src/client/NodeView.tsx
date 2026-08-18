@@ -235,7 +235,7 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
     if (rs.some((r) => r.name === eff)) return null; // a renderer page — not this pane
     if (isSchema(eff)) return null; // schema fragments walk SCHEMA keys, not node paths
     if (node.type === "binary" || node.valueType === "binary") return null;
-    const yedMounted = unlocked && !node.parseError && isEditableData(eff, node) && !isJsonFamily(node.concrete);
+    const yedMounted = unlocked && !node.parseError && !node.special && isEditableData(eff, node) && !isJsonFamily(node.concrete);
     return yedMounted ? null : path;
   })();
   useFragmentScrollSpy(dataRootRef, node);
@@ -586,7 +586,14 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
   // (effectiveFormat), so the bar order is uniform while only the default differs by node kind;
   // an inapplicable standard/raw tab renders DISABLED in place, never removed (a stable bar).
   const { tabs, allRenderers } = tabModel(node);
-  const effective = effectiveFormat(format, node, tabs);
+  // THE OVERLAY LAW (`header.special`): an engine-managed `.yo` entry browsed directly loses its
+  // magic — the generic yamlover data view whatever its renderer would be (the !!yo/DataChunk
+  // precedent, page-scale), and never editable. Binary stays on its byte view: an image's bytes
+  // ARE its dumb view, and the data view has no spelling for them.
+  const specialOverlay = node.special === "overlay";
+  const effective = specialOverlay && node.type !== "binary" && node.valueType !== "binary"
+    ? "yamlover"
+    : effectiveFormat(format, node, tabs);
   // A tab button shows an ICON; its human name (a renderer's `label`, else the format slug)
   // becomes the hover tooltip. The data views' glyphs: the yamlover mark itself for the native
   // syntax — the one representation that IS the product, so it gets the logo rather than a
@@ -597,14 +604,21 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
     json5p: "{}",
     "yamlover/schema": "$",
   };
-  const iconOf = (f: Format): ReactNode => allRenderers.find((r) => r.name === f)?.icon ?? DATA_ICONS[f] ?? f;
+  // A PLAIN-TEXT tab glyph (§, $, {}, ∑, •, …) rides a `.tab-glyph` span: emoji icons render
+  // full-color whatever the button says, and the drawn SVGs stroke a full 1.25em box — a bare
+  // 14px text glyph beside them reads a class lighter, worst at fractional browser zoom
+  // (the reported washed-out §). The span gives text the same visual weight, uniformly.
+  const iconOf = (f: Format): ReactNode => {
+    const icon = allRenderers.find((r) => r.name === f)?.icon ?? DATA_ICONS[f] ?? f;
+    return typeof icon === "string" ? <span className="tab-glyph">{icon}</span> : icon;
+  };
   const renderer = allRenderers.find((r) => r.name === effective) ?? null;
   const showRendered = renderer != null;
   // an editable view — gates the lock button and the F2/Esc shortcut. Either a renderer page
   // (chapter/task) or the DATA view (yamlover/json5p) whose scalars edit in place. A node
   // whose source FAILED TO PARSE is never editable: the value on screen is the degraded
   // fallback, and saving it would overwrite the original text (the server refuses too).
-  const isEditableView = !node.parseError && (showRendered ? !!renderer && EDITABLE_RENDERERS.has(renderer.name) : isEditableData(effective, node));
+  const isEditableView = !node.parseError && !specialOverlay && (showRendered ? !!renderer && EDITABLE_RENDERERS.has(renderer.name) : isEditableData(effective, node));
   editableRef.current = isEditableView;
   // the document this node belongs to — the base its `#`-fragment anchors are measured from
   const docPath = node.documentPath ?? path;
@@ -673,6 +687,7 @@ export const NodeView = memo(function NodeView({ path, format, refreshSignal = 0
             disabled={!isEditableView}
             title={
               node.parseError ? "The source failed to parse — fix the file on disk first"
+              : specialOverlay ? "Engine-managed (.yo) — read-only; annotate/board actions write here"
               : !isEditableView ? "This view is not editable"
               : unlocked ? "Editing — click or Esc to finish"
               : "Read-only — click or F2 to edit"

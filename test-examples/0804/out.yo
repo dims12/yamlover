@@ -1,2 +1,6 @@
 kind: overlay-only
 n: 1
+.yo:
+  body.yo: |
+    kind: overlay-only
+    n: 1

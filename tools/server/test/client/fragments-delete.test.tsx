@@ -35,10 +35,11 @@ describe("Fragments panel — delete from the RHS", () => {
 
     await act(async () => { fireEvent.click(dialog!.querySelector("button")!); }); // Delete
 
-    // both tags deleted, targeting the fragment's node path (decode params — space may be `+` or %20)
+    // both tags deleted, targeting the fragment's node path (decode params — space may be `+` or %20).
+    // No wire `fragmentPath` in this fixture → the client's canonical `.yo` fallback spells it.
     await waitFor(() => expect(calls.filter((c) => c.method === "DELETE")).toHaveLength(2));
     const params = calls.map((c) => new URL("http://x" + c.url.replace(/^[^?]*/, "")).searchParams);
-    expect(params.every((p) => p.get("target") === ":60-doc.yo:yo:fragments:abc123")).toBe(true);
+    expect(params.every((p) => p.get("target") === ":60-doc.yo:.yo:fragments:abc123")).toBe(true);
     const tags = params.map((p) => p.get("tag"));
     expect(tags).toContain(":yamlover:ontos:fifth tag");
     expect(tags).toContain(":yamlover:ontos:forth tag");
@@ -73,7 +74,7 @@ describe("Fragments panel — delete from the RHS", () => {
     expect(tag).toBeTruthy();
     await act(async () => { fireEvent.click(tag); });
     expect(onNavigate).not.toHaveBeenCalled();
-    expect(decodeURIComponent(window.location.hash.slice(1))).toBe("/yo/fragments/abc123");
+    expect(decodeURIComponent(window.location.hash.slice(1))).toBe("/.yo/fragments/abc123");
   });
 
   it("a PDF region shows its crop, not a type label", () => {

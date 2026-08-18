@@ -24,6 +24,7 @@ import { parseJson5p } from '../../../parser/ts/src/json5p.ts';
 import { Store } from './store.ts';
 import type { FileRecord } from './store.ts';
 import { pathOfSegs } from '../../../parser/ts/src/pathseg.ts';
+import { isHiddenEntryKey } from '../../../parser/ts/src/overlay-keys.ts';
 import { graftTaxonomy, YAMLOVER_AUTHORITY } from './mounts.ts';
 
 // xxh64 (xxhash-wasm) is the content/manifest hash: identity, not security — chosen for SPEED
@@ -350,10 +351,27 @@ export function* walkTreeGen(absDir: string, opts: WalkOptions = {}): Generator<
     builtinDefs = (graftTaxonomy() ?? builtinYamloverGraft()).defs;
   }
   applySchemas(root, defsRoot, builtinDefs); // propagate attached !!<…> schemas down the instance
+  stampHiddenKeys(root); // hidden-by-name entries (dot-keys, legacy technical keys) gain the flag
   return {
     doc: { root, source: { concrete: 'dir', uri: absDir } },
     files: [...ctx.files.values()],
   };
+}
+
+/** HIDDEN BY NAME (overlay-keys.ts): stamp `meta.hidden` on every entry value whose key is a
+ *  dot-key or a legacy technical spelling (`yo`, `yamlover-thumbnails`, `yamlover-annotations`),
+ *  so every flag consumer — the store's toc CTE, the projections, the queries — hides them
+ *  without knowing the naming rule. A SECOND producer of the flag beside the `.yo/` dir node
+ *  and the `yamlover` graft, never their replacement. Idempotent; runs at every document
+ *  finalization (full walk, single-file splice, standalone preview). */
+export function stampHiddenKeys(root: Node): void {
+  for (const e of root.entries ?? []) {
+    if (isPointer(e.value)) continue;
+    if (isHiddenEntryKey(e.key) && e.value.meta?.hidden !== true) {
+      e.value.meta = { ...e.value.meta, hidden: true };
+    }
+    stampHiddenKeys(e.value);
+  }
 }
 
 /** Build the index DB for a directory tree: walk → IR → SQLite at <root>/.yo/index.db.
@@ -428,6 +446,7 @@ export async function reindexAsyncDoc(
     const t0 = Date.now();
     try {
       snap.root.meta = { ...snap.root.meta, documentRoot: true };
+      stampHiddenKeys(snap.root); // partial frames hide by name too — no transient TOC leak
       store.indexDocument({ root: snap.root, source: { concrete: 'dir', uri: absDir } });
       minInterval = Math.max(partialMs, 5 * (Date.now() - t0));
       const added = snap.filePaths.slice(reported);
@@ -502,6 +521,7 @@ export async function reindexPathAsync(
   while (!r.done) r = gen.next();
   target.arr[target.i].value = r.value; // splice the fresh subtree
   applySchemas(cachedDoc.root, findDefsRoot(absDir), graftDefs(cachedDoc.root)); // re-derive formats top-down
+  stampHiddenKeys(cachedDoc.root); // re-stamp hidden-by-name over the spliced subtree (idempotent)
 
   const relPrefix = dirSegs.join('/') + '/';
   const P = pathOfSegs(dirSegs); // canonical store-path tokens (a spacey dir name rides quoted)
@@ -553,7 +573,8 @@ async function countChildren(absRoot: string, opts: WalkOptions, onCount?: (n: n
     }
     let top = 0;
     for (const e of entries) {
-      if (skipInYamloverDir(e.name)) continue;
+      // mirror yamloverDirNode: body.yo/meta.yo are indexed as dumb raw nodes too
+      if (skipInYamloverDir(e.name) && e.name !== BODY_FILE && e.name !== 'meta.yo') continue;
       const abs = path.join(dir, e.name);
       if (opts.ignore?.(abs)) continue;
       n++; top++;
@@ -805,16 +826,21 @@ function* dirNode(dir: string, ctx: Ctx, inherited?: Meta): Generator<WalkProgre
 }
 
 /** A `.yo/` overlay dir → a HIDDEN content subtree (its derived `thumbnails/`/`fragments/`
- *  sidecars, addressable as `*:.yo:…`), or null when nothing indexable remains (overlay /
- *  index-db only). The engine's own files (overlays, the index db, nested dotfiles) are skipped;
+ *  sidecars, addressable as `*:.yo:…`), or null when nothing indexable remains (index-db only).
+ *  The engine's own files (the index db, nested dotfiles incl. `.trash/`) are skipped;
  *  surviving entries walk through the normal {@link childNode}, so sidecar blobs index as usual.
+ *  `body.yo` / `meta.yo` — CONSUMED overlays (applyBody/loadMeta) — are additionally indexed as
+ *  DUMB raw-text scalar nodes (`:.yo:body.yo`), never a second parse, never a document root:
+ *  the overlay is hidden, not secret, so its source is inspectable in place (read-only — the
+ *  edit routes refuse the `.yo` subtree; `settings.yo` alone keeps its editable childNode walk).
  *  The node is flagged `meta.hidden` so the TOC/explorer omit it. */
 function* yamloverDirNode(absYamlover: string, ctx: Ctx): Generator<WalkProgress, Node | null, void> {
   let names: string[];
+  const isRawOverlay = (n: string): boolean => n === BODY_FILE || n === 'meta.yo';
   try {
     names = fs
       .readdirSync(absYamlover)
-      .filter((n) => !skipInYamloverDir(n))
+      .filter((n) => !skipInYamloverDir(n) || isRawOverlay(n))
       .filter((n) => !ctx.opts.ignore?.(path.join(absYamlover, n)))
       .sort();
   } catch {
@@ -825,6 +851,21 @@ function* yamloverDirNode(absYamlover: string, ctx: Ctx): Generator<WalkProgress
   ctx.open?.push({ name: path.basename(absYamlover), entries, meta: { hidden: true } });
   for (const name of names) {
     const abs = path.join(absYamlover, name);
+    if (isRawOverlay(name)) {
+      // the whole-file text-scalar law (textScalar): value === raw, so the wire spells it as
+      // a block scalar. `text/plain` is load-bearing: an UNTAGGED string scalar is scanned for
+      // prose links (resolve.ts PROSE_TEXT_FORMATS includes `undefined`), and the overlay's
+      // pointers are already live in the MERGED parent — scanning this raw copy too would
+      // double every rewrite (overlapping mv edits). Oversized overlays are skipped like any
+      // unslurpable text.
+      try {
+        if (fs.statSync(abs).size > MAX_TEXT_BYTES) continue;
+        const text = readTracked(ctx, abs).toString('utf8');
+        entries.push({ key: name, edge: 'contain', value: { kind: 'scalar', value: text, raw: text, meta: { derivedFormat: 'text/plain', span: { uri: abs, start: 0, end: text.length } } } });
+        yield { done: ++ctx.count, path: rel(ctx, abs) };
+      } catch { /* unreadable — the overlay reader will surface its own error */ }
+      continue;
+    }
     const child = yield* childNode(abs, undefined, ctx);
     entries.push({ key: name, edge: 'contain', value: child });
     yield { done: ++ctx.count, path: rel(ctx, abs) };
@@ -1093,11 +1134,13 @@ function applySchemas(root: Node, defsRoot: string, builtinDefs?: Map<string, No
   // scalar and a FILE-backed scalar stay leaves — chunks, which ARE title-only content
   // (docs/documents/chapter). The overlay keys an annotated chunk gains (docs/annotations) are not body —
   // a scalar with only those stays a chunk.
-  const OVERLAY_KEYS = new Set(['yo']);
+  // HIDDEN-BY-NAME keys (overlay-keys.ts: `.yo` in either spelling, any dot-key, the legacy
+  // `yamlover-*` technical keys) never change a node's SHAPE — an annotated chunk that
+  // carries only these stays a chunk (its face hides them; an empty subchapter would lie).
   const elemIsContainer = (el: Node): boolean =>
     el.kind === 'mapping' ||
     (el.meta as { dirBacked?: boolean } | undefined)?.dirBacked === true ||
-    (el.entries ?? []).some((e) => e.key == null || !OVERLAY_KEYS.has(e.key));
+    (el.entries ?? []).some((e) => e.key == null || !isHiddenEntryKey(e.key));
 
   // the ORDINAL members a sweep/clause can describe: keyless elements plus ANCHORED members —
   // position-granted by the body's pointer array (`meta.anchored`) — which are the chapter's
@@ -1186,9 +1229,11 @@ function applySchemas(root: Node, defsRoot: string, builtinDefs?: Map<string, No
         if (e.value.meta?.yo === true) continue;
         const declared = (membersNode ? field(membersNode, e.key) : null)
           ?? (props && !isPointer(props) ? field(props, e.key) : null);
-        // a declared clause wins; else `others:` sweeps (never the annotation-overlay keys —
-        // a NEW keyword gets clean semantics); else the legacy additionalProperties, untouched
-        const sub = declared ?? (others && !OVERLAY_KEYS.has(e.key) ? others : null) ?? addl;
+        // a declared clause wins; else `others:` sweeps, else the legacy additionalProperties —
+        // but NEITHER sweep ever touches a hidden-by-name key (the overlay in either spelling,
+        // dot-keys, legacy yamlover-*): the technical layer is never schema-swept content, or a
+        // `.yo` node under an onto taxonomy would itself read as an onto
+        const sub = declared ?? (isHiddenEntryKey(e.key) ? null : others ?? addl);
         if (sub) apply(e.value, sub, depth + 1);
       }
       // the ordinal facet: the k-th keyless clause claims the k-th ordinal member; the sweep
@@ -1315,12 +1360,21 @@ function applyBody(file: string | null, node: Mapping, ctx: Ctx): Node {
     const bi = bodyAt.get(e.key);
     if (bi !== undefined) { bodyOrder[bi] = augmentEntry(bodyOrder[bi], e); continue; }
     const ci = childAt.get(e.key);
-    if (ci !== undefined && children[ci]) { children[ci] = augmentEntry(children[ci]!, e); continue; }
+    if (ci !== undefined && children[ci]) {
+      // THE `.yo` COLLISION: an authored `.yo:` body key meets the `.yo/` DIR node (sidecar
+      // blobs + settings.yo). Plain augmenting would REPLACE entries wholesale and lose one
+      // side — union-merge instead, so authored fragments/lanes AND disk sidecars both survive.
+      children[ci] = e.key === YAMLOVER_DIR ? mergeOverlayEntry(children[ci]!, e) : augmentEntry(children[ci]!, e);
+      continue;
+    }
     bodyAt.set(e.key, bodyOrder.length);
     bodyOrder.push(e); // an overlay-ONLY key: it exists nowhere on disk, so the body places it
   }
   const unlisted = children.filter((e): e is Entry => e !== null);
-  const remainder = unlisted.length > 0;
+  // a HIDDEN unlisted child (the `.yo` overlay node) is plumbing, not an authored remainder —
+  // like the root graft (THE UNIFORM GRAFT below), it must never demote a fully-referenced
+  // body's array projection to a mix
+  const remainder = unlisted.some((e) => isPointer(e.value) || e.value.meta?.hidden !== true);
   // `meta.anchored` names the members whose position came from the body — their keys are storage
   // provenance a projection shows as a derived `&name` anchor, and they count as ORDINAL, not
   // keyed. It is per-key, not a prefix count: a body that mixes keyed fields with its positional
@@ -1346,7 +1400,10 @@ function applyBody(file: string | null, node: Mapping, ctx: Ctx): Node {
   // omni. An explicitly authored null (`~`/`null`) is always a value.
   if (body.kind === 'scalar') {
     const emptySelf = body.value === null && (body.raw == null || body.raw.trim() === '');
-    if (!(emptySelf && entries.length > 0)) {
+    // only VISIBLE members demote an empty body to an empty overlay — hidden plumbing (the
+    // `.yo` node) must not turn a truly empty document into a spurious mapping
+    const visible = entries.some((e) => isPointer(e.value) || e.value.meta?.hidden !== true);
+    if (!(emptySelf && visible)) {
       return { kind: 'scalar', value: body.value, raw: body.raw, entries, array: false, meta };
     }
   }
@@ -1366,6 +1423,31 @@ function augmentEntry(base: Entry, overlay: Entry): Entry {
     meta: b.meta || o.meta ? { ...b.meta, ...o.meta } : undefined,
   } as Node;
   return { key: base.key, edge: 'contain', value };
+}
+
+/** UNION-merge the authored `.yo:` body entry over the `.yo/` DIR node: same-named children
+ *  merge recursively (the AUTHORED side wins at leaves), disk-only names (sidecar blob dirs,
+ *  settings.yo) stay, authored-only names (fragments/lanes/thumbnails mappings) join. Neither
+ *  side is lost when a directory carries both; the result stays hidden. Name collisions at the
+ *  leaves are structurally avoided: crops are `<slug>.png`, thumbs `xxh64-…-WxH.jpg`. */
+function mergeOverlayEntry(dirE: Entry, bodyE: Entry): Entry {
+  if (isPointer(dirE.value) || isPointer(bodyE.value)) return bodyE;
+  return { key: dirE.key, edge: 'contain', value: mergeOverlayNode(dirE.value, bodyE.value) };
+}
+
+function mergeOverlayNode(disk: Node, body: Node): Node {
+  const out: Entry[] = (body.entries ?? []).slice();
+  const at = new Map<string, number>();
+  out.forEach((e, i) => { if (typeof e.key === 'string') at.set(e.key, i); });
+  for (const d of disk.entries ?? []) {
+    const i = typeof d.key === 'string' ? at.get(d.key) : undefined;
+    if (i === undefined) { out.push(d); continue; } // disk-only name — appended after the authored ones
+    const b = out[i];
+    if (!isPointer(b.value) && !isPointer(d.value)) {
+      out[i] = { ...b, value: mergeOverlayNode(d.value, b.value) }; // same name both sides — recurse
+    } // a pointer on either side: the authored entry stands
+  }
+  return { ...body, entries: out, meta: { ...disk.meta, ...body.meta, hidden: true } } as Node;
 }
 
 /** The final string key a sibling pointer addresses (`*anyfile01` → "anyfile01"); null if not

@@ -1,4 +1,9 @@
 anyfile01: Alice
 alsoany02: 42
 andany03.json: true
+.yo:
+  body.yo: |-
+    - *anyfile01
+    - *alsoany02
+    - *andany03.json
 andany04.json: "string"

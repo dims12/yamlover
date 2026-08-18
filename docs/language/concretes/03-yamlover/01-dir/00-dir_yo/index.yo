@@ -20,11 +20,21 @@ description: Directory with the control .yo subdirectory - the overlays live und
   types, formats, decoding, what turns a file's bytes into a value. Either overlay is optional,
   and the mere presence of `.yo/` is the marker that promotes the concrete.
 - >
-  The overlay subtree is HIDDEN, not secret: `body.yo`, `meta.yo` and the index cache are read by
-  the engine and never appear as entries, while `settings.yo` and the two sidecar directories ARE
-  indexed - hidden from the table of contents, yet addressable (`*:.yo:settings.yo`,
-  `*:.yo:thumbnails:cover.png`). `.trash/` alone is skipped ENTIRELY - a deleted member leaves the
+  The overlay subtree is HIDDEN, not secret: everything under `.yo/` except the index cache is
+  addressable when navigated directly (`*:.yo:settings.yo`, `*:.yo:thumbnails:cover.png`,
+  `*:.yo:body.yo`), yet none of it appears in the table of contents. `body.yo` and `meta.yo` are
+  read by the engine (the overlay is APPLIED to the directory) and additionally browse as dumb
+  raw-source nodes - inspectable, read-only. `settings.yo` is the one hand-edited file: browsable
+  AND editable. `.trash/` alone is skipped ENTIRELY - a deleted member leaves the
   projection while its storage survives here, recoverable. Nothing else may live under `.yo/` - see the
   [layout invariants](*::language:concretes:02-invariants). The storage-wide rules live in
   [the storage axis](*::language:concretes:00-storage) and the
   [choosing rules](*::language:concretes:01-choosing).
+- >
+  The same `.yo` name is the reserved TECHNICAL KEY inside a document
+  ([annotations](*::annotations:storage)): `.yo: fragments:`, `.yo: lanes:`, `.yo: thumbnails:`.
+  One namespace, two realizations - a key in a document, a subdirectory on disk - and the same
+  law for both: hidden, engine-managed, browsable dumb when addressed directly. More generally,
+  ANY key starting with `.` is hidden by default - absent from the table of contents, member
+  listings and query results, reachable by direct path or link. The legacy spellings `yo:` and
+  `yamlover-thumbnails:` are read forever, never written anew.

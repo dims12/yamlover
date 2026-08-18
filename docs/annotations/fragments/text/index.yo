@@ -4,9 +4,8 @@ description: a quoted selection - the selected text as the value, plus disambigu
   A **text fragment** (prose, a markdown chunk) locates its region by **quotation, not by
   character offsets**. The member's **self-value is the selected text**, copied verbatim;
   `prefix` and `suffix` carry short runs of the text immediately before and after it:
-- !!yo
-  'reads the file twice: once to scan, once to build'
-  yo: fragments:
+- !!yo 'reads the file twice: once to scan, once to build'
+  .yo: fragments:
     - once to scan
       type: text
       prefix: 'reads the file twice: '
