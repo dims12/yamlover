@@ -10,6 +10,12 @@ You can [read the full documentation](https://yamlover.inthemoon.net/docs?utm_so
 which is made with yamlover you can click through, or watch the walkthroughs on
 [YouTube](https://www.youtube.com/@yamloverlay).
 
+## Project status
+
+The project is an experimental proof of concept at the incubation stage. 100%
+of the code and about 90% of the documentation are written by AI (Claude Code,
+Cursor, and others).
+
 ## Motivations
 
 **Humans and LLMs need the same substrate.** Humans want prose, headings,

@@ -24,6 +24,12 @@ description: YAML with pointers – the language, its storage model, and its doc
   - Local-first data ownership and support for cloudless work
   - Controlled synchronization and collaboration over LAN or the internet
 
+- Project status
+
+  - >
+    The project is an experimental proof of concept at the incubation stage. 100% of the code and
+    about 90% of the documentation are written by AI (Claude Code, Cursor, and others).
+
 - >
   **Yamlover** stands for "YAML overlay", not "Yam lover". YAML is a concise, human-readable data
   structure language that has been around for years. We have modified and enhanced it, allowing it to
@@ -37,6 +43,9 @@ description: YAML with pointers – the language, its storage model, and its doc
   - Systematic pointer support has been added, enabling full support for directed, cyclic graphs
   - Yamlover can overlay filesystem directories, binary files, and other formats
   - Markup (Marklower) is integrated into the language
+
+- >
+
 
 - >
   Yamlover still supports JSON, JSON5, and YAML. See the [full differences documentation](*::language:vs-yaml) here.
